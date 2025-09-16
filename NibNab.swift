@@ -12,55 +12,55 @@ struct NibColor {
     let hex: String
     let nsColor: NSColor
 
-    static let pink = NibColor(
-        name: "Peach",
-        hex: "#FFB6C1",
-        nsColor: NSColor(red: 1.0, green: 0.714, blue: 0.757, alpha: 1.0)
+    static let peach = NibColor(
+        name: "Soft Peach",
+        hex: "#FFB5A7",
+        nsColor: NSColor(red: 1.0, green: 0.71, blue: 0.655, alpha: 1.0)
     )
 
-    static let blue = NibColor(
-        name: "Lavender",
-        hex: "#9370DB",
-        nsColor: NSColor(red: 0.576, green: 0.439, blue: 0.859, alpha: 1.0)
+    static let lavender = NibColor(
+        name: "Muted Lavender",
+        hex: "#C8A2C8",
+        nsColor: NSColor(red: 0.784, green: 0.635, blue: 0.784, alpha: 1.0)
     )
 
-    static let yellow = NibColor(
-        name: "Sky",
-        hex: "#87CEEB",
-        nsColor: NSColor(red: 0.529, green: 0.808, blue: 0.922, alpha: 1.0)
+    static let sky = NibColor(
+        name: "Pale Sky",
+        hex: "#A8DADC",
+        nsColor: NSColor(red: 0.659, green: 0.855, blue: 0.863, alpha: 1.0)
     )
 
-    static let green = NibColor(
-        name: "Sage",
-        hex: "#95C99F",
-        nsColor: NSColor(red: 0.584, green: 0.788, blue: 0.624, alpha: 1.0)
+    static let sage = NibColor(
+        name: "Dusty Sage",
+        hex: "#B7C3A0",
+        nsColor: NSColor(red: 0.718, green: 0.765, blue: 0.627, alpha: 1.0)
     )
 
-    static let all = [pink, blue, yellow, green]
+    static let all = [peach, lavender, sky, sage]
 }
 
 // MARK: - Gradient Colors
 struct NibGradients {
-    static let pink = LinearGradient(
-        colors: [Color(red: 1.0, green: 0.898, blue: 0.706), Color(red: 1.0, green: 0.714, blue: 0.757)],
+    static let peach = LinearGradient(
+        colors: [Color(red: 1.0, green: 0.71, blue: 0.655), Color(red: 0.96, green: 0.65, blue: 0.6)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
-    static let blue = LinearGradient(
-        colors: [Color(red: 0.863, green: 0.745, blue: 0.976), Color(red: 0.576, green: 0.439, blue: 0.859)],
+    static let lavender = LinearGradient(
+        colors: [Color(red: 0.784, green: 0.635, blue: 0.784), Color(red: 0.72, green: 0.58, blue: 0.72)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
-    static let yellow = LinearGradient(
-        colors: [Color(red: 0.678, green: 0.847, blue: 0.902), Color(red: 0.529, green: 0.808, blue: 0.922)],
+    static let sky = LinearGradient(
+        colors: [Color(red: 0.659, green: 0.855, blue: 0.863), Color(red: 0.6, green: 0.8, blue: 0.82)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
-    static let green = LinearGradient(
-        colors: [Color(red: 0.741, green: 0.843, blue: 0.776), Color(red: 0.584, green: 0.788, blue: 0.624)],
+    static let sage = LinearGradient(
+        colors: [Color(red: 0.718, green: 0.765, blue: 0.627), Color(red: 0.66, green: 0.71, blue: 0.57)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
@@ -104,7 +104,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let contentView = ContentView()
             .environmentObject(appState)
 
-        popover.contentSize = NSSize(width: 420, height: 400)
+        popover.contentSize = NSSize(width: 440, height: 420)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: contentView)
 
@@ -201,7 +201,7 @@ class EventMonitor {
 // MARK: - App State
 @MainActor
 class AppState: ObservableObject {
-    @Published var selectedColor: NibColor = NibColor.pink
+    @Published var selectedColor: NibColor = NibColor.peach
     @Published var isMonitoring = true
     @Published var clips: [String: [Clip]] = [:]
 
@@ -350,20 +350,35 @@ class StorageManager {
 // MARK: - Main Content View
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
-    @State private var selectedTab: String = "Peach"
+    @State private var selectedTab: String = "Soft Peach"
     @State private var hoveredTab: String? = nil
 
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     Image(systemName: "highlighter")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(NibGradients.pink)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color(red: 1.0, green: 0.71, blue: 0.655),
+                                        Color(red: 0.659, green: 0.855, blue: 0.863)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                     Text("NibNab")
-                        .font(.system(size: 20, weight: .heavy, design: .rounded))
-                        .foregroundStyle(NibGradients.pink)
+                        .font(.system(size: 24, weight: .black, design: .rounded))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color(red: 1.0, green: 0.71, blue: 0.655),
+                                        Color(red: 0.784, green: 0.635, blue: 0.784),
+                                        Color(red: 0.659, green: 0.855, blue: 0.863)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                 }
 
                 Spacer()
@@ -373,20 +388,26 @@ struct ContentView: View {
                     .scaleEffect(0.7)
 
                 Button(action: { NSApp.terminate(nil) }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.secondary)
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color(NSColor.windowBackgroundColor))
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(
+                LinearGradient(
+                    colors: [Color.black.opacity(0.9), Color.black.opacity(0.8)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
 
             Divider()
 
             // Color Tabs
-            HStack(spacing: 12) {
+            HStack(spacing: 24) {
                 ForEach(NibColor.all, id: \.name) { color in
                     ColorTab(
                         color: color,
@@ -401,8 +422,13 @@ struct ContentView: View {
                     }
                 }
             }
-            .padding(12)
-            .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+            .padding(.horizontal, 32)
+            .padding(.vertical, 24)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.black.opacity(0.4))
+                    .padding(.horizontal, 16)
+            )
 
             // Content Area
             ScrollView {
@@ -412,19 +438,30 @@ struct ContentView: View {
                             ClipView(clip: clip)
                         }
                     } else {
-                        VStack(spacing: 12) {
+                        VStack(spacing: 16) {
                             Image(systemName: "doc.on.clipboard")
-                                .font(.system(size: 48))
-                                .foregroundColor(.secondary.opacity(0.3))
-                            Text("Nothing nabbed yet")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.secondary)
-                            Text("Copy something good")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary.opacity(0.7))
+                                .font(.system(size: 64, weight: .light))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [Color(red: 1.0, green: 0.71, blue: 0.655).opacity(0.6),
+                                                Color(red: 0.659, green: 0.855, blue: 0.863).opacity(0.6)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+
+                            VStack(spacing: 8) {
+                                Text("Nothing nabbed yet")
+                                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                                    .foregroundColor(Color.white.opacity(0.8))
+                                Text("Copy something good")
+                                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                                    .foregroundColor(Color.white.opacity(0.5))
+                            }
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(60)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 200)
+                        .padding(.top, 40)
                     }
                 }
                 .padding(12)
@@ -441,11 +478,29 @@ struct ContentView: View {
                     .font(.system(size: 10))
                     .foregroundColor(.secondary.opacity(0.6))
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(
+                LinearGradient(
+                    colors: [Color.black.opacity(0.6), Color.black.opacity(0.4)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(
+            ZStack {
+                Color.black.opacity(0.85)
+                LinearGradient(
+                    colors: [
+                        Color(red: 1.0, green: 0.063, blue: 0.941).opacity(0.05),
+                        Color(red: 0, green: 0.831, blue: 1.0).opacity(0.05)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        )
     }
 }
 
@@ -458,31 +513,21 @@ struct ColorTab: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(Color(color.nsColor))
-                    .frame(width: 12, height: 12)
-                    .overlay(
-                        Circle()
-                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                    )
-                    .shadow(color: Color(color.nsColor).opacity(0.3), radius: isSelected ? 4 : 2)
-
-                Text(color.name)
-                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                    .foregroundColor(isSelected ? .primary : .secondary)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? Color(color.nsColor).opacity(0.15) : Color.clear)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? Color(color.nsColor).opacity(0.4) : Color.clear, lineWidth: 1.5)
-            )
-            .scaleEffect(isHovered ? 1.05 : 1.0)
+            Circle()
+                .fill(Color(color.nsColor))
+                .frame(width: 32, height: 32)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white, lineWidth: isSelected ? 4 : (isHovered ? 2 : 0))
+                )
+                .overlay(
+                    // Selected indicator - inner ring
+                    Circle()
+                        .stroke(Color.black.opacity(0.2), lineWidth: isSelected ? 2 : 0)
+                        .frame(width: 24, height: 24)
+                )
+                .scaleEffect(isHovered ? 1.15 : (isSelected ? 1.1 : 1.0))
+                .shadow(color: isSelected ? Color.black.opacity(0.3) : (isHovered ? Color.black.opacity(0.1) : Color.clear), radius: isSelected ? 4 : 2, x: 0, y: 2)
         }
         .buttonStyle(.plain)
     }
@@ -497,29 +542,45 @@ struct ClipView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(clip.appName)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundColor(Color(red: 0.659, green: 0.855, blue: 0.863))
 
                 Spacer()
 
                 Text(timeAgo(from: clip.timestamp))
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary.opacity(0.7))
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundColor(Color.white.opacity(0.4))
             }
 
             Text(clip.text.prefix(150) + (clip.text.count > 150 ? "..." : ""))
                 .font(.system(size: 12))
                 .lineLimit(3)
-                .foregroundColor(.primary.opacity(0.9))
+                .foregroundColor(Color.white.opacity(0.9))
         }
         .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(NSColor.controlBackgroundColor).opacity(isHovered ? 1.0 : 0.6))
+            RoundedRectangle(cornerRadius: 10)
+                .fill(
+                    LinearGradient(
+                        colors: isHovered ?
+                            [Color.white.opacity(0.15), Color.white.opacity(0.1)] :
+                            [Color.white.opacity(0.08), Color.white.opacity(0.05)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color(red: 1.0, green: 0.71, blue: 0.655).opacity(0.2),
+                                Color(red: 0.659, green: 0.855, blue: 0.863).opacity(0.2)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         )
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -544,18 +605,17 @@ struct ColorPickerView: View {
     @State private var hoveredColor: String? = nil
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 20) {
             ForEach(NibColor.all, id: \.name) { color in
                 Button(action: { onColorSelected(color) }) {
                     Circle()
                         .fill(Color(color.nsColor))
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
                         .overlay(
                             Circle()
-                                .stroke(Color.white, lineWidth: 2)
+                                .stroke(Color.white.opacity(0.8), lineWidth: 2)
                         )
-                        .shadow(color: Color(color.nsColor).opacity(0.5), radius: hoveredColor == color.name ? 8 : 4)
-                        .scaleEffect(hoveredColor == color.name ? 1.2 : 1.0)
+                        .scaleEffect(hoveredColor == color.name ? 1.15 : 1.0)
                 }
                 .buttonStyle(.plain)
                 .onHover { hovering in
@@ -565,11 +625,11 @@ struct ColorPickerView: View {
                 }
             }
         }
-        .padding(16)
+        .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(NSColor.windowBackgroundColor))
-                .shadow(color: .black.opacity(0.15), radius: 12, x: 0, y: 4)
+                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
         )
     }
 }
