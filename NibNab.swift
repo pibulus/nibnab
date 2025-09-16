@@ -3,7 +3,7 @@ import SwiftUI
 
 // ===================================================================
 // NIBNAB - Color-coded clipboard collector
-// Nabbing the good bits since 2025
+// Your clipboard deserves better
 // ===================================================================
 
 // MARK: - Color Theme
@@ -13,27 +13,27 @@ struct NibColor {
     let nsColor: NSColor
 
     static let pink = NibColor(
-        name: "Pink",
-        hex: "#FF48B0",
-        nsColor: NSColor(red: 1.0, green: 0.282, blue: 0.690, alpha: 1.0)
+        name: "Peach",
+        hex: "#FFB6C1",
+        nsColor: NSColor(red: 1.0, green: 0.714, blue: 0.757, alpha: 1.0)
     )
 
     static let blue = NibColor(
-        name: "Blue",
-        hex: "#0078BF",
-        nsColor: NSColor(red: 0, green: 0.471, blue: 0.749, alpha: 1.0)
+        name: "Lavender",
+        hex: "#9370DB",
+        nsColor: NSColor(red: 0.576, green: 0.439, blue: 0.859, alpha: 1.0)
     )
 
     static let yellow = NibColor(
-        name: "Yellow",
-        hex: "#FFE800",
-        nsColor: NSColor(red: 1.0, green: 0.910, blue: 0, alpha: 1.0)
+        name: "Sky",
+        hex: "#87CEEB",
+        nsColor: NSColor(red: 0.529, green: 0.808, blue: 0.922, alpha: 1.0)
     )
 
     static let green = NibColor(
-        name: "Green",
-        hex: "#00A95C",
-        nsColor: NSColor(red: 0, green: 0.663, blue: 0.361, alpha: 1.0)
+        name: "Sage",
+        hex: "#95C99F",
+        nsColor: NSColor(red: 0.584, green: 0.788, blue: 0.624, alpha: 1.0)
     )
 
     static let all = [pink, blue, yellow, green]
@@ -42,25 +42,25 @@ struct NibColor {
 // MARK: - Gradient Colors
 struct NibGradients {
     static let pink = LinearGradient(
-        colors: [Color(red: 1.0, green: 0.4, blue: 0.7), Color(red: 1.0, green: 0.2, blue: 0.6)],
+        colors: [Color(red: 1.0, green: 0.898, blue: 0.706), Color(red: 1.0, green: 0.714, blue: 0.757)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
     static let blue = LinearGradient(
-        colors: [Color(red: 0.2, green: 0.6, blue: 1.0), Color(red: 0, green: 0.4, blue: 0.8)],
+        colors: [Color(red: 0.863, green: 0.745, blue: 0.976), Color(red: 0.576, green: 0.439, blue: 0.859)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
     static let yellow = LinearGradient(
-        colors: [Color(red: 1.0, green: 0.95, blue: 0.2), Color(red: 1.0, green: 0.85, blue: 0)],
+        colors: [Color(red: 0.678, green: 0.847, blue: 0.902), Color(red: 0.529, green: 0.808, blue: 0.922)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
     static let green = LinearGradient(
-        colors: [Color(red: 0.2, green: 0.8, blue: 0.5), Color(red: 0, green: 0.6, blue: 0.3)],
+        colors: [Color(red: 0.741, green: 0.843, blue: 0.776), Color(red: 0.584, green: 0.788, blue: 0.624)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
@@ -350,7 +350,7 @@ class StorageManager {
 // MARK: - Main Content View
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
-    @State private var selectedTab: String = "Pink"
+    @State private var selectedTab: String = "Peach"
     @State private var hoveredTab: String? = nil
 
     var body: some View {
@@ -416,10 +416,10 @@ struct ContentView: View {
                             Image(systemName: "doc.on.clipboard")
                                 .font(.system(size: 48))
                                 .foregroundColor(.secondary.opacity(0.3))
-                            Text("No \(selectedTab.lowercased()) clips yet")
+                            Text("Nothing nabbed yet")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.secondary)
-                            Text("Copy some text to get started")
+                            Text("Copy something good")
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary.opacity(0.7))
                         }
@@ -433,7 +433,7 @@ struct ContentView: View {
 
             // Footer
             HStack {
-                Text("Nabbing the good bits")
+                Text("Collecting since today")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary.opacity(0.6))
                 Spacer()
