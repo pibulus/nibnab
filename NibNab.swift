@@ -180,9 +180,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func handleAutoCopyToggle(_ enabled: Bool) {
+        print("🎯 Auto-copy toggle changed to: \(enabled)")
         if enabled {
+            print("🚀 Starting auto-copy monitor...")
             autoCopyMonitor?.start()
         } else {
+            print("🛑 Stopping auto-copy monitor...")
             autoCopyMonitor?.stop()
         }
     }
@@ -258,18 +261,27 @@ class AutoCopyMonitor {
     func start() {
         // Check if accessibility permissions are granted
         guard AXIsProcessTrusted() else {
-            print("NibNab: Accessibility permissions required for auto-copy")
+            print("🔴 NibNab: Not trusted yet, showing our own dialog...")
 
-            // Use the built-in macOS prompt that actually works
-            let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue(): true] as CFDictionary
-            let trusted = AXIsProcessTrustedWithOptions(options)
+            // Show our own cute dialog instead of trying to open settings
+            DispatchQueue.main.async {
+                let alert = NSAlert()
+                alert.messageText = "✨ NibNab needs permission!"
+                alert.informativeText = "To auto-copy selections:\n\n1. Open System Settings\n2. Go to Privacy & Security → Accessibility\n3. Toggle NibNab ON\n\nI'll wait for you! 💜"
+                alert.alertStyle = .informational
+                alert.icon = NSImage(systemSymbolName: "highlighter", accessibilityDescription: "NibNab")
+                alert.addButton(withTitle: "OK, I'll do it!")
+                alert.addButton(withTitle: "Maybe Later")
 
-            if !trusted {
-                // Start polling to check when permission is granted
-                pollForAccessibilityPermission()
+                if alert.runModal() == .alertFirstButtonReturn {
+                    // Just start polling - don't try to open settings
+                    self.pollForAccessibilityPermission()
+                }
             }
             return
         }
+
+        print("🟢 NibNab: Accessibility trusted! Starting monitor...")
 
         // Check for selected text every 0.5 seconds
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -299,11 +311,18 @@ class AutoCopyMonitor {
     }
 
     private func pollForAccessibilityPermission() {
+        var pollCount = 0
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            pollCount += 1
+            print("🔵 Poll #\(pollCount): Checking accessibility...")
+
             if AXIsProcessTrusted() {
                 timer.invalidate()
-                print("NibNab: Accessibility permissions granted!")
+                print("✅ NibNab: Accessibility permissions granted after \(pollCount) checks!")
                 self?.start() // Try to start again now that we have permission
+            } else if pollCount > 120 { // Stop after 2 minutes
+                timer.invalidate()
+                print("❌ NibNab: Gave up polling after 2 minutes")
             }
         }
     }
