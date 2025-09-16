@@ -139,10 +139,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         eventMonitor?.stop()
     }
 
-    func showColorPicker(for text: String) {
+    func showColorPicker(for text: String, from sourceApp: String) {
         // Create color picker overlay window
         let picker = ColorPickerView(text: text) { [weak self] color in
-            self?.appState.saveClip(text, to: color)
+            self?.appState.saveClip(text, to: color, from: sourceApp)
             self?.colorPickerWindow?.close()
             self?.colorPickerWindow = nil
         }
@@ -247,16 +247,19 @@ class AppState: ObservableObject {
         // Don't capture empty strings
         guard !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
-        // Show color picker
-        delegate?.showColorPicker(for: string)
+        // Capture the current frontmost app BEFORE showing color picker
+        let sourceApp = getCurrentAppName()
+
+        // Show color picker with source app info
+        delegate?.showColorPicker(for: string, from: sourceApp)
     }
 
-    func saveClip(_ text: String, to color: NibColor) {
+    func saveClip(_ text: String, to color: NibColor, from sourceApp: String) {
         let clip = Clip(
             text: text,
             timestamp: Date(),
             url: getCurrentURL(),
-            appName: getCurrentAppName()
+            appName: sourceApp
         )
 
         if clips[color.name] == nil {
@@ -359,7 +362,7 @@ struct ContentView: View {
             HStack {
                 HStack(spacing: 10) {
                     Image(systemName: "highlighter")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [Color(red: 1.0, green: 0.71, blue: 0.655),
@@ -369,7 +372,7 @@ struct ContentView: View {
                             )
                         )
                     Text("NibNab")
-                        .font(.system(size: 24, weight: .black, design: .rounded))
+                        .font(.system(size: 20, weight: .black, design: .rounded))
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [Color(red: 1.0, green: 0.71, blue: 0.655),
@@ -383,19 +386,22 @@ struct ContentView: View {
 
                 Spacer()
 
-                Toggle("", isOn: $appState.isMonitoring)
-                    .toggleStyle(SwitchToggleStyle())
-                    .scaleEffect(0.7)
+                HStack(spacing: 12) {
+                    Toggle("", isOn: $appState.isMonitoring)
+                        .toggleStyle(SwitchToggleStyle())
+                        .scaleEffect(0.8)
 
-                Button(action: { NSApp.terminate(nil) }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white.opacity(0.6))
+                    Button(action: { NSApp.terminate(nil) }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .padding(.top, 18)
+            .padding(.bottom, 12)
             .background(
                 LinearGradient(
                     colors: [Color.black.opacity(0.9), Color.black.opacity(0.8)],
@@ -471,15 +477,16 @@ struct ContentView: View {
             // Footer
             HStack {
                 Text("Collecting since today")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary.opacity(0.6))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color.yellow)
                 Spacer()
                 Text("\(appState.clips.values.reduce(0) { $0 + $1.count }) clips")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary.opacity(0.6))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color.yellow)
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 10)
+            .padding(.top, 16)
+            .padding(.bottom, 20)
             .background(
                 LinearGradient(
                     colors: [Color.black.opacity(0.6), Color.black.opacity(0.4)],
