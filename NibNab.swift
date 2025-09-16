@@ -263,16 +263,26 @@ class AutoCopyMonitor {
             // Show alert explaining what's needed
             DispatchQueue.main.async {
                 let alert = NSAlert()
-                alert.messageText = "NibNab needs accessibility permissions"
-                alert.informativeText = "To auto-copy selected text, NibNab needs permission to monitor text selection. Click 'Open Settings' to grant access in Privacy & Security > Accessibility."
+                alert.messageText = "✨ NibNab wants to help!"
+                alert.informativeText = "Let me auto-copy your selections!\nJust flip my switch in Settings."
                 alert.alertStyle = .informational
+                alert.icon = NSImage(systemSymbolName: "highlighter", accessibilityDescription: "NibNab")
                 alert.addButton(withTitle: "Open Settings")
-                alert.addButton(withTitle: "Cancel")
+                alert.addButton(withTitle: "Maybe Later")
 
                 if alert.runModal() == .alertFirstButtonReturn {
-                    // Open directly to Privacy & Security > Accessibility
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                        NSWorkspace.shared.open(url)
+                    // Open directly to Privacy & Security > Accessibility using shell command
+                    let task = Process()
+                    task.launchPath = "/usr/bin/open"
+                    task.arguments = ["x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]
+
+                    do {
+                        try task.run()
+                    } catch {
+                        // Fallback: try opening general Privacy & Security
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
+                            NSWorkspace.shared.open(url)
+                        }
                     }
                 }
             }
