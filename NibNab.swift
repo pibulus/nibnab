@@ -1,5 +1,6 @@
 import Cocoa
 import SwiftUI
+import ApplicationServices
 
 // ===================================================================
 // NIBNAB - Color-coded clipboard collector
@@ -85,6 +86,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var popover = NSPopover()
     var appState: AppState!
     var eventMonitor: EventMonitor?
+    var autoCopyMonitor: AutoCopyMonitor?
     var colorPickerWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -113,6 +115,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if let strongSelf = self, strongSelf.popover.isShown {
                 strongSelf.closePopover()
             }
+        }
+
+        // Initialize auto-copy monitor
+        autoCopyMonitor = AutoCopyMonitor { [weak self] selectedText in
+            guard let self = self else { return }
+            let sourceApp = self.appState.getCurrentAppName()
+            self.showColorPicker(for: selectedText, from: sourceApp)
         }
 
         // Start clipboard monitoring
@@ -169,6 +178,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.colorPickerWindow = nil
         }
     }
+
+    func handleAutoCopyToggle(_ enabled: Bool) {
+        if enabled {
+            autoCopyMonitor?.start()
+        } else {
+            autoCopyMonitor?.stop()
+        }
+    }
+
 }
 
 // MARK: - Event Monitor
@@ -198,11 +216,93 @@ class EventMonitor {
     }
 }
 
+// MARK: - AXUIElement Extension
+extension AXUIElement {
+    static var focusedElement: AXUIElement? {
+        systemWide.element(for: kAXFocusedUIElementAttribute)
+    }
+
+    var selectedText: String? {
+        rawValue(for: kAXSelectedTextAttribute) as? String
+    }
+
+    private static var systemWide = AXUIElementCreateSystemWide()
+
+    private func element(for attribute: String) -> AXUIElement? {
+        guard let rawValue = rawValue(for: attribute),
+              CFGetTypeID(rawValue) == AXUIElementGetTypeID() else { return nil }
+        return (rawValue as! AXUIElement)
+    }
+
+    private func rawValue(for attribute: String) -> AnyObject? {
+        var rawValue: AnyObject?
+        let error = AXUIElementCopyAttributeValue(self, attribute as CFString, &rawValue)
+        return error == .success ? rawValue : nil
+    }
+}
+
+// MARK: - Auto Copy Monitor
+class AutoCopyMonitor {
+    private var timer: Timer?
+    private var lastSelectedText: String?
+    private let selectionHandler: (String) -> Void
+
+    init(onTextSelected: @escaping (String) -> Void) {
+        self.selectionHandler = onTextSelected
+    }
+
+    deinit {
+        stop()
+    }
+
+    func start() {
+        // Check if accessibility permissions are granted
+        guard AXIsProcessTrusted() else {
+            print("NibNab: Accessibility permissions required for auto-copy")
+            let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue(): true] as CFDictionary
+            AXIsProcessTrustedWithOptions(options)
+            return
+        }
+
+        // Check for selected text every 0.5 seconds
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.checkForSelectedText()
+        }
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        lastSelectedText = nil
+    }
+
+    private func checkForSelectedText() {
+        guard let selectedText = AXUIElement.focusedElement?.selectedText,
+              !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              selectedText != lastSelectedText else { return }
+
+        lastSelectedText = selectedText
+
+        // Copy to clipboard and trigger our handler
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(selectedText, forType: .string)
+
+        selectionHandler(selectedText)
+    }
+}
+
+
 // MARK: - App State
 @MainActor
 class AppState: ObservableObject {
     @Published var selectedColor: NibColor = NibColor.peach
     @Published var isMonitoring = true
+    @Published var autoCopyOnHighlight = false {
+        didSet {
+            delegate?.handleAutoCopyToggle(autoCopyOnHighlight)
+        }
+    }
     @Published var clips: [String: [Clip]] = [:]
 
     weak var delegate: AppDelegate?
@@ -280,7 +380,7 @@ class AppState: ObservableObject {
         return nil
     }
 
-    private func getCurrentAppName() -> String {
+    func getCurrentAppName() -> String {
         return NSWorkspace.shared.frontmostApplication?.localizedName ?? "Unknown"
     }
 }
@@ -350,6 +450,43 @@ class StorageManager {
     }
 }
 
+// MARK: - Custom Toggle Style
+struct NibToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+
+            RoundedRectangle(cornerRadius: 16)
+                .fill(configuration.isOn ?
+                    LinearGradient(
+                        colors: [Color(red: 1.0, green: 0.063, blue: 0.941),
+                                Color(red: 1.0, green: 0.063, blue: 0.941).opacity(0.8)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ) :
+                    LinearGradient(
+                        colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.2)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: 40, height: 24)
+                .overlay(
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 20, height: 20)
+                        .offset(x: configuration.isOn ? 8 : -8)
+                        .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
+                )
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        configuration.isOn.toggle()
+                    }
+                }
+        }
+    }
+}
+
 // MARK: - Main Content View
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
@@ -387,9 +524,25 @@ struct ContentView: View {
                 Spacer()
 
                 HStack(spacing: 12) {
-                    Toggle("", isOn: $appState.isMonitoring)
-                        .toggleStyle(SwitchToggleStyle())
-                        .scaleEffect(0.8)
+                    HStack(spacing: 4) {
+                        Text("Monitor")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                        Toggle("", isOn: $appState.isMonitoring)
+                            .toggleStyle(NibToggleStyle())
+                    }
+
+                    Divider()
+                        .frame(height: 16)
+                        .opacity(0.3)
+
+                    HStack(spacing: 4) {
+                        Text("Auto-copy")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                        Toggle("", isOn: $appState.autoCopyOnHighlight)
+                            .toggleStyle(NibToggleStyle())
+                    }
 
                     Button(action: { NSApp.terminate(nil) }) {
                         Image(systemName: "xmark.circle.fill")
