@@ -260,66 +260,13 @@ class AutoCopyMonitor {
         guard AXIsProcessTrusted() else {
             print("NibNab: Accessibility permissions required for auto-copy")
 
-            // Show alert explaining what's needed
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "✨ NibNab wants to help!"
-                alert.informativeText = "Let me auto-copy your selections!\n\nGo to Privacy & Security → Accessibility\nand toggle NibNab ON"
-                alert.alertStyle = .informational
-                alert.icon = NSImage(systemSymbolName: "highlighter", accessibilityDescription: "NibNab")
-                alert.addButton(withTitle: "Open Settings")
-                alert.addButton(withTitle: "Maybe Later")
+            // Use the built-in macOS prompt that actually works
+            let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue(): true] as CFDictionary
+            let trusted = AXIsProcessTrustedWithOptions(options)
 
-                if alert.runModal() == .alertFirstButtonReturn {
-                    // Try multiple approaches for macOS Sequoia compatibility
-                    var opened = false
-
-                    // Method 1: Try the general Accessibility pane (works better on Sequoia)
-                    if !opened {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.Accessibility") {
-                            opened = NSWorkspace.shared.open(url)
-                        }
-                    }
-
-                    // Method 2: Try Privacy & Security directly
-                    if !opened {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy") {
-                            opened = NSWorkspace.shared.open(url)
-                        }
-                    }
-
-                    // Method 3: Use AppleScript to open and navigate
-                    if !opened {
-                        let script = """
-                        tell application "System Settings"
-                            activate
-                            delay 0.5
-                        end tell
-
-                        tell application "System Events"
-                            tell process "System Settings"
-                                -- Try to search for Accessibility
-                                keystroke "f" using {command down}
-                                delay 0.5
-                                keystroke "accessibility"
-                                delay 1
-                                key code 36 -- Press Enter
-                            end tell
-                        end tell
-                        """
-
-                        if let appleScript = NSAppleScript(source: script) {
-                            var error: NSDictionary?
-                            appleScript.executeAndReturnError(&error)
-                            opened = (error == nil)
-                        }
-                    }
-
-                    // Method 4: Final fallback - just open System Settings
-                    if !opened {
-                        NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Library/PreferencePanes/Security.prefPane"))
-                    }
-                }
+            if !trusted {
+                // Start polling to check when permission is granted
+                pollForAccessibilityPermission()
             }
             return
         }
@@ -349,6 +296,16 @@ class AutoCopyMonitor {
         pasteboard.setString(selectedText, forType: .string)
 
         selectionHandler(selectedText)
+    }
+
+    private func pollForAccessibilityPermission() {
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            if AXIsProcessTrusted() {
+                timer.invalidate()
+                print("NibNab: Accessibility permissions granted!")
+                self?.start() // Try to start again now that we have permission
+            }
+        }
     }
 }
 
