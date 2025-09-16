@@ -259,8 +259,23 @@ class AutoCopyMonitor {
         // Check if accessibility permissions are granted
         guard AXIsProcessTrusted() else {
             print("NibNab: Accessibility permissions required for auto-copy")
-            let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue(): true] as CFDictionary
-            AXIsProcessTrustedWithOptions(options)
+
+            // Show alert explaining what's needed
+            DispatchQueue.main.async {
+                let alert = NSAlert()
+                alert.messageText = "NibNab needs accessibility permissions"
+                alert.informativeText = "To auto-copy selected text, NibNab needs permission to monitor text selection. Click 'Open Settings' to grant access in Privacy & Security > Accessibility."
+                alert.alertStyle = .informational
+                alert.addButton(withTitle: "Open Settings")
+                alert.addButton(withTitle: "Cancel")
+
+                if alert.runModal() == .alertFirstButtonReturn {
+                    // Open directly to Privacy & Security > Accessibility
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
             return
         }
 
