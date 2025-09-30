@@ -13,6 +13,12 @@ struct NibColor {
     let hex: String
     let nsColor: NSColor
 
+    static let yellow = NibColor(
+        name: "Highlighter Yellow",
+        hex: "#FFE800",
+        nsColor: NSColor(red: 1.0, green: 0.910, blue: 0.0, alpha: 1.0)
+    )
+
     static let orange = NibColor(
         name: "Highlighter Orange",
         hex: "#FF8C00",
@@ -25,23 +31,23 @@ struct NibColor {
         nsColor: NSColor(red: 1.0, green: 0.282, blue: 0.690, alpha: 1.0)
     )
 
-    static let yellow = NibColor(
-        name: "Highlighter Yellow",
-        hex: "#FFE800",
-        nsColor: NSColor(red: 1.0, green: 0.910, blue: 0.0, alpha: 1.0)
-    )
-
     static let purple = NibColor(
         name: "Highlighter Purple",
         hex: "#9370DB",
         nsColor: NSColor(red: 0.576, green: 0.439, blue: 0.859, alpha: 1.0)
     )
 
-    static let all = [orange, pink, yellow, purple]
+    static let all = [yellow, orange, pink, purple]
 }
 
 // MARK: - Gradient Colors
 struct NibGradients {
+    static let yellow = LinearGradient(
+        colors: [Color(red: 1.0, green: 0.910, blue: 0.0), Color(red: 0.95, green: 0.86, blue: 0.0)],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
     static let orange = LinearGradient(
         colors: [Color(red: 1.0, green: 0.549, blue: 0.0), Color(red: 0.95, green: 0.50, blue: 0.0)],
         startPoint: .topLeading,
@@ -50,12 +56,6 @@ struct NibGradients {
 
     static let pink = LinearGradient(
         colors: [Color(red: 1.0, green: 0.282, blue: 0.690), Color(red: 0.95, green: 0.25, blue: 0.65)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-
-    static let yellow = LinearGradient(
-        colors: [Color(red: 1.0, green: 0.910, blue: 0.0), Color(red: 0.95, green: 0.86, blue: 0.0)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
@@ -332,7 +332,7 @@ class AutoCopyMonitor {
 // MARK: - App State
 @MainActor
 class AppState: ObservableObject {
-    @Published var selectedColor: NibColor = NibColor.orange
+    @Published var selectedColor: NibColor = NibColor.yellow
     @Published var isMonitoring = true
     @Published var autoCopyOnHighlight = false {
         didSet {
@@ -526,7 +526,7 @@ struct NibToggleStyle: ToggleStyle {
 // MARK: - Main Content View
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
-    @State private var selectedTab: String = "Highlighter Orange"
+    @State private var selectedTab: String = "Highlighter Yellow"
     @State private var hoveredTab: String? = nil
 
     var body: some View {
@@ -549,9 +549,7 @@ struct ContentView: View {
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [Color(red: 1.0, green: 0.549, blue: 0.0),
-                                        Color(red: 1.0, green: 0.282, blue: 0.690),
-                                        Color(red: 1.0, green: 0.910, blue: 0.0),
-                                        Color(red: 0.576, green: 0.439, blue: 0.859)],
+                                        Color(red: 1.0, green: 0.282, blue: 0.690)],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
