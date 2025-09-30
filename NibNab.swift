@@ -15,26 +15,26 @@ struct NibColor {
 
     static let yellow = NibColor(
         name: "Highlighter Yellow",
-        hex: "#FFE800",
-        nsColor: NSColor(red: 1.0, green: 0.910, blue: 0.0, alpha: 1.0)
+        hex: "#f5f617",
+        nsColor: NSColor(red: 0.961, green: 0.965, blue: 0.090, alpha: 1.0)
     )
 
     static let orange = NibColor(
         name: "Highlighter Orange",
-        hex: "#FF8C00",
-        nsColor: NSColor(red: 1.0, green: 0.549, blue: 0.0, alpha: 1.0)
+        hex: "#f68717",
+        nsColor: NSColor(red: 0.965, green: 0.529, blue: 0.090, alpha: 1.0)
     )
 
     static let pink = NibColor(
         name: "Highlighter Pink",
-        hex: "#FF48B0",
-        nsColor: NSColor(red: 1.0, green: 0.282, blue: 0.690, alpha: 1.0)
+        hex: "#f60474",
+        nsColor: NSColor(red: 0.965, green: 0.016, blue: 0.455, alpha: 1.0)
     )
 
     static let purple = NibColor(
         name: "Highlighter Purple",
-        hex: "#9370DB",
-        nsColor: NSColor(red: 0.576, green: 0.439, blue: 0.859, alpha: 1.0)
+        hex: "#8717f6",
+        nsColor: NSColor(red: 0.529, green: 0.090, blue: 0.965, alpha: 1.0)
     )
 
     static let all = [yellow, orange, pink, purple]
@@ -43,25 +43,25 @@ struct NibColor {
 // MARK: - Gradient Colors
 struct NibGradients {
     static let yellow = LinearGradient(
-        colors: [Color(red: 1.0, green: 0.910, blue: 0.0), Color(red: 0.95, green: 0.86, blue: 0.0)],
+        colors: [Color(red: 0.961, green: 0.965, blue: 0.090), Color(red: 0.91, green: 0.915, blue: 0.040)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
     static let orange = LinearGradient(
-        colors: [Color(red: 1.0, green: 0.549, blue: 0.0), Color(red: 0.95, green: 0.50, blue: 0.0)],
+        colors: [Color(red: 0.965, green: 0.529, blue: 0.090), Color(red: 0.915, green: 0.479, blue: 0.040)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
     static let pink = LinearGradient(
-        colors: [Color(red: 1.0, green: 0.282, blue: 0.690), Color(red: 0.95, green: 0.25, blue: 0.65)],
+        colors: [Color(red: 0.965, green: 0.016, blue: 0.455), Color(red: 0.915, green: 0.0, blue: 0.405)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
     static let purple = LinearGradient(
-        colors: [Color(red: 0.576, green: 0.439, blue: 0.859), Color(red: 0.53, green: 0.40, blue: 0.80)],
+        colors: [Color(red: 0.529, green: 0.090, blue: 0.965), Color(red: 0.479, green: 0.040, blue: 0.915)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
@@ -495,8 +495,8 @@ struct NibToggleStyle: ToggleStyle {
             RoundedRectangle(cornerRadius: 16)
                 .fill(configuration.isOn ?
                     LinearGradient(
-                        colors: [Color(red: 0.3, green: 0.85, blue: 0.85),
-                                Color(red: 0.3, green: 0.85, blue: 0.85).opacity(0.8)],
+                        colors: [Color.white,
+                                Color.white.opacity(0.9)],
                         startPoint: .leading,
                         endPoint: .trailing
                     ) :
