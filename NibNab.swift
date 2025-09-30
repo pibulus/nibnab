@@ -586,30 +586,6 @@ struct ContentView: View {
 
             Divider()
 
-            // Color Tabs
-            HStack(spacing: 24) {
-                ForEach(NibColor.all, id: \.name) { color in
-                    ColorTab(
-                        color: color,
-                        isSelected: selectedTab == color.name,
-                        isHovered: hoveredTab == color.name,
-                        action: { selectedTab = color.name }
-                    )
-                    .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            hoveredTab = hovering ? color.name : nil
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 24)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.black.opacity(0.4))
-                    .padding(.horizontal, 16)
-            )
-
             // Content Area
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
@@ -621,14 +597,7 @@ struct ContentView: View {
                         VStack(spacing: 16) {
                             Image(systemName: "doc.on.clipboard")
                                 .font(.system(size: 64, weight: .light))
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: [Color(red: 1.0, green: 0.71, blue: 0.655).opacity(0.6),
-                                                Color(red: 0.659, green: 0.855, blue: 0.863).opacity(0.6)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
+                                .foregroundColor(Color.white.opacity(0.3))
 
                             VStack(spacing: 8) {
                                 Text("Nothing nabbed yet")
@@ -653,7 +622,27 @@ struct ContentView: View {
                 Text("Collecting since today")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Color.yellow)
+
                 Spacer()
+
+                // Color selector in footer
+                HStack(spacing: 8) {
+                    ForEach(NibColor.all, id: \.name) { color in
+                        Button(action: { selectedTab = color.name }) {
+                            Circle()
+                                .fill(Color(color.nsColor))
+                                .frame(width: 20, height: 20)
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white, lineWidth: selectedTab == color.name ? 3 : 0)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Spacer()
+
                 Text("\(appState.clips.values.reduce(0) { $0 + $1.count }) clips")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Color.yellow)
