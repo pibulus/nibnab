@@ -13,55 +13,55 @@ struct NibColor {
     let hex: String
     let nsColor: NSColor
 
-    static let peach = NibColor(
-        name: "Soft Peach",
-        hex: "#FFB5A7",
-        nsColor: NSColor(red: 1.0, green: 0.71, blue: 0.655, alpha: 1.0)
+    static let orange = NibColor(
+        name: "Highlighter Orange",
+        hex: "#FF9933",
+        nsColor: NSColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1.0)
     )
 
-    static let lavender = NibColor(
-        name: "Muted Lavender",
-        hex: "#C8A2C8",
-        nsColor: NSColor(red: 0.784, green: 0.635, blue: 0.784, alpha: 1.0)
+    static let pink = NibColor(
+        name: "Highlighter Pink",
+        hex: "#FF6B9D",
+        nsColor: NSColor(red: 1.0, green: 0.42, blue: 0.616, alpha: 1.0)
     )
 
-    static let sky = NibColor(
-        name: "Pale Sky",
-        hex: "#A8DADC",
-        nsColor: NSColor(red: 0.659, green: 0.855, blue: 0.863, alpha: 1.0)
+    static let yellow = NibColor(
+        name: "Highlighter Yellow",
+        hex: "#FFEB3B",
+        nsColor: NSColor(red: 1.0, green: 0.922, blue: 0.231, alpha: 1.0)
     )
 
-    static let sage = NibColor(
-        name: "Dusty Sage",
-        hex: "#B7C3A0",
-        nsColor: NSColor(red: 0.718, green: 0.765, blue: 0.627, alpha: 1.0)
+    static let purple = NibColor(
+        name: "Highlighter Purple",
+        hex: "#9B59B6",
+        nsColor: NSColor(red: 0.608, green: 0.349, blue: 0.714, alpha: 1.0)
     )
 
-    static let all = [peach, lavender, sky, sage]
+    static let all = [orange, pink, yellow, purple]
 }
 
 // MARK: - Gradient Colors
 struct NibGradients {
-    static let peach = LinearGradient(
-        colors: [Color(red: 1.0, green: 0.71, blue: 0.655), Color(red: 0.96, green: 0.65, blue: 0.6)],
+    static let orange = LinearGradient(
+        colors: [Color(red: 1.0, green: 0.6, blue: 0.2), Color(red: 0.95, green: 0.55, blue: 0.15)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
-    static let lavender = LinearGradient(
-        colors: [Color(red: 0.784, green: 0.635, blue: 0.784), Color(red: 0.72, green: 0.58, blue: 0.72)],
+    static let pink = LinearGradient(
+        colors: [Color(red: 1.0, green: 0.42, blue: 0.616), Color(red: 0.95, green: 0.37, blue: 0.566)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
-    static let sky = LinearGradient(
-        colors: [Color(red: 0.659, green: 0.855, blue: 0.863), Color(red: 0.6, green: 0.8, blue: 0.82)],
+    static let yellow = LinearGradient(
+        colors: [Color(red: 1.0, green: 0.922, blue: 0.231), Color(red: 0.95, green: 0.872, blue: 0.181)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
-    static let sage = LinearGradient(
-        colors: [Color(red: 0.718, green: 0.765, blue: 0.627), Color(red: 0.66, green: 0.71, blue: 0.57)],
+    static let purple = LinearGradient(
+        colors: [Color(red: 0.608, green: 0.349, blue: 0.714), Color(red: 0.558, green: 0.299, blue: 0.664)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
@@ -332,7 +332,7 @@ class AutoCopyMonitor {
 // MARK: - App State
 @MainActor
 class AppState: ObservableObject {
-    @Published var selectedColor: NibColor = NibColor.peach
+    @Published var selectedColor: NibColor = NibColor.orange
     @Published var isMonitoring = true
     @Published var autoCopyOnHighlight = false {
         didSet {
@@ -495,8 +495,8 @@ struct NibToggleStyle: ToggleStyle {
             RoundedRectangle(cornerRadius: 16)
                 .fill(configuration.isOn ?
                     LinearGradient(
-                        colors: [Color(red: 1.0, green: 0.063, blue: 0.941),
-                                Color(red: 1.0, green: 0.063, blue: 0.941).opacity(0.8)],
+                        colors: [Color(red: 1.0, green: 0.42, blue: 0.616),
+                                Color(red: 1.0, green: 0.42, blue: 0.616).opacity(0.8)],
                         startPoint: .leading,
                         endPoint: .trailing
                     ) :
@@ -526,7 +526,7 @@ struct NibToggleStyle: ToggleStyle {
 // MARK: - Main Content View
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
-    @State private var selectedTab: String = "Soft Peach"
+    @State private var selectedTab: String = "Highlighter Orange"
     @State private var hoveredTab: String? = nil
 
     var body: some View {
@@ -538,8 +538,8 @@ struct ContentView: View {
                         .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [Color(red: 1.0, green: 0.71, blue: 0.655),
-                                        Color(red: 0.659, green: 0.855, blue: 0.863)],
+                                colors: [Color(red: 1.0, green: 0.6, blue: 0.2),
+                                        Color(red: 1.0, green: 0.42, blue: 0.616)],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
@@ -548,9 +548,10 @@ struct ContentView: View {
                         .font(.system(size: 20, weight: .black, design: .rounded))
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [Color(red: 1.0, green: 0.71, blue: 0.655),
-                                        Color(red: 0.784, green: 0.635, blue: 0.784),
-                                        Color(red: 0.659, green: 0.855, blue: 0.863)],
+                                colors: [Color(red: 1.0, green: 0.6, blue: 0.2),
+                                        Color(red: 1.0, green: 0.42, blue: 0.616),
+                                        Color(red: 1.0, green: 0.922, blue: 0.231),
+                                        Color(red: 0.608, green: 0.349, blue: 0.714)],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
