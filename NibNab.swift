@@ -619,7 +619,7 @@ struct ContentView: View {
 
             // Footer
             HStack {
-                Text("Collecting since today")
+                Text(appState.clips.values.reduce(0) { $0 + $1.count } > 0 ? "Collected today" : "Collecting since today")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Color.yellow)
 
