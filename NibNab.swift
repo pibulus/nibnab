@@ -495,8 +495,8 @@ struct NibToggleStyle: ToggleStyle {
             RoundedRectangle(cornerRadius: 16)
                 .fill(configuration.isOn ?
                     LinearGradient(
-                        colors: [Color(red: 1.0, green: 0.549, blue: 0.0),
-                                Color(red: 1.0, green: 0.549, blue: 0.0).opacity(0.8)],
+                        colors: [Color(red: 0.3, green: 0.85, blue: 0.85),
+                                Color(red: 0.3, green: 0.85, blue: 0.85).opacity(0.8)],
                         startPoint: .leading,
                         endPoint: .trailing
                     ) :
@@ -536,14 +536,7 @@ struct ContentView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "highlighter")
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color(red: 1.0, green: 0.549, blue: 0.0),
-                                        Color(red: 1.0, green: 0.282, blue: 0.690)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                        .foregroundColor(Color.yellow)
                     Text("NibNab")
                         .font(.system(size: 20, weight: .black, design: .rounded))
                         .foregroundColor(Color.yellow)
