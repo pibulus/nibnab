@@ -21,28 +21,39 @@ This will:
 ### First Launch
 1. Launch from Spotlight: `Cmd+Space` → type "nibnab"
 2. Look for the **highlighter icon** in your menubar
-3. Click it to open the clip collector
+3. **Right-click the icon** to choose your active color
 
-### Daily Usage
+### The New Workflow (v2)
+
+**Active Color System:**
+- NibNab has ONE active color at a time
+- The menubar icon shows a **colored dot** = your active color
+- **Highlight any text** → auto-saves to that color
+- **No popups, no dialogs** - just seamless capture
+
+**Changing Active Color (3 ways):**
+1. **Right-click menubar icon** → pick from menu (checkmark = active)
+2. **Click footer colors** in popover (white ring = active)
+3. Your choice persists between launches
 
 **Global Shortcut**: `Cmd+Shift+V` - Opens NibNab from anywhere
 
-**Copying Text**:
-1. Copy anything (`Cmd+C`)
-2. Color picker appears near your cursor (3 second window)
-3. Click a color to save the clip
-4. Or ignore it and it disappears
+## ⚙️ Settings (Header Toggles)
 
-**Viewing Clips**:
-- Click menubar icon or use `Cmd+Shift+V`
-- Click color circles at bottom to switch categories
-- Click any clip to copy it back to clipboard
-
-## ⚙️ Settings (In Header)
-
-- **Monitor** - Watch clipboard for changes
-- **Auto-copy** - Captures text when you select it (experimental)
+- **Monitor** - Pause/resume clipboard watching
 - **Auto-launch** - Start NibNab on login
+
+*Note: Auto-copy is now always enabled (that's the whole point!)*
+
+## 🔐 Accessibility Permission (One-Time)
+
+For auto-copy to work, NibNab needs to detect text selection:
+
+1. First time you highlight text → friendly dialog appears
+2. Go to **System Settings → Privacy & Security → Accessibility**
+3. Find **NibNab** in the list
+4. Toggle it **ON**
+5. Done! Auto-capture now works everywhere
 
 ## 🎨 The Colors
 
@@ -55,15 +66,32 @@ NibNab uses vintage highlighter colors for organizing:
 
 Use them however you want - they're just colors!
 
+## 📋 Daily Usage
+
+### Capturing Clips
+1. **Set your active color** (right-click menubar icon)
+2. **Highlight text anywhere** in any app
+3. **Watch menubar pulse** = clip saved!
+4. Switch colors anytime for different contexts
+
+### Viewing Clips
+- Click menubar icon to open popover
+- **Footer color circles** switch between views
+- **White ring** shows which color is active (where new clips go)
+- Each clip shows:
+  - Source app (blue, monospace)
+  - Time ago ("just now", "5m ago")
+  - Text preview (150 chars)
+
 ## 📁 Storage
 
 All clips saved to: `~/.nibnab/[color-name]/`
 
 Each clip is a markdown file with:
-- Timestamp
+- Timestamp (Bangkok timezone)
 - Source app name
-- The copied text
-- Optional URL (if copied from browser) - *coming soon*
+- The selected text
+- Optional URL (if from browser) - *coming soon*
 
 **Limits**: 100 clips per color (oldest auto-deleted)
 
@@ -99,26 +127,34 @@ pkill NibNab && ./build.sh && open build/NibNab.app
 - Look for the highlighter icon in your menubar
 - Use Spotlight to launch if needed
 
-**Keyboard shortcut not working?**
-- macOS may need accessibility permissions
-- Check System Settings → Privacy & Security → Accessibility
-- Add NibNab if prompted
-
-**Color picker not appearing?**
+**Auto-copy not working?**
+- Check accessibility permissions (see above)
 - Make sure "Monitor" toggle is ON
-- The picker only shows for 3 seconds after copying
-- Try copying again
+- Try highlighting text again
+
+**Colored dot not showing on icon?**
+- Quit and relaunch NibNab
+- The dot indicates your active color
 
 **Launch at Login not working?**
 - Toggle it OFF then ON again
 - Check System Settings → General → Login Items
 - NibNab should be listed there
 
+## 💡 Tips
+
+✨ **Set color before browsing** - active color = where new clips go
+🎯 **Footer colors are dual-purpose** - view clips AND set active color
+⚡ **Watch the menubar pulse** - confirms clip was saved
+🌈 **4 colors = 4 contexts** - work, personal, research, misc
+📦 **Local only** - no cloud, no sync, no tracking
+
 ## 🎸 Philosophy
 
 NibNab is designed around **compression over complexity**:
 
 - **Four colors** - Not a hundred tags
+- **One active color** - Not decision fatigue every copy
 - **Local markdown** - Not a cloud database
 - **Menubar only** - Not another window to manage
 - **One feature** - Collect clips by color, that's it
