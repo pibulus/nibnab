@@ -240,11 +240,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
 
         for color in NibColor.all {
+            // Create colored circle image
+            let size = NSSize(width: 16, height: 16)
+            let image = NSImage(size: size)
+            image.lockFocus()
+
+            let circle = NSBezierPath(ovalIn: NSRect(x: 2, y: 2, width: 12, height: 12))
+            color.nsColor.setFill()
+            circle.fill()
+
+            NSColor.white.setStroke()
+            circle.lineWidth = 1
+            circle.stroke()
+
+            image.unlockFocus()
+
+            // Create menu item with image only (no title for cleaner look)
+            // But we need a title for accessibility, so use a short one
+            let shortName = color.name.replacingOccurrences(of: "Highlighter ", with: "")
             let item = NSMenuItem(
-                title: color.name,
+                title: shortName,
                 action: #selector(selectColor(_:)),
                 keyEquivalent: ""
             )
+            item.image = image
             item.representedObject = color
             item.state = appState.activeColor.name == color.name ? .on : .off
             menu.addItem(item)
@@ -533,6 +552,44 @@ class AppState: ObservableObject {
     func getCurrentAppName() -> String {
         return NSWorkspace.shared.frontmostApplication?.localizedName ?? "Unknown"
     }
+
+    func deleteClip(_ clip: Clip, from colorName: String) {
+        clips[colorName]?.removeAll { $0.id == clip.id }
+        // TODO: Also delete from markdown file
+    }
+
+    func exportClips(for colorName: String) {
+        guard let colorClips = clips[colorName], !colorClips.isEmpty else { return }
+
+        // Format as markdown
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy h:mm a"
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+
+        var markdown = "# NibNab Export - \(colorName)\n"
+        markdown += "Exported: \(formatter.string(from: Date()))\n\n"
+
+        for clip in colorClips {
+            markdown += "---\n"
+            markdown += "### \(clip.appName)\n"
+            markdown += "*\(formatter.string(from: clip.timestamp))*\n\n"
+            markdown += "\(clip.text)\n\n"
+        }
+
+        // Save with file picker
+        let savePanel = NSSavePanel()
+        savePanel.nameFieldStringValue = "nibnab-\(colorName.lowercased())-\(dateFormatter.string(from: Date())).md"
+        savePanel.allowedContentTypes = [.plainText]
+        savePanel.canCreateDirectories = true
+
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                try? markdown.write(to: url, atomically: true, encoding: .utf8)
+            }
+        }
+    }
 }
 
 // MARK: - Clip Model
@@ -651,6 +708,34 @@ struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @State private var selectedClip: Clip?
     @State private var showingClipDetail = false
+    @State private var sortOrder: SortOrder = .newestFirst
+    @State private var searchText = ""
+
+    enum SortOrder {
+        case newestFirst, oldestFirst, byAppName, byLength
+    }
+
+    var sortedClips: [Clip] {
+        guard let clips = appState.clips[appState.viewedColor.name] else { return [] }
+
+        // Filter by search first
+        let filteredClips = searchText.isEmpty ? clips : clips.filter {
+            $0.text.localizedCaseInsensitiveContains(searchText) ||
+            $0.appName.localizedCaseInsensitiveContains(searchText)
+        }
+
+        // Then sort
+        switch sortOrder {
+        case .newestFirst:
+            return filteredClips.sorted { $0.timestamp > $1.timestamp }
+        case .oldestFirst:
+            return filteredClips.sorted { $0.timestamp < $1.timestamp }
+        case .byAppName:
+            return filteredClips.sorted { $0.appName < $1.appName }
+        case .byLength:
+            return filteredClips.sorted { $0.text.count > $1.text.count }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -667,7 +752,61 @@ struct ContentView: View {
 
                 Spacer()
 
+                // Search field
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.5))
+
+                    TextField("Search", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11))
+                        .frame(width: 100)
+
+                    if !searchText.isEmpty {
+                        Button(action: { searchText = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.1))
+                .cornerRadius(8)
+
+                Spacer()
+
                 HStack(spacing: 12) {
+                    Menu {
+                        Button("Newest First") { sortOrder = .newestFirst }
+                        Button("Oldest First") { sortOrder = .oldestFirst }
+                        Button("By App Name") { sortOrder = .byAppName }
+                        Button("By Length") { sortOrder = .byLength }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .help("Sort clips")
+
+                    Button(action: {
+                        appState.exportClips(for: appState.activeColor.name)
+                    }) {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Export clips")
+
+                    Divider()
+                        .frame(height: 16)
+                        .opacity(0.3)
+
                     HStack(spacing: 4) {
                         Text("Auto-launch")
                             .font(.system(size: 11, weight: .medium))
@@ -700,12 +839,26 @@ struct ContentView: View {
             // Content Area
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    if let clips = appState.clips[appState.viewedColor.name], !clips.isEmpty {
-                        ForEach(clips) { clip in
+                    if !sortedClips.isEmpty {
+                        ForEach(sortedClips) { clip in
                             ClipView(clip: clip)
                                 .onTapGesture {
                                     selectedClip = clip
                                     showingClipDetail = true
+                                }
+                                .contextMenu {
+                                    Button(action: {
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(clip.text, forType: .string)
+                                    }) {
+                                        Label("Copy", systemImage: "doc.on.clipboard")
+                                    }
+
+                                    Button(action: {
+                                        appState.deleteClip(clip, from: appState.viewedColor.name)
+                                    }) {
+                                        Label("Delete", systemImage: "trash")
+                                    }
                                 }
                         }
                     } else {
@@ -734,7 +887,10 @@ struct ContentView: View {
 
             // Footer
             HStack {
-                Text(appState.clips.values.reduce(0) { $0 + $1.count } > 0 ? "Collected today" : "Collecting since today")
+                let activeShortName = appState.activeColor.name.replacingOccurrences(of: "Highlighter ", with: "")
+                let viewedClipCount = appState.clips[appState.viewedColor.name]?.count ?? 0
+
+                Text("Active: \(activeShortName)")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Color(appState.activeColor.nsColor))
 
@@ -761,7 +917,7 @@ struct ContentView: View {
 
                 Spacer()
 
-                Text("\(appState.clips.values.reduce(0) { $0 + $1.count }) clips")
+                Text("\(viewedClipCount) clips")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Color(appState.activeColor.nsColor))
             }
@@ -895,6 +1051,7 @@ struct ClipView: View {
 struct ClipDetailView: View {
     let clip: Clip
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var appState: AppState
 
     var body: some View {
         VStack(spacing: 0) {
@@ -941,7 +1098,7 @@ struct ClipDetailView: View {
                 }) {
                     HStack {
                         Image(systemName: "doc.on.clipboard")
-                        Text("Copy to Clipboard")
+                        Text("Copy")
                     }
                     .font(.system(size: 12, weight: .medium))
                 }
@@ -949,6 +1106,22 @@ struct ClipDetailView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(Color.white.opacity(0.15))
+                .cornerRadius(6)
+
+                Button(action: {
+                    appState.deleteClip(clip, from: appState.viewedColor.name)
+                    dismiss()
+                }) {
+                    HStack {
+                        Image(systemName: "trash")
+                        Text("Delete")
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.red.opacity(0.2))
                 .cornerRadius(6)
 
                 Spacer()
