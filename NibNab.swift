@@ -134,7 +134,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.pulseMenubarIcon()
         }
 
-        // Start auto-copy monitor by default
+        // Start clipboard monitoring (for Cmd+C)
+        appState.startClipboardMonitoring()
+
+        // Start auto-copy monitor (for text selection)
         autoCopyMonitor?.start()
 
         // Register global keyboard shortcut (Cmd+Shift+V)
@@ -431,6 +434,8 @@ class AppState: ObservableObject {
     @Published var clips: [String: [Clip]] = [:]
 
     weak var delegate: AppDelegate?
+    private var clipboardTimer: Timer?
+    private var lastChangeCount: Int = 0
     private let storageManager = StorageManager()
 
     init() {
@@ -451,6 +456,35 @@ class AppState: ObservableObject {
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
+    func startClipboardMonitoring() {
+        let pasteboard = NSPasteboard.general
+        lastChangeCount = pasteboard.changeCount
+
+        // Monitor clipboard changes every 0.5 seconds
+        clipboardTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+
+                if pasteboard.changeCount != self.lastChangeCount {
+                    self.lastChangeCount = pasteboard.changeCount
+
+                    // Get clipboard text
+                    if let text = pasteboard.string(forType: .string),
+                       !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        // Save to active color
+                        let sourceApp = self.getCurrentAppName()
+                        self.saveClip(text, to: self.activeColor, from: sourceApp)
+                        self.delegate?.pulseMenubarIcon()
+                    }
+                }
+            }
+        }
+    }
+
+    func stopClipboardMonitoring() {
+        clipboardTimer?.invalidate()
+        clipboardTimer = nil
+    }
 
     func saveClip(_ text: String, to color: NibColor, from sourceApp: String) {
         let clip = Clip(
