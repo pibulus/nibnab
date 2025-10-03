@@ -348,25 +348,14 @@ class AutoCopyMonitor {
     }
 
     func start() {
-        // Check if accessibility permissions are granted
-        guard AXIsProcessTrusted() else {
-            print("🔴 NibNab: Not trusted yet, showing our own dialog...")
+        // Use the system prompt which includes "Open System Settings" button
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        let isTrusted = AXIsProcessTrustedWithOptions(options)
 
-            // Show our own cute dialog instead of trying to open settings
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "✨ NibNab needs permission!"
-                alert.informativeText = "To auto-copy selections:\n\n1. Open System Settings\n2. Go to Privacy & Security → Accessibility\n3. Toggle NibNab ON\n\nI'll wait for you! 💜"
-                alert.alertStyle = .informational
-                alert.icon = NSImage(systemSymbolName: "highlighter", accessibilityDescription: "NibNab")
-                alert.addButton(withTitle: "OK, I'll do it!")
-                alert.addButton(withTitle: "Maybe Later")
-
-                if alert.runModal() == .alertFirstButtonReturn {
-                    // Just start polling - don't try to open settings
-                    self.pollForAccessibilityPermission()
-                }
-            }
+        guard isTrusted else {
+            print("🔴 NibNab: Showing system accessibility prompt...")
+            // System dialog shown - poll for permission grant
+            pollForAccessibilityPermission()
             return
         }
 
