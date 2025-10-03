@@ -707,7 +707,6 @@ struct NibToggleStyle: ToggleStyle {
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @State private var selectedClip: Clip?
-    @State private var showingClipDetail = false
     @State private var sortOrder: SortOrder = .newestFirst
     @State private var searchText = ""
 
@@ -738,14 +737,15 @@ struct ContentView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                HStack(spacing: 10) {
-                    Image(systemName: "highlighter")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(Color(appState.activeColor.nsColor))
-                    Text("NibNab")
+        ZStack {
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    HStack(spacing: 10) {
+                        Image(systemName: "highlighter")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(Color(appState.activeColor.nsColor))
+                        Text("NibNab")
                         .font(.system(size: 20, weight: .black, design: .rounded))
                         .foregroundColor(Color(appState.activeColor.nsColor))
                 }
@@ -848,7 +848,6 @@ struct ContentView: View {
                             ClipView(clip: clip)
                                 .onTapGesture {
                                     selectedClip = clip
-                                    showingClipDetail = true
                                 }
                                 .contextMenu {
                                     Button(action: {
@@ -936,12 +935,6 @@ struct ContentView: View {
                 )
             )
         }
-        .sheet(isPresented: $showingClipDetail) {
-            if let clip = selectedClip {
-                ClipDetailView(clip: clip)
-                    .environmentObject(appState)
-            }
-        }
         .background(
             ZStack {
                 Color.black.opacity(0.85)
@@ -955,6 +948,26 @@ struct ContentView: View {
                 )
             }
         )
+
+            // Detail view overlay (replaces .sheet which doesn't work in popovers)
+            if let clip = selectedClip {
+                Color.black.opacity(0.5)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation {
+                            selectedClip = nil
+                        }
+                    }
+
+                ClipDetailView(clip: clip) {
+                    withAnimation {
+                        selectedClip = nil
+                    }
+                }
+                .environmentObject(appState)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+        }
     }
 }
 
@@ -1072,7 +1085,7 @@ struct ClipView: View {
 // MARK: - Clip Detail View
 struct ClipDetailView: View {
     let clip: Clip
-    @Environment(\.dismiss) var dismiss
+    let onDismiss: () -> Void
     @EnvironmentObject var appState: AppState
 
     var body: some View {
@@ -1091,7 +1104,7 @@ struct ClipDetailView: View {
 
                 Spacer()
 
-                Button(action: { dismiss() }) {
+                Button(action: { onDismiss() }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 18))
                         .foregroundColor(.white.opacity(0.6))
@@ -1116,7 +1129,7 @@ struct ClipDetailView: View {
                 Button(action: {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(clip.text, forType: .string)
-                    dismiss()
+                    onDismiss()
                 }) {
                     HStack {
                         Image(systemName: "doc.on.clipboard")
@@ -1132,7 +1145,7 @@ struct ClipDetailView: View {
 
                 Button(action: {
                     appState.deleteClip(clip, from: appState.viewedColor.name)
-                    dismiss()
+                    onDismiss()
                 }) {
                     HStack {
                         Image(systemName: "trash")
