@@ -90,16 +90,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var appState: AppState!
     var eventMonitor: EventMonitor?
     var autoCopyMonitor: AutoCopyMonitor?
-    var colorPickerWindow: NSWindow?
     private var hotKeyRef: EventHotKeyRef?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
-        // Create app state
-        appState = AppState()
-        appState.delegate = self
 
-        // Create status item
+        // Create status item first
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
@@ -107,6 +103,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.action = #selector(handleMenubarClick(_:))
         }
 
+        // Create app state and set delegate
+        appState = AppState()
+        appState.delegate = self
+
+        // Update icon now that delegate is set
         updateMenubarIcon()
 
         // Setup popover
@@ -136,9 +137,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Start auto-copy monitor by default
         autoCopyMonitor?.start()
 
-        // Start clipboard monitoring
-        appState.startMonitoring()
-
         // Register global keyboard shortcut (Cmd+Shift+V)
         registerGlobalShortcut()
     }
@@ -165,7 +163,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         InstallEventHandler(
             GetApplicationEventTarget(),
             { (_, _, userData) -> OSStatus in
-                if let delegate = userData {
+                if userData != nil {
                     let selfPointer = Unmanaged<AppDelegate>.fromOpaque(userData!).takeUnretainedValue()
                     DispatchQueue.main.async {
                         selfPointer.togglePopover()
@@ -423,7 +421,7 @@ class AutoCopyMonitor {
 // MARK: - App State
 @MainActor
 class AppState: ObservableObject {
-    @Published var selectedColor: NibColor = NibColor.yellow
+    @Published var viewedColor: NibColor = NibColor.yellow
     @Published var activeColor: NibColor {
         didSet {
             // Persist active color
@@ -432,7 +430,6 @@ class AppState: ObservableObject {
             delegate?.updateMenubarIcon()
         }
     }
-    @Published var isMonitoring = true
     @Published var launchAtLogin = false {
         didSet {
             if launchAtLogin {
@@ -445,8 +442,6 @@ class AppState: ObservableObject {
     @Published var clips: [String: [Clip]] = [:]
 
     weak var delegate: AppDelegate?
-    private var pasteboardObserver: Timer?
-    private var lastChangeCount: Int = 0
     private let storageManager = StorageManager()
 
     init() {
@@ -467,34 +462,6 @@ class AppState: ObservableObject {
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    func startMonitoring() {
-        guard isMonitoring else { return }
-
-        let pasteboard = NSPasteboard.general
-        lastChangeCount = pasteboard.changeCount
-
-        // Check clipboard on background queue
-        pasteboardObserver = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-
-                if pasteboard.changeCount != self.lastChangeCount {
-                    self.lastChangeCount = pasteboard.changeCount
-                    self.handleClipboardChange()
-                }
-            }
-        }
-    }
-
-    func stopMonitoring() {
-        pasteboardObserver?.invalidate()
-        pasteboardObserver = nil
-    }
-
-    private func handleClipboardChange() {
-        // Clipboard monitoring is now handled by auto-copy monitor
-        // This could be re-enabled in future if we want dual-mode support
-    }
 
     func saveClip(_ text: String, to color: NibColor, from sourceApp: String) {
         let clip = Clip(
@@ -529,12 +496,21 @@ class AppState: ObservableObject {
 
 // MARK: - Clip Model
 struct Clip: Identifiable, Codable {
-    let id: UUID = UUID()
+    let id: UUID
     let text: String
     let timestamp: Date
     let url: String?
     let appName: String
     var screenshotPath: String?
+
+    init(text: String, timestamp: Date, url: String?, appName: String, screenshotPath: String? = nil) {
+        self.id = UUID()
+        self.text = text
+        self.timestamp = timestamp
+        self.url = url
+        self.appName = appName
+        self.screenshotPath = screenshotPath
+    }
 }
 
 // MARK: - Storage Manager
@@ -632,8 +608,6 @@ struct NibToggleStyle: ToggleStyle {
 // MARK: - Main Content View
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
-    @State private var selectedTab: String = "Highlighter Yellow"
-    @State private var hoveredTab: String? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -651,18 +625,6 @@ struct ContentView: View {
                 Spacer()
 
                 HStack(spacing: 12) {
-                    HStack(spacing: 4) {
-                        Text("Monitor")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.white.opacity(0.8))
-                        Toggle("", isOn: $appState.isMonitoring)
-                            .toggleStyle(NibToggleStyle())
-                    }
-
-                    Divider()
-                        .frame(height: 16)
-                        .opacity(0.3)
-
                     HStack(spacing: 4) {
                         Text("Auto-launch")
                             .font(.system(size: 11, weight: .medium))
@@ -695,7 +657,7 @@ struct ContentView: View {
             // Content Area
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    if let clips = appState.clips[selectedTab], !clips.isEmpty {
+                    if let clips = appState.clips[appState.viewedColor.name], !clips.isEmpty {
                         ForEach(clips) { clip in
                             ClipView(clip: clip)
                         }
@@ -735,7 +697,7 @@ struct ContentView: View {
                 HStack(spacing: 8) {
                     ForEach(NibColor.all, id: \.name) { color in
                         Button(action: {
-                            selectedTab = color.name
+                            appState.viewedColor = color
                             appState.activeColor = color
                         }) {
                             Circle()
