@@ -49,11 +49,14 @@ This will:
 
 For auto-copy to work, NibNab needs to detect text selection:
 
-1. First time you highlight text → friendly dialog appears
-2. Go to **System Settings → Privacy & Security → Accessibility**
-3. Find **NibNab** in the list
-4. Toggle it **ON**
-5. Done! Auto-capture now works everywhere
+1. First time you launch → macOS shows system dialog
+2. Click **"Open System Settings"** button (takes you right there!)
+3. Toggle **NibNab** to **ON**
+4. Done! Auto-capture now works everywhere
+
+Or manually:
+- **System Settings → Privacy & Security → Accessibility**
+- Find NibNab and toggle ON
 
 ## 🎨 The Colors
 
