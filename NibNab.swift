@@ -208,9 +208,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         image.lockFocus()
 
-        // Draw highlighter icon
+        // Draw highlighter icon in white
         if let highlighter = NSImage(systemSymbolName: "highlighter", accessibilityDescription: "NibNab") {
-            highlighter.draw(in: NSRect(x: 0, y: 0, width: 22, height: 22))
+            NSColor.white.setFill()
+            let iconRect = NSRect(x: 0, y: 0, width: 22, height: 22)
+
+            // Tint the icon white
+            highlighter.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+            NSColor.white.set()
+            iconRect.fill(using: .sourceAtop)
         }
 
         // Draw colored dot in bottom right
@@ -270,14 +276,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func pulseMenubarIcon() {
         guard let button = statusItem.button else { return }
 
-        // Brief scale animation
+        // Create a colored overlay effect
+        let overlay = NSView(frame: button.bounds)
+        overlay.wantsLayer = true
+        overlay.layer?.backgroundColor = appState.activeColor.nsColor.cgColor
+        overlay.layer?.cornerRadius = button.bounds.width / 2
+        overlay.alphaValue = 0
+        button.addSubview(overlay)
+
+        // Animate: color flash + fade
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.2
-            button.animator().alphaValue = 0.5
+            context.duration = 0.15
+            overlay.animator().alphaValue = 0.6
         }, completionHandler: {
             NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.2
-                button.animator().alphaValue = 1.0
+                context.duration = 0.3
+                overlay.animator().alphaValue = 0
+            }, completionHandler: {
+                overlay.removeFromSuperview()
             })
         })
     }
@@ -420,6 +436,8 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(activeColor.name, forKey: "activeColorName")
             // Update menubar icon
             delegate?.updateMenubarIcon()
+            // Play soft sound feedback
+            NSSound(named: "Pop")?.play()
         }
     }
     @Published var launchAtLogin = false {
@@ -631,6 +649,8 @@ struct NibToggleStyle: ToggleStyle {
 // MARK: - Main Content View
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
+    @State private var selectedClip: Clip?
+    @State private var showingClipDetail = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -639,10 +659,10 @@ struct ContentView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "highlighter")
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(Color.yellow)
+                        .foregroundColor(Color(appState.activeColor.nsColor))
                     Text("NibNab")
                         .font(.system(size: 20, weight: .black, design: .rounded))
-                        .foregroundColor(Color.yellow)
+                        .foregroundColor(Color(appState.activeColor.nsColor))
                 }
 
                 Spacer()
@@ -683,6 +703,10 @@ struct ContentView: View {
                     if let clips = appState.clips[appState.viewedColor.name], !clips.isEmpty {
                         ForEach(clips) { clip in
                             ClipView(clip: clip)
+                                .onTapGesture {
+                                    selectedClip = clip
+                                    showingClipDetail = true
+                                }
                         }
                     } else {
                         VStack(spacing: 16) {
@@ -712,7 +736,7 @@ struct ContentView: View {
             HStack {
                 Text(appState.clips.values.reduce(0) { $0 + $1.count } > 0 ? "Collected today" : "Collecting since today")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color.yellow)
+                    .foregroundColor(Color(appState.activeColor.nsColor))
 
                 Spacer()
 
@@ -739,7 +763,7 @@ struct ContentView: View {
 
                 Text("\(appState.clips.values.reduce(0) { $0 + $1.count }) clips")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color.yellow)
+                    .foregroundColor(Color(appState.activeColor.nsColor))
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
@@ -751,6 +775,11 @@ struct ContentView: View {
                     endPoint: .bottom
                 )
             )
+        }
+        .sheet(isPresented: $showingClipDetail) {
+            if let clip = selectedClip {
+                ClipDetailView(clip: clip)
+            }
         }
         .background(
             ZStack {
@@ -859,6 +888,85 @@ struct ClipView: View {
         if interval < 3600 { return "\(Int(interval/60))m ago" }
         if interval < 86400 { return "\(Int(interval/3600))h ago" }
         return "\(Int(interval/86400))d ago"
+    }
+}
+
+// MARK: - Clip Detail View
+struct ClipDetailView: View {
+    let clip: Clip
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(clip.appName)
+                        .font(.system(size: 14, weight: .bold, design: .monospaced))
+                        .foregroundColor(Color(red: 0.659, green: 0.855, blue: 0.863))
+
+                    Text(formatDate(clip.timestamp))
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(Color.white.opacity(0.5))
+                }
+
+                Spacer()
+
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+            .background(Color.black.opacity(0.9))
+
+            // Content
+            ScrollView {
+                Text(clip.text)
+                    .font(.system(size: 14))
+                    .foregroundColor(Color.white.opacity(0.9))
+                    .textSelection(.enabled)
+                    .padding()
+            }
+            .background(Color.black.opacity(0.7))
+
+            // Footer with actions
+            HStack(spacing: 12) {
+                Button(action: {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(clip.text, forType: .string)
+                    dismiss()
+                }) {
+                    HStack {
+                        Image(systemName: "doc.on.clipboard")
+                        Text("Copy to Clipboard")
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.white.opacity(0.15))
+                .cornerRadius(6)
+
+                Spacer()
+
+                Text("\(clip.text.count) characters")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.4))
+            }
+            .padding()
+            .background(Color.black.opacity(0.9))
+        }
+        .frame(width: 500, height: 400)
+    }
+
+    func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy 'at' h:mm a"
+        return formatter.string(from: date)
     }
 }
 
