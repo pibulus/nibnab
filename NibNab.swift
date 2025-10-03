@@ -103,9 +103,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "highlighter", accessibilityDescription: "NibNab")
-            button.action = #selector(togglePopover)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.action = #selector(handleMenubarClick(_:))
         }
+
+        updateMenubarIcon()
 
         // Setup popover
         let contentView = ContentView()
@@ -126,8 +128,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         autoCopyMonitor = AutoCopyMonitor { [weak self] selectedText in
             guard let self = self else { return }
             let sourceApp = self.appState.getCurrentAppName()
-            self.showColorPicker(for: selectedText, from: sourceApp)
+            // Auto-save to active color instead of showing picker
+            self.appState.saveClip(selectedText, to: self.appState.activeColor, from: sourceApp)
+            self.pulseMenubarIcon()
         }
+
+        // Start auto-copy monitor by default
+        autoCopyMonitor?.start()
 
         // Start clipboard monitoring
         appState.startMonitoring()
@@ -173,11 +180,77 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    @objc func handleMenubarClick(_ sender: NSStatusBarButton) {
+        guard let event = NSApp.currentEvent else { return }
+
+        if event.type == .rightMouseUp {
+            showColorMenu()
+        } else {
+            togglePopover()
+        }
+    }
+
     @objc func togglePopover() {
         if popover.isShown {
             closePopover()
         } else {
             showPopover()
+        }
+    }
+
+    func updateMenubarIcon() {
+        guard let button = statusItem.button else { return }
+
+        // Create icon with colored dot
+        let size = NSSize(width: 22, height: 22)
+        let image = NSImage(size: size)
+
+        image.lockFocus()
+
+        // Draw highlighter icon
+        if let highlighter = NSImage(systemSymbolName: "highlighter", accessibilityDescription: "NibNab") {
+            highlighter.draw(in: NSRect(x: 0, y: 0, width: 22, height: 22))
+        }
+
+        // Draw colored dot in bottom right
+        let dotRect = NSRect(x: 14, y: 2, width: 8, height: 8)
+        let dotPath = NSBezierPath(ovalIn: dotRect)
+        appState.activeColor.nsColor.setFill()
+        dotPath.fill()
+
+        // White outline for visibility
+        NSColor.white.setStroke()
+        dotPath.lineWidth = 1.5
+        dotPath.stroke()
+
+        image.unlockFocus()
+        image.isTemplate = false
+
+        button.image = image
+    }
+
+    func showColorMenu() {
+        let menu = NSMenu()
+
+        for color in NibColor.all {
+            let item = NSMenuItem(
+                title: color.name,
+                action: #selector(selectColor(_:)),
+                keyEquivalent: ""
+            )
+            item.representedObject = color
+            item.state = appState.activeColor.name == color.name ? .on : .off
+            menu.addItem(item)
+        }
+
+        statusItem.menu = menu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
+    }
+
+    @objc func selectColor(_ sender: NSMenuItem) {
+        if let color = sender.representedObject as? NibColor {
+            appState.activeColor = color
         }
     }
 
@@ -193,46 +266,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         eventMonitor?.stop()
     }
 
-    func showColorPicker(for text: String, from sourceApp: String) {
-        // Create color picker overlay window
-        let picker = ColorPickerView(text: text) { [weak self] color in
-            self?.appState.saveClip(text, to: color, from: sourceApp)
-            self?.colorPickerWindow?.close()
-            self?.colorPickerWindow = nil
-        }
+    func pulseMenubarIcon() {
+        guard let button = statusItem.button else { return }
 
-        let hostingController = NSHostingController(rootView: picker)
-
-        colorPickerWindow = NSWindow(contentViewController: hostingController)
-        colorPickerWindow?.level = .floating
-        colorPickerWindow?.styleMask = [.borderless]
-        colorPickerWindow?.backgroundColor = .clear
-        colorPickerWindow?.isOpaque = false
-        colorPickerWindow?.hasShadow = true
-
-        // Position near mouse
-        if let mouseLocation = NSEvent.mouseLocation as NSPoint? {
-            colorPickerWindow?.setFrameOrigin(NSPoint(x: mouseLocation.x - 100, y: mouseLocation.y - 50))
-        }
-
-        colorPickerWindow?.orderFrontRegardless()
-
-        // Auto-close after 3 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            self?.colorPickerWindow?.close()
-            self?.colorPickerWindow = nil
-        }
-    }
-
-    func handleAutoCopyToggle(_ enabled: Bool) {
-        print("🎯 Auto-copy toggle changed to: \(enabled)")
-        if enabled {
-            print("🚀 Starting auto-copy monitor...")
-            autoCopyMonitor?.start()
-        } else {
-            print("🛑 Stopping auto-copy monitor...")
-            autoCopyMonitor?.stop()
-        }
+        // Brief scale animation
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.2
+            button.animator().alphaValue = 0.5
+        }, completionHandler: {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.2
+                button.animator().alphaValue = 1.0
+            })
+        })
     }
 
 }
@@ -378,12 +424,15 @@ class AutoCopyMonitor {
 @MainActor
 class AppState: ObservableObject {
     @Published var selectedColor: NibColor = NibColor.yellow
-    @Published var isMonitoring = true
-    @Published var autoCopyOnHighlight = false {
+    @Published var activeColor: NibColor {
         didSet {
-            delegate?.handleAutoCopyToggle(autoCopyOnHighlight)
+            // Persist active color
+            UserDefaults.standard.set(activeColor.name, forKey: "activeColorName")
+            // Update menubar icon
+            delegate?.updateMenubarIcon()
         }
     }
+    @Published var isMonitoring = true
     @Published var launchAtLogin = false {
         didSet {
             if launchAtLogin {
@@ -401,6 +450,14 @@ class AppState: ObservableObject {
     private let storageManager = StorageManager()
 
     init() {
+        // Load persisted active color
+        if let savedColorName = UserDefaults.standard.string(forKey: "activeColorName"),
+           let savedColor = NibColor.all.first(where: { $0.name == savedColorName }) {
+            activeColor = savedColor
+        } else {
+            activeColor = NibColor.yellow
+        }
+
         // Initialize clips for each color
         for color in NibColor.all {
             clips[color.name] = storageManager.loadClips(for: color.name)
@@ -435,16 +492,8 @@ class AppState: ObservableObject {
     }
 
     private func handleClipboardChange() {
-        guard let string = NSPasteboard.general.string(forType: .string) else { return }
-
-        // Don't capture empty strings
-        guard !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-
-        // Capture the current frontmost app BEFORE showing color picker
-        let sourceApp = getCurrentAppName()
-
-        // Show color picker with source app info
-        delegate?.showColorPicker(for: string, from: sourceApp)
+        // Clipboard monitoring is now handled by auto-copy monitor
+        // This could be re-enabled in future if we want dual-mode support
     }
 
     func saveClip(_ text: String, to color: NibColor, from sourceApp: String) {
@@ -604,8 +653,8 @@ struct ContentView: View {
                 HStack(spacing: 12) {
                     HStack(spacing: 4) {
                         Text("Monitor")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.white.opacity(0.6))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
                         Toggle("", isOn: $appState.isMonitoring)
                             .toggleStyle(NibToggleStyle())
                     }
@@ -615,21 +664,9 @@ struct ContentView: View {
                         .opacity(0.3)
 
                     HStack(spacing: 4) {
-                        Text("Auto-copy")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.white.opacity(0.6))
-                        Toggle("", isOn: $appState.autoCopyOnHighlight)
-                            .toggleStyle(NibToggleStyle())
-                    }
-
-                    Divider()
-                        .frame(height: 16)
-                        .opacity(0.3)
-
-                    HStack(spacing: 4) {
                         Text("Auto-launch")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.white.opacity(0.6))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
                         Toggle("", isOn: $appState.launchAtLogin)
                             .toggleStyle(NibToggleStyle())
                     }
@@ -697,13 +734,16 @@ struct ContentView: View {
                 // Color selector in footer
                 HStack(spacing: 8) {
                     ForEach(NibColor.all, id: \.name) { color in
-                        Button(action: { selectedTab = color.name }) {
+                        Button(action: {
+                            selectedTab = color.name
+                            appState.activeColor = color
+                        }) {
                             Circle()
                                 .fill(Color(color.nsColor))
                                 .frame(width: 20, height: 20)
                                 .overlay(
                                     Circle()
-                                        .stroke(Color.white, lineWidth: selectedTab == color.name ? 3 : 0)
+                                        .stroke(Color.white, lineWidth: appState.activeColor.name == color.name ? 3 : 0)
                                 )
                         }
                         .buttonStyle(.plain)
