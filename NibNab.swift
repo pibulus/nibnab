@@ -580,7 +580,8 @@ class AppState: ObservableObject {
 
         // Save with file picker
         let savePanel = NSSavePanel()
-        savePanel.nameFieldStringValue = "nibnab-\(colorName.lowercased())-\(dateFormatter.string(from: Date())).md"
+        let shortName = colorName.replacingOccurrences(of: "Highlighter ", with: "").lowercased()
+        savePanel.nameFieldStringValue = "\(shortName)-clips.md"
         savePanel.allowedContentTypes = [.plainText]
         savePanel.canCreateDirectories = true
 
@@ -709,6 +710,8 @@ struct ContentView: View {
     @State private var selectedClip: Clip?
     @State private var sortOrder: SortOrder = .newestFirst
     @State private var searchText = ""
+    @State private var sortHovered = false
+    @State private var exportHovered = false
 
     enum SortOrder {
         case newestFirst, oldestFirst, byAppName, byLength
@@ -790,20 +793,32 @@ struct ContentView: View {
                         } label: {
                             Image(systemName: "arrow.up.arrow.down")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.white.opacity(0.8))
+                                .foregroundColor(.white.opacity(sortHovered ? 1.0 : 0.8))
+                                .scaleEffect(sortHovered ? 1.1 : 1.0)
                         }
                         .menuStyle(.borderlessButton)
                         .help("Sort clips")
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                sortHovered = hovering
+                            }
+                        }
 
                         Button(action: {
                             appState.exportClips(for: appState.activeColor.name)
                         }) {
                             Image(systemName: "square.and.arrow.down")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.white.opacity(0.8))
+                                .foregroundColor(.white.opacity(exportHovered ? 1.0 : 0.8))
+                                .scaleEffect(exportHovered ? 1.1 : 1.0)
                         }
                         .buttonStyle(.plain)
                         .help("Export clips to markdown")
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                exportHovered = hovering
+                            }
+                        }
                     }
                     .padding(.leading, 12)
 
@@ -811,13 +826,9 @@ struct ContentView: View {
                         .frame(height: 16)
                         .opacity(0.3)
 
-                    HStack(spacing: 4) {
-                        Text("Auto-launch")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.white.opacity(0.8))
-                        Toggle("", isOn: $appState.launchAtLogin)
-                            .toggleStyle(NibToggleStyle())
-                    }
+                    Toggle("", isOn: $appState.launchAtLogin)
+                        .toggleStyle(NibToggleStyle())
+                        .help("Launch at login")
 
                     Button(action: { NSApp.terminate(nil) }) {
                         Image(systemName: "xmark.circle.fill")
@@ -1087,6 +1098,8 @@ struct ClipDetailView: View {
     let clip: Clip
     let onDismiss: () -> Void
     @EnvironmentObject var appState: AppState
+    @State private var copyHovered = false
+    @State private var deleteHovered = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1131,33 +1144,41 @@ struct ClipDetailView: View {
                     NSPasteboard.general.setString(clip.text, forType: .string)
                     onDismiss()
                 }) {
-                    HStack {
-                        Image(systemName: "doc.on.clipboard")
-                        Text("Copy")
-                    }
-                    .font(.system(size: 12, weight: .medium))
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.9))
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color.white.opacity(0.15))
-                .cornerRadius(6)
+                .padding(10)
+                .background(Color.white.opacity(copyHovered ? 0.3 : 0.2))
+                .cornerRadius(8)
+                .scaleEffect(copyHovered ? 1.05 : 1.0)
+                .help("Copy to clipboard")
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        copyHovered = hovering
+                    }
+                }
 
                 Button(action: {
                     appState.deleteClip(clip, from: appState.viewedColor.name)
                     onDismiss()
                 }) {
-                    HStack {
-                        Image(systemName: "trash")
-                        Text("Delete")
-                    }
-                    .font(.system(size: 12, weight: .medium))
+                    Image(systemName: "trash")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.9))
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color.red.opacity(0.2))
-                .cornerRadius(6)
+                .padding(10)
+                .background(Color.white.opacity(deleteHovered ? 0.25 : 0.15))
+                .cornerRadius(8)
+                .scaleEffect(deleteHovered ? 1.05 : 1.0)
+                .help("Delete clip")
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        deleteHovered = hovering
+                    }
+                }
 
                 Spacer()
 
