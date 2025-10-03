@@ -17,8 +17,8 @@ struct NibColor {
 
     static let yellow = NibColor(
         name: "Highlighter Yellow",
-        hex: "#f5f617",
-        nsColor: NSColor(red: 0.961, green: 0.965, blue: 0.090, alpha: 1.0)
+        hex: "#FFEB3B",
+        nsColor: NSColor(red: 1.0, green: 0.922, blue: 0.231, alpha: 1.0)
     )
 
     static let orange = NibColor(
@@ -45,7 +45,7 @@ struct NibColor {
 // MARK: - Gradient Colors
 struct NibGradients {
     static let yellow = LinearGradient(
-        colors: [Color(red: 0.961, green: 0.965, blue: 0.090), Color(red: 0.91, green: 0.915, blue: 0.040)],
+        colors: [Color(red: 1.0, green: 0.922, blue: 0.231), Color(red: 0.95, green: 0.872, blue: 0.181)],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
@@ -780,28 +780,32 @@ struct ContentView: View {
                 Spacer()
 
                 HStack(spacing: 12) {
-                    Menu {
-                        Button("Newest First") { sortOrder = .newestFirst }
-                        Button("Oldest First") { sortOrder = .oldestFirst }
-                        Button("By App Name") { sortOrder = .byAppName }
-                        Button("By Length") { sortOrder = .byLength }
-                    } label: {
-                        Image(systemName: "arrow.up.arrow.down")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white.opacity(0.8))
-                    }
-                    .menuStyle(.borderlessButton)
-                    .help("Sort clips")
+                    // Sort and Export buttons with hover effects
+                    HStack(spacing: 8) {
+                        Menu {
+                            Button("Newest First") { sortOrder = .newestFirst }
+                            Button("Oldest First") { sortOrder = .oldestFirst }
+                            Button("By App Name") { sortOrder = .byAppName }
+                            Button("By Length") { sortOrder = .byLength }
+                        } label: {
+                            Image(systemName: "arrow.up.arrow.down")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                        .menuStyle(.borderlessButton)
+                        .help("Sort clips")
 
-                    Button(action: {
-                        appState.exportClips(for: appState.activeColor.name)
-                    }) {
-                        Image(systemName: "square.and.arrow.down")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white.opacity(0.8))
+                        Button(action: {
+                            appState.exportClips(for: appState.activeColor.name)
+                        }) {
+                            Image(systemName: "square.and.arrow.down")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Export clips to markdown")
                     }
-                    .buttonStyle(.plain)
-                    .help("Export clips")
+                    .padding(.leading, 12)
 
                     Divider()
                         .frame(height: 16)
@@ -935,6 +939,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingClipDetail) {
             if let clip = selectedClip {
                 ClipDetailView(clip: clip)
+                    .environmentObject(appState)
             }
         }
         .background(
@@ -985,6 +990,7 @@ struct ColorTab: View {
 // MARK: - Clip View Component
 struct ClipView: View {
     let clip: Clip
+    @EnvironmentObject var appState: AppState
     @State private var isHovered = false
 
     var body: some View {
@@ -1030,6 +1036,22 @@ struct ClipView: View {
                     ),
                     lineWidth: 1
                 )
+        )
+        .overlay(
+            Group {
+                if isHovered {
+                    Button(action: {
+                        appState.deleteClip(clip, from: appState.viewedColor.name)
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(6)
+                }
+            },
+            alignment: .topTrailing
         )
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
