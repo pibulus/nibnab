@@ -1,0 +1,16 @@
+# Build artifacts
+build/
+*.app
+
+# Xcode
+*.xcuserstate
+*.xcworkspace
+xcuserdata/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Local storage
+.nibnab/

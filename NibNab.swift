@@ -1,6 +1,8 @@
 import Cocoa
 import SwiftUI
 import ApplicationServices
+import ServiceManagement
+import Carbon.HIToolbox
 
 // ===================================================================
 // NIBNAB - Color-coded clipboard collector
@@ -82,14 +84,17 @@ struct NibNabApp: App {
 // MARK: - App Delegate
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
+    static weak var shared: AppDelegate?
     var statusItem: NSStatusItem!
     var popover = NSPopover()
     var appState: AppState!
     var eventMonitor: EventMonitor?
     var autoCopyMonitor: AutoCopyMonitor?
     var colorPickerWindow: NSWindow?
+    private var hotKeyRef: EventHotKeyRef?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppDelegate.shared = self
         // Create app state
         appState = AppState()
         appState.delegate = self
@@ -126,6 +131,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Start clipboard monitoring
         appState.startMonitoring()
+
+        // Register global keyboard shortcut (Cmd+Shift+V)
+        registerGlobalShortcut()
+    }
+
+    func registerGlobalShortcut() {
+        var eventType = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard),
+            eventKind: UInt32(kEventHotKeyPressed)
+        )
+
+        let hotKeyID = EventHotKeyID(signature: OSType(0x4E42_4E42), id: 1) // 'NBNB'
+
+        // Register Cmd+Shift+V
+        RegisterEventHotKey(
+            UInt32(kVK_ANSI_V),
+            UInt32(cmdKey | shiftKey),
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRef
+        )
+
+        // Install event handler
+        InstallEventHandler(
+            GetApplicationEventTarget(),
+            { (_, _, userData) -> OSStatus in
+                if let delegate = userData {
+                    let selfPointer = Unmanaged<AppDelegate>.fromOpaque(userData!).takeUnretainedValue()
+                    DispatchQueue.main.async {
+                        selfPointer.togglePopover()
+                    }
+                }
+                return noErr
+            },
+            1,
+            &eventType,
+            Unmanaged.passUnretained(self).toOpaque(),
+            nil
+        )
     }
 
     @objc func togglePopover() {
@@ -339,6 +384,15 @@ class AppState: ObservableObject {
             delegate?.handleAutoCopyToggle(autoCopyOnHighlight)
         }
     }
+    @Published var launchAtLogin = false {
+        didSet {
+            if launchAtLogin {
+                try? SMAppService.mainApp.register()
+            } else {
+                try? SMAppService.mainApp.unregister()
+            }
+        }
+    }
     @Published var clips: [String: [Clip]] = [:]
 
     weak var delegate: AppDelegate?
@@ -351,6 +405,9 @@ class AppState: ObservableObject {
         for color in NibColor.all {
             clips[color.name] = storageManager.loadClips(for: color.name)
         }
+
+        // Check current launch at login status
+        launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
     func startMonitoring() {
@@ -562,6 +619,18 @@ struct ContentView: View {
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(.white.opacity(0.6))
                         Toggle("", isOn: $appState.autoCopyOnHighlight)
+                            .toggleStyle(NibToggleStyle())
+                    }
+
+                    Divider()
+                        .frame(height: 16)
+                        .opacity(0.3)
+
+                    HStack(spacing: 4) {
+                        Text("Auto-launch")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                        Toggle("", isOn: $appState.launchAtLogin)
                             .toggleStyle(NibToggleStyle())
                     }
 
