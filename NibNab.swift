@@ -90,7 +90,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var appState: AppState!
     var eventMonitor: EventMonitor?
     var autoCopyMonitor: AutoCopyMonitor?
-    private var hotKeyRef: EventHotKeyRef?
+    private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 5)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
@@ -150,26 +150,95 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             eventKind: UInt32(kEventHotKeyPressed)
         )
 
-        let hotKeyID = EventHotKeyID(signature: OSType(0x4E42_4E42), id: 1) // 'NBNB'
+        let signature = OSType(0x4E42_4E42) // 'NBNB'
 
-        // Register Cmd+Shift+V
+        // Register Cmd+Shift+V (Toggle window)
+        let toggleID = EventHotKeyID(signature: signature, id: 1)
         RegisterEventHotKey(
             UInt32(kVK_ANSI_V),
             UInt32(cmdKey | shiftKey),
-            hotKeyID,
+            toggleID,
             GetApplicationEventTarget(),
             0,
-            &hotKeyRef
+            &hotKeyRefs[0]
+        )
+
+        // Register Cmd+Ctrl+1 (Yellow)
+        let yellowID = EventHotKeyID(signature: signature, id: 2)
+        RegisterEventHotKey(
+            UInt32(kVK_ANSI_1),
+            UInt32(cmdKey | controlKey),
+            yellowID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRefs[1]
+        )
+
+        // Register Cmd+Ctrl+2 (Orange)
+        let orangeID = EventHotKeyID(signature: signature, id: 3)
+        RegisterEventHotKey(
+            UInt32(kVK_ANSI_2),
+            UInt32(cmdKey | controlKey),
+            orangeID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRefs[2]
+        )
+
+        // Register Cmd+Ctrl+3 (Pink)
+        let pinkID = EventHotKeyID(signature: signature, id: 4)
+        RegisterEventHotKey(
+            UInt32(kVK_ANSI_3),
+            UInt32(cmdKey | controlKey),
+            pinkID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRefs[3]
+        )
+
+        // Register Cmd+Ctrl+4 (Purple)
+        let purpleID = EventHotKeyID(signature: signature, id: 5)
+        RegisterEventHotKey(
+            UInt32(kVK_ANSI_4),
+            UInt32(cmdKey | controlKey),
+            purpleID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRefs[4]
         )
 
         // Install event handler
         InstallEventHandler(
             GetApplicationEventTarget(),
-            { (_, _, userData) -> OSStatus in
+            { (_, inEvent, userData) -> OSStatus in
                 if userData != nil {
+                    var hotKeyID = EventHotKeyID()
+                    GetEventParameter(
+                        inEvent,
+                        EventParamName(kEventParamDirectObject),
+                        EventParamType(typeEventHotKeyID),
+                        nil,
+                        MemoryLayout<EventHotKeyID>.size,
+                        nil,
+                        &hotKeyID
+                    )
+
                     let selfPointer = Unmanaged<AppDelegate>.fromOpaque(userData!).takeUnretainedValue()
                     DispatchQueue.main.async {
-                        selfPointer.togglePopover()
+                        switch hotKeyID.id {
+                        case 1: // Cmd+Shift+V - Toggle
+                            selfPointer.togglePopover()
+                        case 2: // Cmd+Ctrl+1 - Yellow
+                            selfPointer.appState.activeColor = NibColor.yellow
+                        case 3: // Cmd+Ctrl+2 - Orange
+                            selfPointer.appState.activeColor = NibColor.orange
+                        case 4: // Cmd+Ctrl+3 - Pink
+                            selfPointer.appState.activeColor = NibColor.pink
+                        case 5: // Cmd+Ctrl+4 - Purple
+                            selfPointer.appState.activeColor = NibColor.purple
+                        default:
+                            break
+                        }
                     }
                 }
                 return noErr
