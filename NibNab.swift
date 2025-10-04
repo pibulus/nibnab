@@ -851,8 +851,88 @@ class StorageManager {
     }
 
     func loadClips(for colorName: String) -> [Clip] {
-        // For MVP, return empty array
-        return []
+        let colorDir = baseURL.appendingPathComponent(colorName.lowercased())
+        let fileName = "\(colorName.lowercased())_clips.md"
+        let fileURL = colorDir.appendingPathComponent(fileName)
+
+        // Check if file exists
+        guard FileManager.default.fileExists(atPath: fileURL.path),
+              let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
+            return []
+        }
+
+        var clips: [Clip] = []
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+
+        // Split by "---" separator to get individual clip sections
+        let sections = content.components(separatedBy: "\n---\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+        for section in sections {
+            let lines = section.components(separatedBy: "\n")
+            guard lines.count >= 3 else { continue }
+
+            var appName = ""
+            var url: String? = nil
+            var timestamp = Date()
+            var text = ""
+
+            var lineIndex = 0
+
+            // Parse header line (### AppName | [url](url))
+            for (index, line) in lines.enumerated() {
+                if line.hasPrefix("###") {
+                    lineIndex = index
+                    let headerContent = line.replacingOccurrences(of: "###", with: "").trimmingCharacters(in: .whitespaces)
+
+                    // Check for URL in format: AppName | [url](url)
+                    if headerContent.contains("|") {
+                        let parts = headerContent.components(separatedBy: "|")
+                        appName = parts[0].trimmingCharacters(in: .whitespaces)
+
+                        // Extract URL from markdown link [text](url)
+                        if let urlPart = parts.last,
+                           let urlStart = urlPart.range(of: "](")?.upperBound,
+                           let urlEnd = urlPart.range(of: ")", range: urlStart..<urlPart.endIndex)?.lowerBound {
+                            url = String(urlPart[urlStart..<urlEnd])
+                        }
+                    } else {
+                        appName = headerContent
+                    }
+                    break
+                }
+            }
+
+            // Parse timestamp line (next line after header)
+            if lineIndex + 1 < lines.count {
+                let timestampLine = lines[lineIndex + 1].trimmingCharacters(in: .whitespaces)
+                // Remove " Bangkok" suffix if present
+                let dateString = timestampLine.replacingOccurrences(of: " Bangkok", with: "")
+                if let parsedDate = formatter.date(from: dateString) {
+                    timestamp = parsedDate
+                }
+            }
+
+            // Parse text content (everything after empty line following timestamp)
+            if lineIndex + 2 < lines.count {
+                let textLines = Array(lines[(lineIndex + 2)...])
+                text = textLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            // Create clip if we have valid data
+            if !appName.isEmpty && !text.isEmpty {
+                let clip = Clip(
+                    text: text,
+                    timestamp: timestamp,
+                    url: url,
+                    appName: appName
+                )
+                clips.append(clip)
+            }
+        }
+
+        // Sort by timestamp descending (newest first)
+        return clips.sorted { $0.timestamp > $1.timestamp }
     }
 }
 

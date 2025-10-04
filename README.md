@@ -119,10 +119,8 @@ This is the 80/20 version. Does less, does it better.
 
 ## What's next? (maybe)
 
-- Load clips from markdown on launch
 - Screenshot snippets alongside text
 - Browser URL capture
-- Keyboard shortcuts for color selection (1-4)
 - Export to Obsidian/Notion
 
 But honestly? It's pretty much done. Adding features just to add features is how good tools become bad ones.
