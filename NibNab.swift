@@ -114,7 +114,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let contentView = ContentView()
             .environmentObject(appState)
 
-        popover.contentSize = NSSize(width: 440, height: 420)
+        popover.contentSize = NSSize(width: 480, height: 420)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: contentView)
 
@@ -795,6 +795,7 @@ struct ContentView: View {
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.white.opacity(sortHovered ? 1.0 : 0.8))
                                 .scaleEffect(sortHovered ? 1.1 : 1.0)
+                                .frame(width: 20, height: 20)
                         }
                         .menuStyle(.borderlessButton)
                         .help("Sort clips")
@@ -811,6 +812,7 @@ struct ContentView: View {
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.white.opacity(exportHovered ? 1.0 : 0.8))
                                 .scaleEffect(exportHovered ? 1.1 : 1.0)
+                                .frame(width: 20, height: 20)
                         }
                         .buttonStyle(.plain)
                         .help("Export clips to markdown")
@@ -869,7 +871,9 @@ struct ContentView: View {
                                     }
 
                                     Button(action: {
-                                        appState.deleteClip(clip, from: appState.viewedColor.name)
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                            appState.deleteClip(clip, from: appState.viewedColor.name)
+                                        }
                                     }) {
                                         Label("Delete", systemImage: "trash")
                                     }
@@ -1065,7 +1069,9 @@ struct ClipView: View {
             Group {
                 if isHovered {
                     Button(action: {
-                        appState.deleteClip(clip, from: appState.viewedColor.name)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            appState.deleteClip(clip, from: appState.viewedColor.name)
+                        }
                     }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 14))
@@ -1161,8 +1167,10 @@ struct ClipDetailView: View {
                 }
 
                 Button(action: {
-                    appState.deleteClip(clip, from: appState.viewedColor.name)
                     onDismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        appState.deleteClip(clip, from: appState.viewedColor.name)
+                    }
                 }) {
                     Image(systemName: "trash")
                         .font(.system(size: 16))
