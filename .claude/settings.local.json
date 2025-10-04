@@ -4,7 +4,8 @@
       "Bash(pkill:*)",
       "mcp__sequential-thinking__sequentialthinking_tools",
       "mcp__context7__resolve-library-id",
-      "mcp__context7__get-library-docs"
+      "mcp__context7__get-library-docs",
+      "Bash(./build.sh)"
     ],
     "deny": [],
     "ask": []

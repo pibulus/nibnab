@@ -331,12 +331,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.messageText = "About NibNab"
         alert.informativeText = """
-        NibNab - Your clipboard deserves better
+        A highlighter for your digital life 🎨
 
-        Color-coded clipboard collector that captures and organizes your copied text.
+        Hey, I'm Pablo. I build tools with personality.
 
-        Version 1.0
-        Made with ❤️ by Pablo
+        NibNab captures everything you copy and organizes it by color—because your clipboard deserves better than Cmd+V into Notes.app.
+
+        Auto-capture, export options, zero cloud BS. It's quick, it's local, it works forever.
+
+        Check out more of my work:
+        🌐 github.com/pibulus
+
+        Version 1.0 • Made in Bangkok ☕
         """
         alert.alertStyle = .informational
         alert.addButton(withTitle: "OK")
@@ -645,15 +651,12 @@ class AppState: ObservableObject {
         }
     }
 
-    func exportClips(for colorName: String) {
+    func exportClipsAsMarkdown(for colorName: String) {
         guard let colorClips = clips[colorName], !colorClips.isEmpty else { return }
 
-        // Format as markdown
+        // Format as markdown with metadata
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy h:mm a"
-
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
 
         var markdown = "# NibNab Export - \(colorName)\n"
         markdown += "Exported: \(formatter.string(from: Date()))\n\n"
@@ -675,6 +678,35 @@ class AppState: ObservableObject {
         savePanel.begin { response in
             if response == .OK, let url = savePanel.url {
                 try? markdown.write(to: url, atomically: true, encoding: .utf8)
+            }
+        }
+    }
+
+    func exportClipsAsPlainText(for colorName: String) {
+        guard let colorClips = clips[colorName], !colorClips.isEmpty else { return }
+
+        // Format as plain text - just clips with separators
+        var plainText = ""
+
+        for (index, clip) in colorClips.enumerated() {
+            plainText += clip.text
+
+            // Add separator unless it's the last clip
+            if index < colorClips.count - 1 {
+                plainText += "\n\n---\n\n"
+            }
+        }
+
+        // Save with file picker
+        let savePanel = NSSavePanel()
+        let shortName = colorName.replacingOccurrences(of: "Highlighter ", with: "").lowercased()
+        savePanel.nameFieldStringValue = "\(shortName)-clips.txt"
+        savePanel.allowedContentTypes = [.plainText]
+        savePanel.canCreateDirectories = true
+
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                try? plainText.write(to: url, atomically: true, encoding: .utf8)
             }
         }
     }
@@ -892,17 +924,22 @@ struct ContentView: View {
                             }
                         }
 
-                        Button(action: {
-                            appState.exportClips(for: appState.activeColor.name)
-                        }) {
+                        Menu {
+                            Button("Export as Markdown...") {
+                                appState.exportClipsAsMarkdown(for: appState.activeColor.name)
+                            }
+                            Button("Export as Plain Text...") {
+                                appState.exportClipsAsPlainText(for: appState.activeColor.name)
+                            }
+                        } label: {
                             Image(systemName: "square.and.arrow.down")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.white.opacity(exportHovered ? 1.0 : 0.8))
                                 .scaleEffect(exportHovered ? 1.1 : 1.0)
                                 .frame(width: 20, height: 20)
                         }
-                        .buttonStyle(.plain)
-                        .help("Export clips to markdown")
+                        .menuStyle(.borderlessButton)
+                        .help("Export clips")
                         .onHover { hovering in
                             withAnimation(.easeInOut(duration: 0.15)) {
                                 exportHovered = hovering
@@ -1152,16 +1189,30 @@ struct ClipView: View {
         .overlay(
             Group {
                 if isHovered {
-                    Button(action: {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            appState.deleteClip(clip, from: appState.viewedColor.name)
+                    HStack(spacing: 6) {
+                        // Copy button
+                        Button(action: {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(clip.text, forType: .string)
+                        }) {
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white.opacity(0.6))
                         }
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(.white.opacity(0.6))
+                        .buttonStyle(.plain)
+
+                        // Delete button
+                        Button(action: {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                appState.deleteClip(clip, from: appState.viewedColor.name)
+                            }
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                     .padding(6)
                 }
             },
