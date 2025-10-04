@@ -712,8 +712,8 @@ class AppState: ObservableObject {
 
         storageManager.saveClip(clip, to: color.name)
 
-        // Play clip capture sound
-        if soundEffectsEnabled, let sound = NSSound(named: "Pop") {
+        // Play clip capture sound (satisfying capture feedback)
+        if soundEffectsEnabled, let sound = NSSound(named: "Blow") {
             sound.play()
         }
     }
@@ -741,8 +741,8 @@ class AppState: ObservableObject {
         clips[colorName] = []
         storageManager.deleteAllClips(for: colorName)
 
-        // Play delete sound
-        if soundEffectsEnabled, let sound = NSSound(named: "Tink") {
+        // Play clear all sound (heavier feedback for bulk action)
+        if soundEffectsEnabled, let sound = NSSound(named: "Basso") {
             sound.play()
         }
     }
@@ -1111,116 +1111,17 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 // Header
                 HStack(alignment: .center, spacing: 16) {
-                    // Left: Title
-                    HStack(spacing: 10) {
-                        Image(systemName: "highlighter")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(Color(appState.activeColor.nsColor))
-                        Text("NibNab")
-                            .font(.system(size: 20, weight: .black, design: .rounded))
-                            .foregroundColor(Color(appState.activeColor.nsColor))
-                            .fixedSize()
-                    }
-
-                    Spacer()
-
-                    // Center: Search field
-                    HStack(spacing: 6) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.5))
-
-                        TextField("Search clips...", text: $searchText)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 11))
-                            .frame(width: 110)
-                            .focused($searchFocused)
-                            .onAppear {
-                                // Prevent auto-focus on appear
-                                searchFocused = false
-                            }
-
-                        if !searchText.isEmpty {
-                            Button(action: { searchText = "" }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.white.opacity(0.5))
-                            }
-                            .buttonStyle(.plain)
+                    // Left: Title + Toggle (most important control)
+                    HStack(spacing: 12) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "highlighter")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(Color(appState.activeColor.nsColor))
+                            Text("NibNab")
+                                .font(.system(size: 20, weight: .black, design: .rounded))
+                                .foregroundColor(Color(appState.activeColor.nsColor))
+                                .fixedSize()
                         }
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.1))
-                    .cornerRadius(8)
-
-                    Spacer()
-
-                    HStack(alignment: .center, spacing: 12) {
-                        // Sort, Clear All, and Export buttons with hover effects
-                        HStack(spacing: 16) {
-                            Menu {
-                                Button("Newest First") { sortOrder = .newestFirst }
-                                Button("Oldest First") { sortOrder = .oldestFirst }
-                                Button("By App Name") { sortOrder = .byAppName }
-                                Button("By Length") { sortOrder = .byLength }
-                            } label: {
-                                Image(systemName: "arrow.up.arrow.down")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.white.opacity(sortHovered ? 1.0 : 0.7))
-                                    .scaleEffect(sortHovered ? 1.2 : 1.0)
-                            }
-                            .menuStyle(.borderlessButton)
-                            .menuIndicator(.hidden)
-                            .help("Sort clips")
-                            .onHover { hovering in
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    sortHovered = hovering
-                                }
-                            }
-
-                            Button(action: {
-                                showClearConfirm = true
-                            }) {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.white.opacity(clearHovered ? 1.0 : 0.7))
-                                    .scaleEffect(clearHovered ? 1.2 : 1.0)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Clear all clips for this color")
-                            .onHover { hovering in
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    clearHovered = hovering
-                                }
-                            }
-
-                            Menu {
-                                Button("Export as Markdown...") {
-                                    appState.exportClipsAsMarkdown(for: appState.activeColor.name)
-                                }
-                                Button("Export as Plain Text...") {
-                                    appState.exportClipsAsPlainText(for: appState.activeColor.name)
-                                }
-                            } label: {
-                                Image(systemName: "square.and.arrow.down")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.white.opacity(exportHovered ? 1.0 : 0.7))
-                                    .scaleEffect(exportHovered ? 1.2 : 1.0)
-                            }
-                            .menuStyle(.borderlessButton)
-                            .menuIndicator(.hidden)
-                            .help("Export clips")
-                            .onHover { hovering in
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    exportHovered = hovering
-                                }
-                            }
-                        }
-
-                        Divider()
-                            .frame(height: 16)
-                            .opacity(0.3)
 
                         // Active/Inactive Toggle
                         ZStack {
@@ -1232,11 +1133,111 @@ struct ContentView: View {
                                 .labelsHidden()
                                 .toggleStyle(.switch)
                                 .scaleEffect(toggleHovered ? 0.75 : 0.7)
-                                .help(appState.isMonitoring ? "Monitoring active - Click to pause" : "Monitoring paused - Click to activate")
+                                .help(appState.isMonitoring ? "Active - capturing clips" : "Paused - click to activate")
                         }
                         .onHover { hovering in
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 toggleHovered = hovering
+                            }
+                        }
+                    }
+
+                    Spacer()
+
+                    // Center: Search + Sort (finding tools together)
+                    HStack(spacing: 12) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.5))
+
+                            TextField("Search...", text: $searchText)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 11))
+                                .frame(width: 90)
+                                .focused($searchFocused)
+                                .onAppear {
+                                    searchFocused = false
+                                }
+
+                            if !searchText.isEmpty {
+                                Button(action: { searchText = "" }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.white.opacity(0.5))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(8)
+
+                        Menu {
+                            Button("Newest First") { sortOrder = .newestFirst }
+                            Button("Oldest First") { sortOrder = .oldestFirst }
+                            Button("By App Name") { sortOrder = .byAppName }
+                            Button("By Length") { sortOrder = .byLength }
+                        } label: {
+                            Image(systemName: "line.3.horizontal.decrease")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white.opacity(sortHovered ? 1.0 : 0.7))
+                                .scaleEffect(sortHovered ? 1.15 : 1.0)
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .help("Sort clips")
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                sortHovered = hovering
+                            }
+                        }
+                    }
+
+                    Spacer()
+
+                    // Right: Actions (export/clear)
+                    HStack(alignment: .center, spacing: 12) {
+                        Menu {
+                            Button("Export as Markdown...") {
+                                appState.exportClipsAsMarkdown(for: appState.viewedColor.name)
+                            }
+                            Button("Export as Plain Text...") {
+                                appState.exportClipsAsPlainText(for: appState.viewedColor.name)
+                            }
+                        } label: {
+                            Image(systemName: "arrow.up.doc")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white.opacity(exportHovered ? 1.0 : 0.7))
+                                .scaleEffect(exportHovered ? 1.15 : 1.0)
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .help("Export clips")
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                exportHovered = hovering
+                            }
+                        }
+
+                        Divider()
+                            .frame(height: 16)
+                            .opacity(0.3)
+
+                        Button(action: {
+                            showClearConfirm = true
+                        }) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white.opacity(clearHovered ? 1.0 : 0.7))
+                                .scaleEffect(clearHovered ? 1.15 : 1.0)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Clear all clips")
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                clearHovered = hovering
                             }
                         }
                     }
