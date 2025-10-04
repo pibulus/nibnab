@@ -601,10 +601,8 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(activeColor.name, forKey: "activeColorName")
             // Update menubar icon
             delegate?.updateMenubarIcon()
-            // Play soft sound feedback (create new instance each time for overlapping playback)
-            if soundEffectsEnabled, let sound = NSSound(named: "Pop") {
-                sound.play()
-            }
+            // Play soft sound feedback
+            playSound("Pop")
         }
     }
     @Published var launchAtLogin = false {
@@ -712,9 +710,15 @@ class AppState: ObservableObject {
 
         storageManager.saveClip(clip, to: color.name)
 
-        // Play clip capture sound (satisfying capture feedback)
-        if soundEffectsEnabled, let sound = NSSound(named: "Blow") {
-            sound.play()
+        // Play clip capture sound (subtle, satisfying feedback)
+        playSound("Purr")
+    }
+
+    func playSound(_ name: String) {
+        guard soundEffectsEnabled else { return }
+        // Play async to prevent overlap/cutoff issues
+        DispatchQueue.global(qos: .userInitiated).async {
+            NSSound(named: name)?.play()
         }
     }
 
@@ -732,9 +736,7 @@ class AppState: ObservableObject {
         // TODO: Also delete from markdown file
 
         // Play clip delete sound
-        if soundEffectsEnabled, let sound = NSSound(named: "Tink") {
-            sound.play()
-        }
+        playSound("Tink")
     }
 
     func clearAllClips(for colorName: String) {
@@ -742,9 +744,7 @@ class AppState: ObservableObject {
         storageManager.deleteAllClips(for: colorName)
 
         // Play clear all sound (heavier feedback for bulk action)
-        if soundEffectsEnabled, let sound = NSSound(named: "Basso") {
-            sound.play()
-        }
+        playSound("Basso")
     }
 
     func moveClip(_ clip: Clip, from sourceColor: String, to targetColor: String, at index: Int? = nil) {
@@ -767,9 +767,7 @@ class AppState: ObservableObject {
         storageManager.saveClip(clip, to: targetColor)
 
         // Play sound
-        if soundEffectsEnabled, let sound = NSSound(named: "Pop") {
-            sound.play()
-        }
+        playSound("Pop")
     }
 
     func reorderClip(_ clip: Clip, in colorName: String, to index: Int) {
