@@ -996,6 +996,8 @@ struct ContentView: View {
     @State private var searchText = ""
     @State private var sortHovered = false
     @State private var exportHovered = false
+    @State private var toggleHovered = false
+    @FocusState private var searchFocused: Bool
 
     enum SortOrder {
         case newestFirst, oldestFirst, byAppName, byLength
@@ -1027,106 +1029,121 @@ struct ContentView: View {
         ZStack {
             VStack(spacing: 0) {
                 // Header
-                HStack {
+                HStack(alignment: .center, spacing: 16) {
+                    // Left: Title
                     HStack(spacing: 10) {
                         Image(systemName: "highlighter")
                             .font(.system(size: 18, weight: .bold))
                             .foregroundColor(Color(appState.activeColor.nsColor))
                         Text("NibNab")
-                        .font(.system(size: 20, weight: .black, design: .rounded))
-                        .foregroundColor(Color(appState.activeColor.nsColor))
-                }
-
-                Spacer()
-
-                // Search field
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.5))
-
-                    TextField("Search", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 11))
-                        .frame(width: 100)
-
-                    if !searchText.isEmpty {
-                        Button(action: { searchText = "" }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.5))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.white.opacity(0.1))
-                .cornerRadius(8)
-
-                Spacer()
-
-                HStack(spacing: 12) {
-                    // Sort and Export buttons with hover effects
-                    HStack(spacing: 8) {
-                        Menu {
-                            Button("Newest First") { sortOrder = .newestFirst }
-                            Button("Oldest First") { sortOrder = .oldestFirst }
-                            Button("By App Name") { sortOrder = .byAppName }
-                            Button("By Length") { sortOrder = .byLength }
-                        } label: {
-                            Image(systemName: "arrow.up.arrow.down")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.white.opacity(sortHovered ? 1.0 : 0.8))
-                                .scaleEffect(sortHovered ? 1.1 : 1.0)
-                                .frame(width: 20, height: 20)
-                        }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                        .help("Sort clips")
-                        .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                sortHovered = hovering
-                            }
-                        }
-
-                        Menu {
-                            Button("Export as Markdown...") {
-                                appState.exportClipsAsMarkdown(for: appState.activeColor.name)
-                            }
-                            Button("Export as Plain Text...") {
-                                appState.exportClipsAsPlainText(for: appState.activeColor.name)
-                            }
-                        } label: {
-                            Image(systemName: "square.and.arrow.down")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.white.opacity(exportHovered ? 1.0 : 0.8))
-                                .scaleEffect(exportHovered ? 1.1 : 1.0)
-                                .frame(width: 20, height: 20)
-                        }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                        .help("Export clips")
-                        .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                exportHovered = hovering
-                            }
-                        }
+                            .font(.system(size: 20, weight: .black, design: .rounded))
+                            .foregroundColor(Color(appState.activeColor.nsColor))
+                            .fixedSize()
                     }
 
-                    Divider()
-                        .frame(height: 16)
-                        .opacity(0.3)
+                    Spacer()
 
-                    // Active/Inactive Toggle
-                    Toggle("", isOn: $appState.isMonitoring)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .tint(Color(appState.activeColor.nsColor))
-                        .scaleEffect(0.7)
-                        .help(appState.isMonitoring ? "Monitoring active - Click to pause" : "Monitoring paused - Click to activate")
+                    // Center: Search field
+                    HStack(spacing: 6) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.5))
+
+                        TextField("Search clips...", text: $searchText)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 11))
+                            .frame(width: 110)
+                            .focused($searchFocused)
+                            .onAppear {
+                                // Prevent auto-focus on appear
+                                searchFocused = false
+                            }
+
+                        if !searchText.isEmpty {
+                            Button(action: { searchText = "" }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.white.opacity(0.5))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(8)
+
+                    Spacer()
+
+                    HStack(alignment: .center, spacing: 12) {
+                        // Sort and Export buttons with hover effects
+                        HStack(spacing: 16) {
+                            Menu {
+                                Button("Newest First") { sortOrder = .newestFirst }
+                                Button("Oldest First") { sortOrder = .oldestFirst }
+                                Button("By App Name") { sortOrder = .byAppName }
+                                Button("By Length") { sortOrder = .byLength }
+                            } label: {
+                                Image(systemName: "arrow.up.arrow.down")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.white.opacity(sortHovered ? 1.0 : 0.7))
+                                    .scaleEffect(sortHovered ? 1.2 : 1.0)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .menuIndicator(.hidden)
+                            .help("Sort clips")
+                            .onHover { hovering in
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    sortHovered = hovering
+                                }
+                            }
+
+                            Menu {
+                                Button("Export as Markdown...") {
+                                    appState.exportClipsAsMarkdown(for: appState.activeColor.name)
+                                }
+                                Button("Export as Plain Text...") {
+                                    appState.exportClipsAsPlainText(for: appState.activeColor.name)
+                                }
+                            } label: {
+                                Image(systemName: "square.and.arrow.down")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.white.opacity(exportHovered ? 1.0 : 0.7))
+                                    .scaleEffect(exportHovered ? 1.2 : 1.0)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .menuIndicator(.hidden)
+                            .help("Export clips")
+                            .onHover { hovering in
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    exportHovered = hovering
+                                }
+                            }
+                        }
+
+                        Divider()
+                            .frame(height: 16)
+                            .opacity(0.3)
+
+                        // Active/Inactive Toggle
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(Color.white.opacity(toggleHovered ? 0.2 : 0.0))
+                                .frame(width: 52, height: 32)
+
+                            Toggle("", isOn: $appState.isMonitoring)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .scaleEffect(toggleHovered ? 0.75 : 0.7)
+                                .help(appState.isMonitoring ? "Monitoring active - Click to pause" : "Monitoring paused - Click to activate")
+                        }
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                toggleHovered = hovering
+                            }
+                        }
+                    }
                 }
-            }
             .padding(.horizontal, 20)
             .padding(.top, 18)
             .padding(.bottom, 12)
