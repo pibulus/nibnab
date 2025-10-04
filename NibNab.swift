@@ -3,6 +3,7 @@ import SwiftUI
 import ApplicationServices
 import ServiceManagement
 import Carbon.HIToolbox
+import UniformTypeIdentifiers
 
 // ===================================================================
 // NIBNAB - Color-coded clipboard collector
@@ -142,7 +143,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Start auto-copy monitor (for text selection)
         autoCopyMonitor?.start()
 
-        // Register global keyboard shortcut (Cmd+Shift+V)
+        // Register global keyboard shortcut (Cmd+Shift+N)
         registerGlobalShortcut()
     }
 
@@ -154,10 +155,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let signature = OSType(0x4E42_4E42) // 'NBNB'
 
-        // Register Cmd+Shift+V (Toggle window)
+        // Register Cmd+Shift+N (Toggle window)
         let toggleID = EventHotKeyID(signature: signature, id: 1)
         RegisterEventHotKey(
-            UInt32(kVK_ANSI_V),
+            UInt32(kVK_ANSI_N),
             UInt32(cmdKey | shiftKey),
             toggleID,
             GetApplicationEventTarget(),
@@ -228,7 +229,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     let selfPointer = Unmanaged<AppDelegate>.fromOpaque(userData!).takeUnretainedValue()
                     DispatchQueue.main.async {
                         switch hotKeyID.id {
-                        case 1: // Cmd+Shift+V - Toggle
+                        case 1: // Cmd+Shift+N - Toggle
                             selfPointer.togglePopover()
                         case 2: // Cmd+Ctrl+1 - Yellow
                             selfPointer.appState.activeColor = NibColor.yellow
@@ -736,6 +737,51 @@ class AppState: ObservableObject {
         }
     }
 
+    func clearAllClips(for colorName: String) {
+        clips[colorName] = []
+        storageManager.deleteAllClips(for: colorName)
+
+        // Play delete sound
+        if soundEffectsEnabled, let sound = NSSound(named: "Tink") {
+            sound.play()
+        }
+    }
+
+    func moveClip(_ clip: Clip, from sourceColor: String, to targetColor: String, at index: Int? = nil) {
+        // Remove from source
+        clips[sourceColor]?.removeAll { $0.id == clip.id }
+
+        // Add to target
+        if clips[targetColor] == nil {
+            clips[targetColor] = []
+        }
+
+        if let index = index, index < clips[targetColor]!.count {
+            clips[targetColor]!.insert(clip, at: index)
+        } else {
+            clips[targetColor]!.append(clip)
+        }
+
+        // Update storage
+        storageManager.deleteClip(clip, from: sourceColor)
+        storageManager.saveClip(clip, to: targetColor)
+
+        // Play sound
+        if soundEffectsEnabled, let sound = NSSound(named: "Pop") {
+            sound.play()
+        }
+    }
+
+    func reorderClip(_ clip: Clip, in colorName: String, to index: Int) {
+        guard var colorClips = clips[colorName] else { return }
+        colorClips.removeAll { $0.id == clip.id }
+        colorClips.insert(clip, at: min(index, colorClips.count))
+        clips[colorName] = colorClips
+
+        // Rewrite entire file with new order
+        storageManager.rewriteClips(colorClips, for: colorName)
+    }
+
     func exportClipsAsMarkdown(for colorName: String) {
         guard let colorClips = clips[colorName], !colorClips.isEmpty else { return }
 
@@ -816,6 +862,11 @@ struct Clip: Identifiable, Codable {
     }
 }
 
+// Custom UTType for dragging clips
+extension UTType {
+    static let nibNabClip = UTType(exportedAs: "com.pibulus.nibnab.clip")
+}
+
 // MARK: - Storage Manager
 class StorageManager {
     private let baseURL: URL
@@ -862,6 +913,34 @@ class StorageManager {
             } else {
                 try? data.write(to: fileURL)
             }
+        }
+    }
+
+    func deleteAllClips(for colorName: String) {
+        let colorDir = baseURL.appendingPathComponent(colorName.lowercased())
+        let fileName = "\(colorName.lowercased())_clips.md"
+        let fileURL = colorDir.appendingPathComponent(fileName)
+
+        // Delete the markdown file
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+
+    func deleteClip(_ clip: Clip, from colorName: String) {
+        // For now, just mark as deleted - full rewrite happens on reorder
+        // TODO: Implement selective deletion from markdown
+    }
+
+    func rewriteClips(_ clips: [Clip], for colorName: String) {
+        let colorDir = baseURL.appendingPathComponent(colorName.lowercased())
+        let fileName = "\(colorName.lowercased())_clips.md"
+        let fileURL = colorDir.appendingPathComponent(fileName)
+
+        // Delete existing file
+        try? FileManager.default.removeItem(at: fileURL)
+
+        // Write all clips in order
+        for clip in clips {
+            saveClip(clip, to: colorName)
         }
     }
 
@@ -997,6 +1076,8 @@ struct ContentView: View {
     @State private var sortHovered = false
     @State private var exportHovered = false
     @State private var toggleHovered = false
+    @State private var clearHovered = false
+    @State private var showClearConfirm = false
     @FocusState private var searchFocused: Bool
 
     enum SortOrder {
@@ -1076,7 +1157,7 @@ struct ContentView: View {
                     Spacer()
 
                     HStack(alignment: .center, spacing: 12) {
-                        // Sort and Export buttons with hover effects
+                        // Sort, Clear All, and Export buttons with hover effects
                         HStack(spacing: 16) {
                             Menu {
                                 Button("Newest First") { sortOrder = .newestFirst }
@@ -1095,6 +1176,22 @@ struct ContentView: View {
                             .onHover { hovering in
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     sortHovered = hovering
+                                }
+                            }
+
+                            Button(action: {
+                                showClearConfirm = true
+                            }) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.white.opacity(clearHovered ? 1.0 : 0.7))
+                                    .scaleEffect(clearHovered ? 1.2 : 1.0)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Clear all clips for this color")
+                            .onHover { hovering in
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    clearHovered = hovering
                                 }
                             }
 
@@ -1161,10 +1258,13 @@ struct ContentView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     if !sortedClips.isEmpty {
-                        ForEach(sortedClips) { clip in
+                        ForEach(Array(sortedClips.enumerated()), id: \.element.id) { index, clip in
                             ClipView(clip: clip)
                                 .onTapGesture {
                                     selectedClip = clip
+                                }
+                                .onDrop(of: [.text], isTargeted: nil) { providers in
+                                    handleDrop(providers: providers, at: index)
                                 }
                                 .contextMenu {
                                     Button(action: {
@@ -1242,6 +1342,9 @@ struct ContentView: View {
                         }
                         .buttonStyle(.plain)
                         .help("Switch to \(color.name)")
+                        .onDrop(of: [.text], isTargeted: nil) { providers in
+                            handleColorDrop(providers: providers, to: color)
+                        }
                     }
                 }
             }
@@ -1289,6 +1392,57 @@ struct ContentView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
         }
+        .alert("Clear All Clips?", isPresented: $showClearConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear All", role: .destructive) {
+                appState.clearAllClips(for: appState.viewedColor.name)
+            }
+        } message: {
+            let shortName = appState.viewedColor.name.replacingOccurrences(of: "Highlighter ", with: "")
+            let count = appState.clips[appState.viewedColor.name]?.count ?? 0
+            Text("This will permanently delete all \(count) \(shortName) clips.")
+        }
+    }
+
+    func handleDrop(providers: [NSItemProvider], at index: Int) -> Bool {
+        guard let provider = providers.first else { return false }
+
+        provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { data, error in
+            DispatchQueue.main.async {
+                guard let stringData = data as? String,
+                      let jsonData = stringData.data(using: .utf8),
+                      let droppedClip = try? JSONDecoder().decode(Clip.self, from: jsonData) else {
+                    return
+                }
+
+                // Reorder within same color
+                appState.reorderClip(droppedClip, in: appState.viewedColor.name, to: index)
+            }
+        }
+
+        return true
+    }
+
+    func handleColorDrop(providers: [NSItemProvider], to targetColor: NibColor) -> Bool {
+        guard let provider = providers.first else { return false }
+
+        provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { data, error in
+            DispatchQueue.main.async {
+                guard let stringData = data as? String,
+                      let jsonData = stringData.data(using: .utf8),
+                      let droppedClip = try? JSONDecoder().decode(Clip.self, from: jsonData) else {
+                    return
+                }
+
+                // Move clip to new color
+                appState.moveClip(droppedClip, from: appState.viewedColor.name, to: targetColor.name)
+
+                // Optionally switch to the target color to show the moved clip
+                appState.viewedColor = targetColor
+            }
+        }
+
+        return true
     }
 }
 
@@ -1326,6 +1480,7 @@ struct ClipView: View {
     let clip: Clip
     @EnvironmentObject var appState: AppState
     @State private var isHovered = false
+    @State private var isDragging = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1405,9 +1560,27 @@ struct ClipView: View {
             },
             alignment: .topTrailing
         )
+        .opacity(isDragging ? 0.5 : 1.0)
+        .onDrag {
+            isDragging = true
+            let encoder = JSONEncoder()
+            guard let data = try? encoder.encode(clip),
+                  let jsonString = String(data: data, encoding: .utf8) else {
+                return NSItemProvider()
+            }
+            return NSItemProvider(object: jsonString as NSString)
+        }
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hovering
+            }
+        }
+        .onChange(of: isDragging) { newValue in
+            if !newValue {
+                // Reset drag state with delay to allow drop to complete
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isDragging = false
+                }
             }
         }
     }
