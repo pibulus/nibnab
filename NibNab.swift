@@ -134,8 +134,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.pulseMenubarIcon()
         }
 
-        // Start clipboard monitoring (for Cmd+C)
-        appState.startClipboardMonitoring()
+        // Start clipboard monitoring if enabled (for Cmd+C)
+        if appState.isMonitoring {
+            appState.startClipboardMonitoring()
+        }
 
         // Start auto-copy monitor (for text selection)
         autoCopyMonitor?.start()
@@ -618,6 +620,16 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(soundEffectsEnabled, forKey: "soundEffectsEnabled")
         }
     }
+    @Published var isMonitoring: Bool {
+        didSet {
+            UserDefaults.standard.set(isMonitoring, forKey: "isMonitoring")
+            if isMonitoring {
+                startClipboardMonitoring()
+            } else {
+                stopClipboardMonitoring()
+            }
+        }
+    }
     @Published var clips: [String: [Clip]] = [:]
 
     weak var delegate: AppDelegate?
@@ -636,6 +648,9 @@ class AppState: ObservableObject {
 
         // Load sound effects preference (default: enabled)
         soundEffectsEnabled = UserDefaults.standard.object(forKey: "soundEffectsEnabled") as? Bool ?? true
+
+        // Load monitoring state (default: enabled)
+        isMonitoring = UserDefaults.standard.object(forKey: "isMonitoring") as? Bool ?? true
 
         // Initialize clips for each color
         for color in NibColor.all {
@@ -1067,6 +1082,7 @@ struct ContentView: View {
                                 .frame(width: 20, height: 20)
                         }
                         .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
                         .help("Sort clips")
                         .onHover { hovering in
                             withAnimation(.easeInOut(duration: 0.15)) {
@@ -1089,6 +1105,7 @@ struct ContentView: View {
                                 .frame(width: 20, height: 20)
                         }
                         .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
                         .help("Export clips")
                         .onHover { hovering in
                             withAnimation(.easeInOut(duration: 0.15)) {
@@ -1096,18 +1113,18 @@ struct ContentView: View {
                             }
                         }
                     }
-                    .padding(.leading, 12)
 
                     Divider()
                         .frame(height: 16)
                         .opacity(0.3)
 
-                    Button(action: { NSApp.terminate(nil) }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                    .buttonStyle(.plain)
+                    // Active/Inactive Toggle
+                    Toggle("", isOn: $appState.isMonitoring)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .tint(Color(appState.activeColor.nsColor))
+                        .scaleEffect(0.7)
+                        .help(appState.isMonitoring ? "Monitoring active - Click to pause" : "Monitoring paused - Click to activate")
                 }
             }
             .padding(.horizontal, 20)
@@ -1207,6 +1224,7 @@ struct ContentView: View {
                                 )
                         }
                         .buttonStyle(.plain)
+                        .help("Switch to \(color.name)")
                     }
                 }
             }
@@ -1301,9 +1319,11 @@ struct ClipView: View {
 
                 Spacer()
 
+                // Timestamp with padding to avoid overlap with hover buttons
                 Text(timeAgo(from: clip.timestamp))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundColor(Color.white.opacity(0.4))
+                    .padding(.trailing, isHovered ? 50 : 0) // Make room for buttons when hovered
             }
 
             Text(clip.text.prefix(150) + (clip.text.count > 150 ? "..." : ""))
