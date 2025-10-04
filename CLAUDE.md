@@ -84,12 +84,19 @@ The `build.sh` script creates a complete `.app` bundle with:
 - Target architecture: arm64-apple-macos13.0
 - App bundle structure in `build/` directory
 
+## Documentation
+
+Project documentation is organized in `docs/`:
+- **docs/USER_GUIDE.md** - End-user documentation
+- **docs/CODE_SIGNING.md** - Code signing and notarization guide
+- **docs/APP_STORE.md** - App Store submission copy
+- **docs/LANDING_PAGE.md** - Website content (future)
+- **docs/USAGE.md** - Quick usage reference
+
 ## Planned Features (TODOs in code)
 
 - Screenshot capture alongside text clips
 - Browser URL extraction via AppleScript (`getCurrentURL()` currently returns nil)
-- Keyboard shortcuts (1-4 keys for color selection)
-- Search functionality across all clips
 - Export capabilities to Obsidian/Notion
 - Dark mode themes
 
