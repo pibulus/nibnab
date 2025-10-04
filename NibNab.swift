@@ -503,6 +503,7 @@ extension AXUIElement {
     private func element(for attribute: String) -> AXUIElement? {
         guard let rawValue = rawValue(for: attribute),
               CFGetTypeID(rawValue) == AXUIElementGetTypeID() else { return nil }
+        // Safe to force cast - we've verified the CFTypeID above
         return (rawValue as! AXUIElement)
     }
 

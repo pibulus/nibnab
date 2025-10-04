@@ -52,12 +52,16 @@ cat > "$BUILD_DIR/${APP_NAME}.app/Contents/Info.plist" << EOF
     <string>13.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSSupportsAutomaticTermination</key>
     <false/>
     <key>NSSupportsSuddenTermination</key>
     <false/>
+    <key>NSAccessibilityUsageDescription</key>
+    <string>NibNab needs accessibility access to auto-capture selected text. You can still use NibNab with just Cmd+C if you deny this permission.</string>
 </dict>
 </plist>
 EOF
