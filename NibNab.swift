@@ -239,6 +239,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func showColorMenu() {
         let menu = NSMenu()
 
+        // Color selection items
         for color in NibColor.all {
             // Create colored circle image
             let size = NSSize(width: 16, height: 16)
@@ -255,8 +256,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             image.unlockFocus()
 
-            // Create menu item with image only (no title for cleaner look)
-            // But we need a title for accessibility, so use a short one
             let shortName = color.name.replacingOccurrences(of: "Highlighter ", with: "")
             let item = NSMenuItem(
                 title: shortName,
@@ -269,6 +268,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(item)
         }
 
+        // Separator
+        menu.addItem(NSMenuItem.separator())
+
+        // Launch at Login toggle
+        let launchItem = NSMenuItem(
+            title: "Launch at Login",
+            action: #selector(toggleLaunchAtLogin),
+            keyEquivalent: ""
+        )
+        launchItem.state = appState.launchAtLogin ? .on : .off
+        menu.addItem(launchItem)
+
+        // Sound Effects toggle
+        let soundItem = NSMenuItem(
+            title: "Sound Effects",
+            action: #selector(toggleSoundEffects),
+            keyEquivalent: ""
+        )
+        soundItem.state = appState.soundEffectsEnabled ? .on : .off
+        menu.addItem(soundItem)
+
+        // About
+        let aboutItem = NSMenuItem(
+            title: "About NibNab...",
+            action: #selector(showAbout),
+            keyEquivalent: ""
+        )
+        menu.addItem(aboutItem)
+
+        // Separator
+        menu.addItem(NSMenuItem.separator())
+
+        // Quit
+        let quitItem = NSMenuItem(
+            title: "Quit NibNab",
+            action: #selector(quitApp),
+            keyEquivalent: "q"
+        )
+        menu.addItem(quitItem)
+
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
         statusItem.menu = nil
@@ -278,6 +317,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let color = sender.representedObject as? NibColor {
             appState.activeColor = color
         }
+    }
+
+    @objc func toggleLaunchAtLogin() {
+        appState.launchAtLogin.toggle()
+    }
+
+    @objc func toggleSoundEffects() {
+        appState.soundEffectsEnabled.toggle()
+    }
+
+    @objc func showAbout() {
+        let alert = NSAlert()
+        alert.messageText = "About NibNab"
+        alert.informativeText = """
+        NibNab - Your clipboard deserves better
+
+        Color-coded clipboard collector that captures and organizes your copied text.
+
+        Version 1.0
+        Made with ❤️ by Pablo
+        """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    @objc func quitApp() {
+        NSApp.terminate(nil)
     }
 
     func showPopover() {
@@ -455,8 +522,10 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(activeColor.name, forKey: "activeColorName")
             // Update menubar icon
             delegate?.updateMenubarIcon()
-            // Play soft sound feedback
-            NSSound(named: "Pop")?.play()
+            // Play soft sound feedback (create new instance each time for overlapping playback)
+            if soundEffectsEnabled, let sound = NSSound(named: "Pop") {
+                sound.play()
+            }
         }
     }
     @Published var launchAtLogin = false {
@@ -466,6 +535,11 @@ class AppState: ObservableObject {
             } else {
                 try? SMAppService.mainApp.unregister()
             }
+        }
+    }
+    @Published var soundEffectsEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(soundEffectsEnabled, forKey: "soundEffectsEnabled")
         }
     }
     @Published var clips: [String: [Clip]] = [:]
@@ -483,6 +557,9 @@ class AppState: ObservableObject {
         } else {
             activeColor = NibColor.yellow
         }
+
+        // Load sound effects preference (default: enabled)
+        soundEffectsEnabled = UserDefaults.standard.object(forKey: "soundEffectsEnabled") as? Bool ?? true
 
         // Initialize clips for each color
         for color in NibColor.all {
@@ -542,6 +619,11 @@ class AppState: ObservableObject {
         }
 
         storageManager.saveClip(clip, to: color.name)
+
+        // Play clip capture sound
+        if soundEffectsEnabled, let sound = NSSound(named: "Pop") {
+            sound.play()
+        }
     }
 
     private func getCurrentURL() -> String? {
@@ -556,6 +638,11 @@ class AppState: ObservableObject {
     func deleteClip(_ clip: Clip, from colorName: String) {
         clips[colorName]?.removeAll { $0.id == clip.id }
         // TODO: Also delete from markdown file
+
+        // Play clip delete sound
+        if soundEffectsEnabled, let sound = NSSound(named: "Tink") {
+            sound.play()
+        }
     }
 
     func exportClips(for colorName: String) {
@@ -828,10 +915,6 @@ struct ContentView: View {
                         .frame(height: 16)
                         .opacity(0.3)
 
-                    Toggle("", isOn: $appState.launchAtLogin)
-                        .toggleStyle(NibToggleStyle())
-                        .help("Launch at login")
-
                     Button(action: { NSApp.terminate(nil) }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 16, weight: .medium))
@@ -904,17 +987,24 @@ struct ContentView: View {
             .frame(height: 280)
 
             // Footer
-            HStack {
+            ZStack {
                 let activeShortName = appState.activeColor.name.replacingOccurrences(of: "Highlighter ", with: "")
                 let viewedClipCount = appState.clips[appState.viewedColor.name]?.count ?? 0
 
-                Text("Active: \(activeShortName)")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(appState.activeColor.nsColor))
+                // Side labels (don't affect center positioning)
+                HStack {
+                    Text("Active: \(activeShortName)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color(appState.activeColor.nsColor))
 
-                Spacer()
+                    Spacer()
 
-                // Color selector in footer
+                    Text("\(viewedClipCount) clips")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color(appState.activeColor.nsColor))
+                }
+
+                // Color selector - absolutely centered
                 HStack(spacing: 8) {
                     ForEach(NibColor.all, id: \.name) { color in
                         Button(action: {
@@ -932,12 +1022,6 @@ struct ContentView: View {
                         .buttonStyle(.plain)
                     }
                 }
-
-                Spacer()
-
-                Text("\(viewedClipCount) clips")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(appState.activeColor.nsColor))
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
