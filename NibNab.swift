@@ -630,6 +630,12 @@ class AppState: ObservableObject {
         }
     }
     @Published var clips: [String: [Clip]] = [:]
+    @Published var colorLabels: [String: String] = [:] {
+        didSet {
+            // Persist custom labels
+            UserDefaults.standard.set(colorLabels, forKey: "colorLabels")
+        }
+    }
 
     weak var delegate: AppDelegate?
     private var clipboardTimer: Timer?
@@ -651,6 +657,11 @@ class AppState: ObservableObject {
         // Load monitoring state (default: enabled)
         isMonitoring = UserDefaults.standard.object(forKey: "isMonitoring") as? Bool ?? true
 
+        // Load custom color labels
+        if let savedLabels = UserDefaults.standard.dictionary(forKey: "colorLabels") as? [String: String] {
+            colorLabels = savedLabels
+        }
+
         // Initialize clips for each color
         for color in NibColor.all {
             clips[color.name] = storageManager.loadClips(for: color.name)
@@ -658,6 +669,26 @@ class AppState: ObservableObject {
 
         // Check current launch at login status
         launchAtLogin = SMAppService.mainApp.status == .enabled
+    }
+
+    func labelForColor(_ colorName: String) -> String {
+        if let customLabel = colorLabels[colorName], !customLabel.isEmpty {
+            return customLabel
+        }
+        // Default to short color name (e.g., "Yellow" from "Highlighter Yellow")
+        return colorName.replacingOccurrences(of: "Highlighter ", with: "")
+    }
+
+    func setLabel(_ label: String, forColor colorName: String) {
+        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            // Remove custom label if empty (revert to default)
+            colorLabels.removeValue(forKey: colorName)
+        } else {
+            // Limit to 12 characters
+            let limited = String(trimmed.prefix(12))
+            colorLabels[colorName] = limited
+        }
     }
 
     func startClipboardMonitoring() {
@@ -1076,7 +1107,11 @@ struct ContentView: View {
     @State private var toggleHovered = false
     @State private var clearHovered = false
     @State private var showClearConfirm = false
+    @State private var editingLabel = false
+    @State private var labelText = ""
+    @State private var labelHovered = false
     @FocusState private var searchFocused: Bool
+    @FocusState private var labelFocused: Bool
 
     enum SortOrder {
         case newestFirst, oldestFirst, byAppName, byLength
@@ -1308,14 +1343,67 @@ struct ContentView: View {
 
             // Footer
             ZStack {
-                let activeShortName = appState.activeColor.name.replacingOccurrences(of: "Highlighter ", with: "")
                 let viewedClipCount = appState.clips[appState.viewedColor.name]?.count ?? 0
 
                 // Side labels (don't affect center positioning)
                 HStack {
-                    Text("Active: \(activeShortName)")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(Color(appState.activeColor.nsColor))
+                    HStack(spacing: 4) {
+                        Text("Active:")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(Color(appState.activeColor.nsColor))
+
+                        if editingLabel {
+                            TextField("", text: $labelText)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(Color(appState.activeColor.nsColor))
+                                .frame(width: 80)
+                                .focused($labelFocused)
+                                .onSubmit {
+                                    appState.setLabel(labelText, forColor: appState.activeColor.name)
+                                    editingLabel = false
+                                    labelFocused = false
+                                }
+                                .onAppear {
+                                    labelFocused = true
+                                }
+                                .onExitCommand {
+                                    editingLabel = false
+                                    labelFocused = false
+                                }
+                                .onChange(of: labelFocused) { focused in
+                                    if !focused && editingLabel {
+                                        // Lost focus - save and exit
+                                        appState.setLabel(labelText, forColor: appState.activeColor.name)
+                                        editingLabel = false
+                                    }
+                                }
+                        } else {
+                            Button(action: {
+                                labelText = appState.labelForColor(appState.activeColor.name)
+                                editingLabel = true
+                            }) {
+                                HStack(spacing: 3) {
+                                    Text(appState.labelForColor(appState.activeColor.name))
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(Color(appState.activeColor.nsColor))
+
+                                    if labelHovered {
+                                        Image(systemName: "pencil")
+                                            .font(.system(size: 8))
+                                            .foregroundColor(Color(appState.activeColor.nsColor).opacity(0.6))
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .onHover { hovering in
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    labelHovered = hovering
+                                }
+                            }
+                            .help("Click to rename")
+                        }
+                    }
 
                     Spacer()
 
