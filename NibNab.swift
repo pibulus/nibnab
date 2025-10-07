@@ -129,6 +129,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Initialize auto-copy monitor
         autoCopyMonitor = AutoCopyMonitor { [weak self] selectedText in
             guard let self = self else { return }
+            // Suppress next clipboard monitor capture (we're writing to clipboard)
+            self.appState.suppressNextClipboardCapture = true
+            self.appState.lastCapturedText = selectedText
+
             let sourceApp = self.appState.getCurrentAppName()
             // Auto-save to active color instead of showing picker
             self.appState.saveClip(selectedText, to: self.appState.activeColor, from: sourceApp)
@@ -640,6 +644,8 @@ class AppState: ObservableObject {
     weak var delegate: AppDelegate?
     private var clipboardTimer: Timer?
     private var lastChangeCount: Int = 0
+    var lastCapturedText: String? = nil
+    var suppressNextClipboardCapture = false
     private let storageManager = StorageManager()
 
     init() {
@@ -703,13 +709,26 @@ class AppState: ObservableObject {
                 if pasteboard.changeCount != self.lastChangeCount {
                     self.lastChangeCount = pasteboard.changeCount
 
+                    // Check if we should suppress this capture (self-triggered)
+                    if self.suppressNextClipboardCapture {
+                        self.suppressNextClipboardCapture = false
+                        return
+                    }
+
                     // Get clipboard text
                     if let text = pasteboard.string(forType: .string),
                        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        // Save to active color
-                        let sourceApp = self.getCurrentAppName()
-                        self.saveClip(text, to: self.activeColor, from: sourceApp)
-                        self.delegate?.pulseMenubarIcon()
+
+                        // Only capture if content is different from last capture
+                        // This prevents capturing during paste operations
+                        if text != self.lastCapturedText {
+                            self.lastCapturedText = text
+
+                            // Save to active color
+                            let sourceApp = self.getCurrentAppName()
+                            self.saveClip(text, to: self.activeColor, from: sourceApp)
+                            self.delegate?.pulseMenubarIcon()
+                        }
                     }
                 }
             }
@@ -1404,6 +1423,7 @@ struct ContentView: View {
                             .help("Click to rename")
                         }
                     }
+                    .id(appState.activeColor.name)
 
                     Spacer()
 
