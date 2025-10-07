@@ -40,7 +40,13 @@ struct NibColor {
         nsColor: NSColor(red: 0.529, green: 0.090, blue: 0.965, alpha: 1.0)
     )
 
-    static let all = [yellow, orange, pink, purple]
+    static let green = NibColor(
+        name: "Highlighter Green",
+        hex: "#39FF14",
+        nsColor: NSColor(red: 0.224, green: 1.0, blue: 0.078, alpha: 1.0)
+    )
+
+    static let all = [yellow, orange, pink, purple, green]
 }
 
 // MARK: - Gradient Colors
@@ -68,6 +74,12 @@ struct NibGradients {
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
+
+    static let green = LinearGradient(
+        colors: [Color(red: 0.224, green: 1.0, blue: 0.078), Color(red: 0.174, green: 0.95, blue: 0.028)],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
 }
 
 // MARK: - Main App
@@ -91,7 +103,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var appState: AppState!
     var eventMonitor: EventMonitor?
     var autoCopyMonitor: AutoCopyMonitor?
-    private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 5)
+    private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 6)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
@@ -214,6 +226,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             &hotKeyRefs[4]
         )
 
+        // Register Cmd+Ctrl+5 (Green)
+        let greenID = EventHotKeyID(signature: signature, id: 6)
+        RegisterEventHotKey(
+            UInt32(kVK_ANSI_5),
+            UInt32(cmdKey | controlKey),
+            greenID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRefs[5]
+        )
+
         // Install event handler
         InstallEventHandler(
             GetApplicationEventTarget(),
@@ -243,6 +266,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             selfPointer.appState.activeColor = NibColor.pink
                         case 5: // Cmd+Ctrl+4 - Purple
                             selfPointer.appState.activeColor = NibColor.purple
+                        case 6: // Cmd+Ctrl+5 - Green
+                            selfPointer.appState.activeColor = NibColor.green
                         default:
                             break
                         }
