@@ -390,6 +390,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         soundItem.state = appState.soundEffectsEnabled ? .on : .off
         menu.addItem(soundItem)
 
+        // Auto-Capture toggle
+        let autoCaptureItem = NSMenuItem(
+            title: "Auto-Capture Clipboard",
+            action: #selector(toggleAutoCapture),
+            keyEquivalent: ""
+        )
+        autoCaptureItem.state = appState.isMonitoring ? .on : .off
+        menu.addItem(autoCaptureItem)
+
+        // Separator
+        menu.addItem(NSMenuItem.separator())
+
         // About
         let aboutItem = NSMenuItem(
             title: "About NibNab...",
@@ -428,6 +440,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appState.soundEffectsEnabled.toggle()
     }
 
+    @objc func toggleAutoCapture() {
+        appState.isMonitoring.toggle()
+    }
+
     @objc func showAbout() {
         let alert = NSAlert()
         alert.messageText = "About NibNab"
@@ -439,6 +455,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NibNab captures everything you copy and organizes it by color—because your clipboard deserves better than Cmd+V into Notes.app.
 
         Auto-capture, export options, zero cloud BS. It's quick, it's local, it works forever.
+
+        ⌨️ Keyboard Shortcuts:
+        • ⌘⇧N — Toggle NibNab window
+        • ⌘⌃1 — Switch to Yellow
+        • ⌘⌃2 — Switch to Orange
+        • ⌘⌃3 — Switch to Pink
+        • ⌘⌃4 — Switch to Purple
+        • ⌘⌃5 — Switch to Green
+
+        💡 Tips:
+        • Drag clips to color circles to change colors
+        • Right-click menubar icon for quick settings
+        • Double-click clips to view full text
 
         Check out more of my work:
         🌐 github.com/pibulus
@@ -808,7 +837,9 @@ class AppState: ObservableObject {
 
     func deleteClip(_ clip: Clip, from colorName: String) {
         clips[colorName]?.removeAll { $0.id == clip.id }
-        // TODO: Also delete from markdown file
+
+        // Delete from markdown file storage
+        storageManager.deleteClip(clip, from: colorName)
 
         // Play clip delete sound
         playSound("Tink")
@@ -853,6 +884,29 @@ class AppState: ObservableObject {
 
         // Rewrite entire file with new order
         storageManager.rewriteClips(colorClips, for: colorName)
+    }
+
+    func updateClip(_ clip: Clip, newText: String, in colorName: String) {
+        // Find and update clip in memory
+        guard let index = clips[colorName]?.firstIndex(where: { $0.id == clip.id }) else { return }
+
+        // Create updated clip with same ID but new text
+        clips[colorName]?[index] = Clip(
+            text: newText,
+            timestamp: clip.timestamp,
+            url: clip.url,
+            appName: clip.appName,
+            screenshotPath: clip.screenshotPath,
+            id: clip.id  // Preserve original ID
+        )
+
+        // Rewrite markdown file with updated clips
+        if let colorClips = clips[colorName] {
+            storageManager.rewriteClips(colorClips, for: colorName)
+        }
+
+        // Play sound feedback
+        playSound("Pop")
     }
 
     func exportClipsAsMarkdown(for colorName: String) {
@@ -925,8 +979,8 @@ struct Clip: Identifiable, Codable {
     let appName: String
     var screenshotPath: String?
 
-    init(text: String, timestamp: Date, url: String?, appName: String, screenshotPath: String? = nil) {
-        self.id = UUID()
+    init(text: String, timestamp: Date, url: String?, appName: String, screenshotPath: String? = nil, id: UUID? = nil) {
+        self.id = id ?? UUID()
         self.text = text
         self.timestamp = timestamp
         self.url = url
@@ -999,8 +1053,23 @@ class StorageManager {
     }
 
     func deleteClip(_ clip: Clip, from colorName: String) {
-        // For now, just mark as deleted - full rewrite happens on reorder
-        // TODO: Implement selective deletion from markdown
+        // Load all clips from file
+        let allClips = loadClips(for: colorName)
+
+        // Filter out the deleted clip
+        let remainingClips = allClips.filter { $0.id != clip.id }
+
+        // Rewrite file with remaining clips
+        if remainingClips.isEmpty {
+            // If no clips left, delete the file entirely
+            let colorDir = baseURL.appendingPathComponent(colorName.lowercased())
+            let fileName = "\(colorName.lowercased())_clips.md"
+            let fileURL = colorDir.appendingPathComponent(fileName)
+            try? FileManager.default.removeItem(at: fileURL)
+        } else {
+            // Rewrite file with remaining clips
+            rewriteClips(remainingClips, for: colorName)
+        }
     }
 
     func rewriteClips(_ clips: [Clip], for colorName: String) {
@@ -1154,6 +1223,9 @@ struct ContentView: View {
     @State private var editingLabel = false
     @State private var labelText = ""
     @State private var labelHovered = false
+    @State private var showAddClipModal = false
+    @State private var addHovered = false
+    @State private var editingClip: Clip?
     @FocusState private var searchFocused: Bool
     @FocusState private var labelFocused: Bool
 
@@ -1274,8 +1346,24 @@ struct ContentView: View {
 
                     Spacer()
 
-                    // Right: Actions (export/clear)
+                    // Right: Actions (add/export/clear)
                     HStack(alignment: .center, spacing: 12) {
+                        Button(action: {
+                            showAddClipModal = true
+                        }) {
+                            Image(systemName: "plus.circle")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white.opacity(addHovered ? 1.0 : 0.7))
+                                .scaleEffect(addHovered ? 1.15 : 1.0)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Add clip manually")
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                addHovered = hovering
+                            }
+                        }
+
                         Menu {
                             Button("Export as Markdown...") {
                                 appState.exportClipsAsMarkdown(for: appState.viewedColor.name)
@@ -1350,6 +1438,12 @@ struct ContentView: View {
                                         NSPasteboard.general.setString(clip.text, forType: .string)
                                     }) {
                                         Label("Copy", systemImage: "doc.on.clipboard")
+                                    }
+
+                                    Button(action: {
+                                        editingClip = clip
+                                    }) {
+                                        Label("Edit", systemImage: "pencil")
                                     }
 
                                     Button(action: {
@@ -1460,23 +1554,17 @@ struct ContentView: View {
                 // Color selector - absolutely centered
                 HStack(spacing: 8) {
                     ForEach(NibColor.all, id: \.name) { color in
-                        Button(action: {
-                            appState.viewedColor = color
-                            appState.activeColor = color
-                        }) {
-                            Circle()
-                                .fill(Color(color.nsColor))
-                                .frame(width: 20, height: 20)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white, lineWidth: appState.activeColor.name == color.name ? 3 : 0)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .help("Switch to \(color.name)")
-                        .onDrop(of: [.text], isTargeted: nil) { providers in
-                            handleColorDrop(providers: providers, to: color)
-                        }
+                        ColorDropTarget(
+                            color: color,
+                            isActive: appState.activeColor.name == color.name,
+                            onTap: {
+                                appState.viewedColor = color
+                                appState.activeColor = color
+                            },
+                            onDrop: { providers in
+                                handleColorDrop(providers: providers, to: color)
+                            }
+                        )
                     }
                 }
             }
@@ -1520,6 +1608,58 @@ struct ContentView: View {
                         selectedClip = nil
                     }
                 }
+                .environmentObject(appState)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+
+            // Add clip modal overlay
+            if showAddClipModal {
+                Color.black.opacity(0.5)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation {
+                            showAddClipModal = false
+                        }
+                    }
+
+                AddClipModal(onDismiss: {
+                    withAnimation {
+                        showAddClipModal = false
+                    }
+                }, onSave: { text in
+                    appState.saveClip(text, to: appState.activeColor, from: "Manual Entry")
+                    withAnimation {
+                        showAddClipModal = false
+                    }
+                })
+                .environmentObject(appState)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+
+            // Edit clip modal overlay
+            if let clip = editingClip {
+                Color.black.opacity(0.5)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation {
+                            editingClip = nil
+                        }
+                    }
+
+                EditClipModal(
+                    clip: clip,
+                    onDismiss: {
+                        withAnimation {
+                            editingClip = nil
+                        }
+                    },
+                    onSave: { newText in
+                        appState.updateClip(clip, newText: newText, in: appState.viewedColor.name)
+                        withAnimation {
+                            editingClip = nil
+                        }
+                    }
+                )
                 .environmentObject(appState)
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
@@ -1575,6 +1715,49 @@ struct ContentView: View {
         }
 
         return true
+    }
+}
+
+// MARK: - Color Drop Target (Footer Color Circles)
+struct ColorDropTarget: View {
+    let color: NibColor
+    let isActive: Bool
+    let onTap: () -> Void
+    let onDrop: ([NSItemProvider]) -> Bool
+
+    @State private var isTargeted = false
+
+    var body: some View {
+        Button(action: onTap) {
+            // Larger invisible drop target area
+            ZStack {
+                // Invisible larger hit area for drops
+                Circle()
+                    .fill(Color.clear)
+                    .frame(width: 32, height: 32)
+
+                // Visible color circle
+                Circle()
+                    .fill(Color(color.nsColor))
+                    .frame(width: 20, height: 20)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white, lineWidth: isActive ? 3 : 0)
+                    )
+                    .overlay(
+                        // Visual feedback when being dragged over
+                        Circle()
+                            .stroke(Color.white.opacity(0.8), lineWidth: isTargeted ? 2 : 0)
+                            .scaleEffect(isTargeted ? 1.3 : 1.0)
+                    )
+                    .scaleEffect(isTargeted ? 1.1 : 1.0)
+            }
+        }
+        .buttonStyle(.plain)
+        .help("Switch to \(color.name)\nDrag clips here to change color")
+        .onDrop(of: [.text], isTargeted: $isTargeted) { providers in
+            return onDrop(providers)
+        }
     }
 }
 
@@ -1723,6 +1906,242 @@ struct ClipView: View {
         if interval < 3600 { return "\(Int(interval/60))m ago" }
         if interval < 86400 { return "\(Int(interval/3600))h ago" }
         return "\(Int(interval/86400))d ago"
+    }
+}
+
+// MARK: - Edit Clip Modal
+struct EditClipModal: View {
+    let clip: Clip
+    let onDismiss: () -> Void
+    let onSave: (String) -> Void
+    @EnvironmentObject var appState: AppState
+    @State private var clipText: String
+    @State private var saveHovered = false
+    @State private var cancelHovered = false
+    @FocusState private var textFocused: Bool
+
+    init(clip: Clip, onDismiss: @escaping () -> Void, onSave: @escaping (String) -> Void) {
+        self.clip = clip
+        self.onDismiss = onDismiss
+        self.onSave = onSave
+        _clipText = State(initialValue: clip.text)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Edit Clip")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+
+                    Text("\(clip.appName) • \(formatDate(clip.timestamp))")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(Color.white.opacity(0.5))
+                }
+
+                Spacer()
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+            .background(Color.black.opacity(0.9))
+
+            // Content
+            TextEditor(text: $clipText)
+                .font(.system(size: 14))
+                .foregroundColor(Color.white.opacity(0.9))
+                .scrollContentBackground(.hidden)
+                .background(Color.black.opacity(0.7))
+                .focused($textFocused)
+                .onAppear {
+                    textFocused = true
+                }
+
+            // Footer with actions
+            HStack(spacing: 12) {
+                Button(action: onDismiss) {
+                    Text("Cancel")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.white.opacity(0.9))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(cancelHovered ? 0.2 : 0.1))
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .scaleEffect(cancelHovered ? 1.05 : 1.0)
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        cancelHovered = hovering
+                    }
+                }
+
+                Button(action: {
+                    if !clipText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        onSave(clipText)
+                    }
+                }) {
+                    Text("Save Changes")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            clipText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?
+                                Color.gray.opacity(0.3) :
+                                Color(appState.activeColor.nsColor).opacity(saveHovered ? 1.0 : 0.8)
+                        )
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .disabled(clipText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .scaleEffect(saveHovered ? 1.05 : 1.0)
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        saveHovered = hovering
+                    }
+                }
+
+                Spacer()
+
+                Text("\(clipText.count) characters")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.4))
+            }
+            .padding()
+            .background(Color.black.opacity(0.9))
+        }
+        .frame(width: 500, height: 400)
+        .cornerRadius(12)
+    }
+
+    func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, h:mm a"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Add Clip Modal
+struct AddClipModal: View {
+    let onDismiss: () -> Void
+    let onSave: (String) -> Void
+    @EnvironmentObject var appState: AppState
+    @State private var clipText = ""
+    @State private var saveHovered = false
+    @State private var cancelHovered = false
+    @FocusState private var textFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Add Clip Manually")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+
+                    HStack(spacing: 6) {
+                        Text("Saving to:")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(Color.white.opacity(0.5))
+
+                        Circle()
+                            .fill(Color(appState.activeColor.nsColor))
+                            .frame(width: 12, height: 12)
+
+                        Text(appState.labelForColor(appState.activeColor.name))
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(Color(appState.activeColor.nsColor))
+                    }
+                }
+
+                Spacer()
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+            .background(Color.black.opacity(0.9))
+
+            // Content
+            TextEditor(text: $clipText)
+                .font(.system(size: 14))
+                .foregroundColor(Color.white.opacity(0.9))
+                .scrollContentBackground(.hidden)
+                .background(Color.black.opacity(0.7))
+                .focused($textFocused)
+                .onAppear {
+                    textFocused = true
+                }
+
+            // Footer with actions
+            HStack(spacing: 12) {
+                Button(action: onDismiss) {
+                    Text("Cancel")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.white.opacity(0.9))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(cancelHovered ? 0.2 : 0.1))
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .scaleEffect(cancelHovered ? 1.05 : 1.0)
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        cancelHovered = hovering
+                    }
+                }
+
+                Button(action: {
+                    if !clipText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        onSave(clipText)
+                    }
+                }) {
+                    Text("Save Clip")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            clipText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?
+                                Color.gray.opacity(0.3) :
+                                Color(appState.activeColor.nsColor).opacity(saveHovered ? 1.0 : 0.8)
+                        )
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .disabled(clipText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .scaleEffect(saveHovered ? 1.05 : 1.0)
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        saveHovered = hovering
+                    }
+                }
+
+                Spacer()
+
+                Text("\(clipText.count) characters")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.4))
+            }
+            .padding()
+            .background(Color.black.opacity(0.9))
+        }
+        .frame(width: 500, height: 400)
+        .cornerRadius(12)
     }
 }
 
