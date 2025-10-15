@@ -991,16 +991,35 @@ struct Clip: Identifiable, Codable {
     }
 }
 
+extension Clip: Equatable, Hashable {
+    static func == (lhs: Clip, rhs: Clip) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+
+extension Clip: Sendable {}
+
 // Custom UTType for dragging clips
 extension UTType {
     static let nibNabClip = UTType(exportedAs: "com.pibulus.nibnab.clip")
 }
 
 // MARK: - Storage Manager
-class StorageManager {
+final class StorageManager {
     private let baseURL: URL
     private let fileManager: FileManager
     private let logger: Logger
+    private lazy var formatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter
+    }()
 
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -1025,9 +1044,6 @@ class StorageManager {
     func saveClip(_ clip: Clip, to colorName: String) {
         ensureDirectoryExists(for: colorName)
         let fileURL = clipFileURL(for: colorName)
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
 
         var markdown = "\n---\n"
         markdown += "### \(clip.appName)"
@@ -1113,8 +1129,6 @@ class StorageManager {
         }
 
         var clips: [Clip] = []
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
 
         let sections = content.components(separatedBy: "\n---\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
@@ -1830,21 +1844,12 @@ struct ContentView: View {
 
     func handleColorDrop(providers: [NSItemProvider], to targetColor: NibColor) -> Bool {
         return loadClip(from: providers) { droppedClip in
-            // Determine source color
-            var sourceColorName: String?
-            for (colorName, clips) in appState.clips {
-                if clips.contains(where: { $0.id == droppedClip.id }) {
-                    sourceColorName = colorName
-                    break
-                }
-            }
-
-            guard let source = sourceColorName else {
+            guard let (sourceColor, _) = appState.clips.first(where: { $0.value.contains(droppedClip) }) else {
                 print("🔴 Drop failed: clip not found in current collections")
                 return
             }
 
-            appState.moveClip(droppedClip, from: source, to: targetColor.name)
+            appState.moveClip(droppedClip, from: sourceColor, to: targetColor.name)
             appState.viewedColor = targetColor
             appState.activeColor = targetColor
         }
