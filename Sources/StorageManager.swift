@@ -191,6 +191,8 @@ final class StorageManager {
 
         do {
             let items = try self.fileManager.contentsOfDirectory(at: legacyBase, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+            var migrationSucceeded = true
+
             for item in items {
                 let destination = self.baseURL.appendingPathComponent(item.lastPathComponent, isDirectory: true)
                 if self.fileManager.fileExists(atPath: destination.path) { continue }
@@ -200,6 +202,16 @@ final class StorageManager {
                     self.logger.info("Migrated legacy storage item \(item.lastPathComponent, privacy: .public)")
                 } catch {
                     self.logger.error("Failed migrating \(item.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    migrationSucceeded = false
+                }
+            }
+
+            if migrationSucceeded {
+                do {
+                    try self.fileManager.removeItem(at: legacyBase)
+                    self.logger.info("Removed legacy storage directory at \(legacyBase.path, privacy: .public)")
+                } catch {
+                    self.logger.error("Failed removing legacy storage directory: \(error.localizedDescription, privacy: .public)")
                 }
             }
         } catch {
