@@ -1225,6 +1225,7 @@ struct ContentView: View {
     @State private var labelHovered = false
     @State private var showAddClipModal = false
     @State private var addHovered = false
+    @State private var showExportDialog = false
     @State private var editingClip: Clip?
     @FocusState private var searchFocused: Bool
     @FocusState private var labelFocused: Bool
@@ -1253,6 +1254,11 @@ struct ContentView: View {
         case .byLength:
             return filteredClips.sorted { $0.text.count > $1.text.count }
         }
+    }
+
+    var hasExportableClips: Bool {
+        guard let clips = appState.clips[appState.viewedColor.name] else { return false }
+        return !clips.isEmpty
     }
 
     var body: some View {
@@ -1357,32 +1363,63 @@ struct ContentView: View {
                                 .scaleEffect(addHovered ? 1.15 : 1.0)
                         }
                         .buttonStyle(.plain)
-                        .help("Add clip manually")
+                        .help("Add clip")
                         .onHover { hovering in
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 addHovered = hovering
                             }
                         }
 
-                        Menu {
-                            Button("Export as Markdown...") {
-                                appState.exportClipsAsMarkdown(for: appState.viewedColor.name)
-                            }
-                            Button("Export as Plain Text...") {
-                                appState.exportClipsAsPlainText(for: appState.viewedColor.name)
-                            }
-                        } label: {
+                        Button(action: {
+                            guard hasExportableClips else { return }
+                            showExportDialog = true
+                        }) {
                             Image(systemName: "arrow.up.doc")
                                 .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(.white.opacity(exportHovered ? 1.0 : 0.7))
-                                .scaleEffect(exportHovered ? 1.15 : 1.0)
+                                .foregroundColor(.white.opacity(exportHovered ? 1.0 : 0.85))
+                                .padding(8)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white.opacity(exportHovered ? 0.18 : 0.1))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(exportHovered ? 0.35 : 0.2), lineWidth: 1)
+                                )
+                                .scaleEffect(exportHovered ? 1.08 : 1.0)
                         }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
+                        .buttonStyle(.plain)
                         .help("Export clips")
+                        .disabled(!hasExportableClips)
+                        .opacity(hasExportableClips ? 1.0 : 0.35)
                         .onHover { hovering in
                             withAnimation(.easeInOut(duration: 0.2)) {
-                                exportHovered = hovering
+                                exportHovered = hasExportableClips ? hovering : false
+                            }
+                        }
+                        .confirmationDialog(
+                            "Export Clips",
+                            isPresented: $showExportDialog,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Export as Markdown") {
+                                appState.exportClipsAsMarkdown(for: appState.viewedColor.name)
+                                showExportDialog = false
+                            }
+                            Button("Export as Plain Text") {
+                                appState.exportClipsAsPlainText(for: appState.viewedColor.name)
+                                showExportDialog = false
+                            }
+                            Button("Cancel", role: .cancel) {
+                                showExportDialog = false
+                            }
+                        } message: {
+                            Text("Choose how you want to export the \(appState.clips[appState.viewedColor.name]?.count ?? 0) clips in this collection.")
+                        }
+                        .onChange(of: hasExportableClips) { available in
+                            if !available {
+                                exportHovered = false
+                                showExportDialog = false
                             }
                         }
 
@@ -1429,7 +1466,7 @@ struct ContentView: View {
                                 .onTapGesture {
                                     selectedClip = clip
                                 }
-                                .onDrop(of: [.text], isTargeted: nil) { providers in
+                                .onDrop(of: [UTType.nibNabClip, .text], isTargeted: nil) { providers in
                                     handleDrop(providers: providers, at: index)
                                 }
                                 .contextMenu {
@@ -1676,45 +1713,90 @@ struct ContentView: View {
         }
     }
 
-    func handleDrop(providers: [NSItemProvider], at index: Int) -> Bool {
-        guard let provider = providers.first else { return false }
+    @discardableResult
+    private func loadClip(from providers: [NSItemProvider], completion: @escaping (Clip) -> Void) -> Bool {
+        guard let provider = providers.first else {
+            print("🔴 Drop failed: no item provider")
+            return false
+        }
 
-        provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { data, error in
-            DispatchQueue.main.async {
-                guard let stringData = data as? String,
-                      let jsonData = stringData.data(using: .utf8),
-                      let droppedClip = try? JSONDecoder().decode(Clip.self, from: jsonData) else {
-                    return
+        let decoder = JSONDecoder()
+
+        let handleData: (Data) -> Void = { data in
+            if let clip = try? decoder.decode(Clip.self, from: data) {
+                DispatchQueue.main.async {
+                    completion(clip)
                 }
-
-                // Reorder within same color
-                appState.reorderClip(droppedClip, in: appState.viewedColor.name, to: index)
+            } else {
+                print("🔴 Drop failed: unable to decode clip payload")
             }
         }
 
-        return true
+        if provider.hasItemConformingToTypeIdentifier(UTType.nibNabClip.identifier) {
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.nibNabClip.identifier) { data, error in
+                if let error = error {
+                    print("🔴 Drop failed: custom type load error - \(error)")
+                    return
+                }
+                guard let data = data else {
+                    print("🔴 Drop failed: custom type returned nil data")
+                    return
+                }
+                handleData(data)
+            }
+            return true
+        }
+
+        if provider.hasItemConformingToTypeIdentifier(UTType.text.identifier) {
+            provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { item, error in
+                if let error = error {
+                    print("🔴 Drop failed: text load error - \(error)")
+                    return
+                }
+
+                if let string = item as? String, let data = string.data(using: .utf8) {
+                    handleData(data)
+                } else if let data = item as? Data {
+                    handleData(data)
+                } else if let url = item as? URL, let data = try? Data(contentsOf: url) {
+                    handleData(data)
+                } else {
+                    print("🔴 Drop failed: unsupported item type \(String(describing: item))")
+                }
+            }
+            return true
+        }
+
+        print("🔴 Drop failed: provider does not conform to supported types")
+        return false
+    }
+
+    func handleDrop(providers: [NSItemProvider], at index: Int) -> Bool {
+        return loadClip(from: providers) { droppedClip in
+            appState.reorderClip(droppedClip, in: appState.viewedColor.name, to: index)
+        }
     }
 
     func handleColorDrop(providers: [NSItemProvider], to targetColor: NibColor) -> Bool {
-        guard let provider = providers.first else { return false }
-
-        provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { data, error in
-            DispatchQueue.main.async {
-                guard let stringData = data as? String,
-                      let jsonData = stringData.data(using: .utf8),
-                      let droppedClip = try? JSONDecoder().decode(Clip.self, from: jsonData) else {
-                    return
+        return loadClip(from: providers) { droppedClip in
+            // Determine source color
+            var sourceColorName: String?
+            for (colorName, clips) in appState.clips {
+                if clips.contains(where: { $0.id == droppedClip.id }) {
+                    sourceColorName = colorName
+                    break
                 }
-
-                // Move clip to new color
-                appState.moveClip(droppedClip, from: appState.viewedColor.name, to: targetColor.name)
-
-                // Optionally switch to the target color to show the moved clip
-                appState.viewedColor = targetColor
             }
-        }
 
-        return true
+            guard let source = sourceColorName else {
+                print("🔴 Drop failed: clip not found in current collections")
+                return
+            }
+
+            appState.moveClip(droppedClip, from: source, to: targetColor.name)
+            appState.viewedColor = targetColor
+            appState.activeColor = targetColor
+        }
     }
 }
 
@@ -1726,6 +1808,7 @@ struct ColorDropTarget: View {
     let onDrop: ([NSItemProvider]) -> Bool
 
     @State private var isTargeted = false
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: onTap) {
@@ -1750,13 +1833,19 @@ struct ColorDropTarget: View {
                             .stroke(Color.white.opacity(0.8), lineWidth: isTargeted ? 2 : 0)
                             .scaleEffect(isTargeted ? 1.3 : 1.0)
                     )
-                    .scaleEffect(isTargeted ? 1.1 : 1.0)
+                    .scaleEffect(isTargeted ? 1.12 : (isHovered ? 1.08 : 1.0))
             }
+            .scaleEffect(isTargeted ? 1.12 : (isHovered ? 1.06 : 1.0))
         }
         .buttonStyle(.plain)
         .help("Switch to \(color.name)\nDrag clips here to change color")
-        .onDrop(of: [.text], isTargeted: $isTargeted) { providers in
+        .onDrop(of: [UTType.nibNabClip, .text], isTargeted: $isTargeted) { providers in
             return onDrop(providers)
+        }
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
+            }
         }
     }
 }
@@ -1881,9 +1970,17 @@ struct ClipView: View {
             let encoder = JSONEncoder()
             guard let data = try? encoder.encode(clip),
                   let jsonString = String(data: data, encoding: .utf8) else {
+                isDragging = false
                 return NSItemProvider()
             }
-            return NSItemProvider(object: jsonString as NSString)
+
+            let provider = NSItemProvider()
+            provider.registerDataRepresentation(forTypeIdentifier: UTType.nibNabClip.identifier, visibility: .all) { completion in
+                completion(data, nil)
+                return nil
+            }
+            provider.registerObject(jsonString as NSString, visibility: .all)
+            return provider
         }
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
