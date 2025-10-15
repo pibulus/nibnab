@@ -4,6 +4,7 @@ import ApplicationServices
 import ServiceManagement
 import Carbon.HIToolbox
 import UniformTypeIdentifiers
+import OSLog
 
 // ===================================================================
 // NIBNAB - Color-coded clipboard collector
@@ -752,13 +753,14 @@ class AppState: ObservableObject {
     }
 
     func startClipboardMonitoring() {
-        let pasteboard = NSPasteboard.general
-        lastChangeCount = pasteboard.changeCount
+        lastChangeCount = NSPasteboard.general.changeCount
 
         // Monitor clipboard changes every 0.5 seconds
         clipboardTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            DispatchQueue.main.async {
+            Task { @MainActor [weak self] in
                 guard let self = self else { return }
+
+                let pasteboard = NSPasteboard.general
 
                 if pasteboard.changeCount != self.lastChangeCount {
                     self.lastChangeCount = pasteboard.changeCount
@@ -997,26 +999,33 @@ extension UTType {
 // MARK: - Storage Manager
 class StorageManager {
     private let baseURL: URL
+    private let fileManager: FileManager
+    private let logger: Logger
 
-    init() {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        baseURL = home.appendingPathComponent(".nibnab")
+    init(fileManager: FileManager = .default) {
+        self.fileManager = fileManager
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.pibulus.nibnab"
+        self.logger = Logger(subsystem: bundleID, category: "Storage")
 
-        // Create directories
-        try? FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
+        let supportDirectory = self.fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? self.fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support", isDirectory: true)
+        let appDirectory = supportDirectory.appendingPathComponent(bundleID, isDirectory: true)
+        self.baseURL = appDirectory
 
-        for color in NibColor.all {
-            let colorDir = baseURL.appendingPathComponent(color.name.lowercased())
-            try? FileManager.default.createDirectory(at: colorDir, withIntermediateDirectories: true)
+        do {
+            try self.fileManager.createDirectory(at: self.baseURL, withIntermediateDirectories: true)
+        } catch {
+            self.logger.error("Failed to create storage root at \(self.baseURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
+
+        migrateLegacyStorage()
+        createColorDirectories()
     }
 
     func saveClip(_ clip: Clip, to colorName: String) {
-        let colorDir = baseURL.appendingPathComponent(colorName.lowercased())
-        let fileName = "\(colorName.lowercased())_clips.md"
-        let fileURL = colorDir.appendingPathComponent(fileName)
+        ensureDirectoryExists(for: colorName)
+        let fileURL = clipFileURL(for: colorName)
 
-        // Format as markdown
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
 
@@ -1026,74 +1035,80 @@ class StorageManager {
             markdown += " | [\(url)](\(url))"
         }
         markdown += "\n"
-        markdown += "\(formatter.string(from: clip.timestamp)) Bangkok\n\n"
+        markdown += "\(formatter.string(from: clip.timestamp))\n\n"
         markdown += "\(clip.text)\n"
 
-        // Append to file
-        if let data = markdown.data(using: .utf8) {
-            if FileManager.default.fileExists(atPath: fileURL.path) {
-                if let fileHandle = try? FileHandle(forWritingTo: fileURL) {
-                    fileHandle.seekToEndOfFile()
-                    fileHandle.write(data)
-                    fileHandle.closeFile()
-                }
-            } else {
-                try? data.write(to: fileURL)
+        guard let data = markdown.data(using: .utf8) else {
+            self.logger.error("Unable to encode clip markdown for \(colorName, privacy: .public)")
+            return
+        }
+
+        if self.fileManager.fileExists(atPath: fileURL.path) {
+            do {
+                let handle = try FileHandle(forWritingTo: fileURL)
+                try handle.seekToEnd()
+                try handle.write(contentsOf: data)
+                try handle.close()
+            } catch {
+                self.logger.error("Failed appending clip to \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        } else {
+            do {
+                try data.write(to: fileURL, options: .atomic)
+            } catch {
+                self.logger.error("Failed writing clip file \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
     }
 
     func deleteAllClips(for colorName: String) {
-        let colorDir = baseURL.appendingPathComponent(colorName.lowercased())
-        let fileName = "\(colorName.lowercased())_clips.md"
-        let fileURL = colorDir.appendingPathComponent(fileName)
-
-        // Delete the markdown file
-        try? FileManager.default.removeItem(at: fileURL)
+        let fileURL = clipFileURL(for: colorName)
+        do {
+            if self.fileManager.fileExists(atPath: fileURL.path) {
+                try self.fileManager.removeItem(at: fileURL)
+            }
+        } catch {
+            self.logger.error("Failed deleting clip file \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     func deleteClip(_ clip: Clip, from colorName: String) {
-        // Load all clips from file
-        let allClips = loadClips(for: colorName)
-
-        // Filter out the deleted clip
-        let remainingClips = allClips.filter { $0.id != clip.id }
-
-        // Rewrite file with remaining clips
+        let remainingClips = loadClips(for: colorName).filter { $0.id != clip.id }
         if remainingClips.isEmpty {
-            // If no clips left, delete the file entirely
-            let colorDir = baseURL.appendingPathComponent(colorName.lowercased())
-            let fileName = "\(colorName.lowercased())_clips.md"
-            let fileURL = colorDir.appendingPathComponent(fileName)
-            try? FileManager.default.removeItem(at: fileURL)
+            deleteAllClips(for: colorName)
         } else {
-            // Rewrite file with remaining clips
             rewriteClips(remainingClips, for: colorName)
         }
     }
 
     func rewriteClips(_ clips: [Clip], for colorName: String) {
-        let colorDir = baseURL.appendingPathComponent(colorName.lowercased())
-        let fileName = "\(colorName.lowercased())_clips.md"
-        let fileURL = colorDir.appendingPathComponent(fileName)
+        let fileURL = clipFileURL(for: colorName)
 
-        // Delete existing file
-        try? FileManager.default.removeItem(at: fileURL)
+        do {
+            if self.fileManager.fileExists(atPath: fileURL.path) {
+                try self.fileManager.removeItem(at: fileURL)
+            }
+        } catch {
+            self.logger.error("Failed removing existing clip file \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
 
-        // Write all clips in order
         for clip in clips {
             saveClip(clip, to: colorName)
         }
     }
 
     func loadClips(for colorName: String) -> [Clip] {
-        let colorDir = baseURL.appendingPathComponent(colorName.lowercased())
-        let fileName = "\(colorName.lowercased())_clips.md"
-        let fileURL = colorDir.appendingPathComponent(fileName)
+        let fileURL = clipFileURL(for: colorName)
 
-        // Check if file exists
-        guard FileManager.default.fileExists(atPath: fileURL.path),
-              let content = try? String(contentsOf: fileURL, encoding: .utf8) else {
+        guard self.fileManager.fileExists(atPath: fileURL.path) else {
+            return []
+        }
+
+        let content: String
+        do {
+            content = try String(contentsOf: fileURL, encoding: .utf8)
+        } catch {
+            self.logger.error("Failed reading clip file \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
             return []
         }
 
@@ -1101,7 +1116,6 @@ class StorageManager {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
 
-        // Split by "---" separator to get individual clip sections
         let sections = content.components(separatedBy: "\n---\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
         for section in sections {
@@ -1115,21 +1129,18 @@ class StorageManager {
 
             var lineIndex = 0
 
-            // Parse header line (### AppName | [url](url))
             for (index, line) in lines.enumerated() {
                 if line.hasPrefix("###") {
                     lineIndex = index
                     let headerContent = line.replacingOccurrences(of: "###", with: "").trimmingCharacters(in: .whitespaces)
 
-                    // Check for URL in format: AppName | [url](url)
                     if headerContent.contains("|") {
                         let parts = headerContent.components(separatedBy: "|")
                         appName = parts[0].trimmingCharacters(in: .whitespaces)
 
-                        // Extract URL from markdown link [text](url)
                         if let urlPart = parts.last,
                            let urlStart = urlPart.range(of: "](")?.upperBound,
-                           let urlEnd = urlPart.range(of: ")", range: urlStart..<urlPart.endIndex)?.lowerBound {
+                           let urlEnd = urlPart[urlStart...].firstIndex(of: ")") {
                             url = String(urlPart[urlStart..<urlEnd])
                         }
                     } else {
@@ -1139,23 +1150,19 @@ class StorageManager {
                 }
             }
 
-            // Parse timestamp line (next line after header)
             if lineIndex + 1 < lines.count {
                 let timestampLine = lines[lineIndex + 1].trimmingCharacters(in: .whitespaces)
-                // Remove " Bangkok" suffix if present
-                let dateString = timestampLine.replacingOccurrences(of: " Bangkok", with: "")
-                if let parsedDate = formatter.date(from: dateString) {
+                let cleanedTimestamp = timestampLine.replacingOccurrences(of: " Bangkok", with: "")
+                if let parsedDate = formatter.date(from: cleanedTimestamp) {
                     timestamp = parsedDate
                 }
             }
 
-            // Parse text content (everything after empty line following timestamp)
             if lineIndex + 2 < lines.count {
                 let textLines = Array(lines[(lineIndex + 2)...])
                 text = textLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
             }
 
-            // Create clip if we have valid data
             if !appName.isEmpty && !text.isEmpty {
                 let clip = Clip(
                     text: text,
@@ -1167,8 +1174,52 @@ class StorageManager {
             }
         }
 
-        // Sort by timestamp descending (newest first)
         return clips.sorted { $0.timestamp > $1.timestamp }
+    }
+
+    private func migrateLegacyStorage() {
+        let legacyBase = self.fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".nibnab", isDirectory: true)
+        guard self.fileManager.fileExists(atPath: legacyBase.path) else { return }
+
+        do {
+            let items = try self.fileManager.contentsOfDirectory(at: legacyBase, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+            for item in items {
+                let destination = self.baseURL.appendingPathComponent(item.lastPathComponent, isDirectory: true)
+                if self.fileManager.fileExists(atPath: destination.path) { continue }
+
+                do {
+                    try self.fileManager.copyItem(at: item, to: destination)
+                    self.logger.info("Migrated legacy storage item \(item.lastPathComponent, privacy: .public)")
+                } catch {
+                    self.logger.error("Failed migrating \(item.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        } catch {
+            self.logger.error("Failed reading legacy storage directory: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func createColorDirectories() {
+        for color in NibColor.all {
+            ensureDirectoryExists(for: color.name)
+        }
+    }
+
+    private func ensureDirectoryExists(for colorName: String) {
+        let directory = directoryURL(for: colorName)
+        do {
+            try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch {
+            self.logger.error("Failed creating directory \(directory.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func directoryURL(for colorName: String) -> URL {
+        self.baseURL.appendingPathComponent(colorName.lowercased(), isDirectory: true)
+    }
+
+    private func clipFileURL(for colorName: String) -> URL {
+        directoryURL(for: colorName).appendingPathComponent("\(colorName.lowercased())_clips.md")
     }
 }
 
