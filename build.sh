@@ -73,7 +73,7 @@ swiftc -O -parse-as-library \
     -framework Cocoa \
     -framework SwiftUI \
     -o "$BUILD_DIR/${APP_NAME}.app/Contents/MacOS/${APP_NAME}" \
-    "${APP_NAME}.swift"
+    Sources/*.swift
 
 # Check if compilation was successful
 if [ $? -eq 0 ]; then
