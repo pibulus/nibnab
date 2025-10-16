@@ -321,7 +321,7 @@ struct ContentView: View {
     }
 
     private var contentArea: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 8) {
                 if !sortedClips.isEmpty {
                     ForEach(Array(sortedClips.enumerated()), id: \.element.id) { index, clip in
@@ -360,7 +360,8 @@ struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 280)
