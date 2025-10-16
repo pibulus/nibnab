@@ -23,7 +23,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var appState: AppState!
     var eventMonitor: EventMonitor?
     var autoCopyMonitor: AutoCopyMonitor?
-    private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 6)
+    private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 7)
+
+    func applicationWillTerminate(_ notification: Notification) {
+        appState?.stopClipboardMonitoring()
+        autoCopyMonitor?.stop()
+        eventMonitor?.stop()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
@@ -273,7 +279,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func showAbout() {
-        NSApp.orderFrontStandardAboutPanel(nil)
+        let aboutView = AboutView()
+        let hostingController = NSHostingController(rootView: aboutView)
+
+        let aboutWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 560),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        aboutWindow.title = "About NibNab"
+        aboutWindow.contentViewController = hostingController
+        aboutWindow.center()
+        aboutWindow.isReleasedWhenClosed = false
+        aboutWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -349,6 +368,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             &hotKeyRefs[5]
         )
 
+        let monitoringID = EventHotKeyID(signature: signature, id: 7)
+        RegisterEventHotKey(
+            UInt32(kVK_ANSI_M),
+            UInt32(cmdKey | shiftKey),
+            monitoringID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRefs[6]
+        )
+
         InstallEventHandler(
             GetApplicationEventTarget(),
             { (_, inEvent, userData) -> OSStatus in
@@ -380,6 +409,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         selfPointer.appState.activeColor = NibColor.purple
                     case 6:
                         selfPointer.appState.activeColor = NibColor.green
+                    case 7:
+                        selfPointer.appState.isMonitoring.toggle()
                     default:
                         break
                     }

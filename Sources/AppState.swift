@@ -10,6 +10,7 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(activeColor.name, forKey: "activeColorName")
             delegate?.updateMenubarIcon()
             playSound("Pop")
+            showToast(activeColor.name.replacingOccurrences(of: "Highlighter ", with: ""), color: activeColor)
         }
     }
     @Published var launchAtLogin = false {
@@ -31,8 +32,10 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(isMonitoring, forKey: "isMonitoring")
             if isMonitoring {
                 startClipboardMonitoring()
+                showToast("Capturing ON", color: NibColor.green)
             } else {
                 stopClipboardMonitoring()
+                showToast("Capturing OFF", color: NibColor.orange)
             }
         }
     }
@@ -42,6 +45,9 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(colorLabels, forKey: "colorLabels")
         }
     }
+    @Published var showWelcome: Bool = false
+    @Published var toastMessage: String? = nil
+    @Published var toastColor: NibColor? = nil
 
     weak var delegate: AppDelegate?
     private var clipboardTimer: Timer?
@@ -74,6 +80,13 @@ class AppState: ObservableObject {
         }
 
         launchAtLogin = SMAppService.mainApp.status == .enabled
+
+        // Check if first launch
+        let hasLaunchedBefore = UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+        if !hasLaunchedBefore {
+            showWelcome = true
+            UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
+        }
     }
 
     func labelForColor(_ colorName: String) -> String {
@@ -275,6 +288,16 @@ class AppState: ObservableObject {
             if response == .OK, let url = savePanel.url {
                 try? plainText.write(to: url, atomically: true, encoding: .utf8)
             }
+        }
+    }
+
+    func showToast(_ message: String, color: NibColor) {
+        toastMessage = message
+        toastColor = color
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in
+            self?.toastMessage = nil
+            self?.toastColor = nil
         }
     }
 }

@@ -53,6 +53,7 @@ extension AXUIElement {
 
 class AutoCopyMonitor {
     private var timer: Timer?
+    private var permissionPollTimer: Timer?
     private var lastSelectedText: String?
     private let selectionHandler: (String) -> Void
 
@@ -82,6 +83,8 @@ class AutoCopyMonitor {
     func stop() {
         timer?.invalidate()
         timer = nil
+        permissionPollTimer?.invalidate()
+        permissionPollTimer = nil
         lastSelectedText = nil
     }
 
@@ -101,14 +104,16 @@ class AutoCopyMonitor {
 
     private func pollForAccessibilityPermission() {
         var pollCount = 0
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+        permissionPollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
             pollCount += 1
 
             if AXIsProcessTrusted() {
                 timer.invalidate()
+                self?.permissionPollTimer = nil
                 self?.start()
             } else if pollCount > 120 {
                 timer.invalidate()
+                self?.permissionPollTimer = nil
             }
         }
     }

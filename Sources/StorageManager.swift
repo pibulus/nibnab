@@ -54,9 +54,9 @@ final class StorageManager {
         if self.fileManager.fileExists(atPath: fileURL.path) {
             do {
                 let handle = try FileHandle(forWritingTo: fileURL)
+                defer { try? handle.close() }
                 try handle.seekToEnd()
                 try handle.write(contentsOf: data)
-                try handle.close()
             } catch {
                 self.logger.error("Failed appending clip to \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }

@@ -66,6 +66,9 @@ cat > "$BUILD_DIR/${APP_NAME}.app/Contents/Info.plist" << EOF
 </plist>
 EOF
 
+# Copy entitlements
+cp NibNab.entitlements "$BUILD_DIR/${APP_NAME}.app/Contents/"
+
 # Compile Swift
 echo -e "${YELLOW}Compiling Swift code...${NC}"
 swiftc -O -parse-as-library \
