@@ -92,13 +92,13 @@ struct ContentView: View {
         ZStack {
             VStack(spacing: 0) {
                 header
-                Divider()
                 contentArea
                 footer
             }
             overlays
             toastOverlay
         }
+        .frame(width: 460, height: 520)
         .background(
             ZStack {
                 Color.black.opacity(0.85)
@@ -359,8 +359,10 @@ struct ContentView: View {
                     emptyState
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
         }
+        .frame(maxWidth: .infinity)
         .frame(height: 280)
     }
 
@@ -524,17 +526,7 @@ struct ContentView: View {
             }
         }
 
-        if appState.showWelcome {
-            overlayBackground {
-                WelcomeView(onDismiss: {
-                    withAnimation {
-                        appState.showWelcome = false
-                    }
-                })
-                .environmentObject(appState)
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            }
-        }
+        // Welcome modal shown in separate window, not in popover
     }
 
     @ViewBuilder

@@ -81,10 +81,12 @@ class AppState: ObservableObject {
 
         launchAtLogin = SMAppService.mainApp.status == .enabled
 
-        // Check if first launch
+        // Check if first launch - show welcome window
         let hasLaunchedBefore = UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
         if !hasLaunchedBefore {
-            showWelcome = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.delegate?.showWelcomeWindow()
+            }
             UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
         }
     }

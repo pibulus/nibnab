@@ -47,7 +47,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let contentView = ContentView()
             .environmentObject(appState)
-            .frame(width: 460, height: 520)
 
         popover.contentViewController = NSViewController()
         popover.contentViewController?.view = NSHostingView(rootView: contentView)
@@ -140,38 +139,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func updateMenubarIcon() {
         guard let button = statusItem.button else { return }
 
-        let size = NSSize(width: 20, height: 20)
-        let image = NSImage(size: size)
-        image.lockFocus()
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+        if let highlighterImage = NSImage(systemSymbolName: "pencil.tip", accessibilityDescription: "NibNab")?.withSymbolConfiguration(config) {
+            let size = NSSize(width: 22, height: 22)
+            let compositeImage = NSImage(size: size)
 
-        let baseRect = NSRect(x: 1, y: 1, width: 18, height: 18)
-        let path = NSBezierPath(roundedRect: baseRect, xRadius: 4, yRadius: 4)
-        NSColor.black.withAlphaComponent(0.9).setFill()
-        path.fill()
+            compositeImage.lockFocus()
 
-        let nibPath = NSBezierPath()
-        nibPath.move(to: NSPoint(x: 5, y: 6))
-        nibPath.line(to: NSPoint(x: 10, y: 15))
-        nibPath.line(to: NSPoint(x: 15, y: 6))
-        nibPath.lineWidth = 2
-        appState.activeColor.nsColor.setStroke()
-        nibPath.stroke()
+            // Draw highlighter icon
+            let iconRect = NSRect(x: 3, y: 5, width: 16, height: 16)
+            highlighterImage.draw(in: iconRect)
 
-        if let maskImage = NSImage(systemSymbolName: "highlighter", accessibilityDescription: nil) {
-            maskImage.draw(in: baseRect, from: .zero, operation: .sourceAtop, fraction: 1.0)
+            // Draw colored dot indicator
+            let dotRect = NSRect(x: 15, y: 3, width: 7, height: 7)
+            let dotPath = NSBezierPath(ovalIn: dotRect)
+            appState.activeColor.nsColor.setFill()
+            dotPath.fill()
+
+            compositeImage.unlockFocus()
+            compositeImage.isTemplate = true
+            button.image = compositeImage
         }
-
-        let dotRect = NSRect(x: 14, y: 2, width: 8, height: 8)
-        let dotPath = NSBezierPath(ovalIn: dotRect)
-        appState.activeColor.nsColor.setFill()
-        dotPath.fill()
-        NSColor.white.setStroke()
-        dotPath.lineWidth = 1.5
-        dotPath.stroke()
-
-        image.unlockFocus()
-        image.isTemplate = false
-        button.image = image
     }
 
     func showColorMenu() {
@@ -276,6 +264,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState.isMonitoring = true
             autoCopyMonitor?.start()
         }
+    }
+
+    func showWelcomeWindow() {
+        let welcomeView = WelcomeView(onDismiss: {
+            NSApp.keyWindow?.close()
+        })
+        .environmentObject(appState)
+
+        let hostingController = NSHostingController(rootView: welcomeView)
+
+        let welcomeWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 480),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        welcomeWindow.title = "Welcome to NibNab"
+        welcomeWindow.contentViewController = hostingController
+        welcomeWindow.center()
+        welcomeWindow.isReleasedWhenClosed = true
+        welcomeWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc func showAbout() {
