@@ -50,6 +50,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         popover.contentViewController = NSViewController()
         popover.contentViewController?.view = NSHostingView(rootView: contentView)
+        popover.contentSize = NSSize(width: 460, height: 520)
         popover.behavior = .transient
 
         eventMonitor = EventMonitor(mask: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
