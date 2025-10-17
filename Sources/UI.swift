@@ -40,11 +40,14 @@ struct NibToggleStyle: ToggleStyle {
 
 // MARK: - Main Content View
 struct ContentView: View {
+    private static let popoverSize = CGSize(width: 620, height: 540)
+    private static let horizontalPadding: CGFloat = 30
     @EnvironmentObject var appState: AppState
     @State private var selectedClip: Clip?
     @State private var sortOrder: SortOrder = .newestFirst
     @State private var searchText = ""
     @State private var sortHovered = false
+    @State private var dateSortHovered = false
     @State private var exportHovered = false
     @State private var toggleHovered = false
     @State private var clearHovered = false
@@ -88,17 +91,22 @@ struct ContentView: View {
         return !clips.isEmpty
     }
 
+    private var isSortingByDate: Bool {
+        sortOrder == .newestFirst || sortOrder == .oldestFirst
+    }
+
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
                 header
+                Divider()
                 contentArea
                 footer
             }
             overlays
             toastOverlay
         }
-        .frame(width: 460, height: 520)
+        .frame(width: Self.popoverSize.width, height: Self.popoverSize.height)
         .background(
             ZStack {
                 Color.black.opacity(0.85)
@@ -124,15 +132,23 @@ struct ContentView: View {
         }
     }
 
+    private func toggleDateSort() {
+        if isSortingByDate {
+            sortOrder = sortOrder == .newestFirst ? .oldestFirst : .newestFirst
+        } else {
+            sortOrder = .newestFirst
+        }
+    }
+
     private var header: some View {
-        HStack(alignment: .center, spacing: 16) {
+        HStack(alignment: .center, spacing: 20) {
             primaryControls
             Spacer()
             searchControls
             Spacer()
             actionControls
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, Self.horizontalPadding)
         .padding(.top, 18)
         .padding(.bottom, 12)
         .background(
@@ -222,6 +238,22 @@ struct ContentView: View {
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.2)) {
                     sortHovered = hovering
+                }
+            }
+
+            Button(action: toggleDateSort) {
+                Image(systemName: "arrow.up.arrow.down.circle")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(.white.opacity(dateSortHovered || isSortingByDate ? 1.0 : 0.55))
+                    .scaleEffect(dateSortHovered ? 1.12 : 1.0)
+                    .rotationEffect(.degrees(sortOrder == .oldestFirst ? 0 : 180))
+                    .animation(.easeInOut(duration: 0.18), value: sortOrder)
+            }
+            .buttonStyle(.plain)
+            .help(sortOrder == .oldestFirst ? "Sort: Oldest → Newest" : "Sort: Newest → Oldest")
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    dateSortHovered = hovering
                 }
             }
         }
@@ -334,8 +366,7 @@ struct ContentView: View {
                             }
                             .contextMenu {
                                 Button(action: {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(clip.text, forType: .string)
+                                    appState.copyToPasteboard(clip.text)
                                 }) {
                                     Label("Copy", systemImage: "doc.on.clipboard")
                                 }
@@ -360,11 +391,10 @@ struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, Self.horizontalPadding)
             .padding(.vertical, 12)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 280)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var emptyState: some View {
@@ -405,8 +435,7 @@ struct ContentView: View {
                         color: color,
                         isActive: appState.activeColor.name == color.name,
                         onTap: {
-                            appState.viewedColor = color
-                            appState.activeColor = color
+                            appState.switchToColor(color, announce: false)
                         },
                         onDrop: { providers in
                             handleColorDrop(providers: providers, to: color)
@@ -415,7 +444,7 @@ struct ContentView: View {
                 }
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, Self.horizontalPadding)
         .padding(.top, 16)
         .padding(.bottom, 20)
         .background(
@@ -573,8 +602,7 @@ struct ContentView: View {
             }
 
             appState.moveClip(droppedClip, from: sourceColor, to: targetColor.name)
-            appState.viewedColor = targetColor
-            appState.activeColor = targetColor
+            appState.switchToColor(targetColor, announce: false)
         }
     }
 
@@ -744,6 +772,7 @@ struct ClipView: View {
                 .lineLimit(3)
                 .foregroundColor(Color.white.opacity(0.9))
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10)
@@ -775,8 +804,7 @@ struct ClipView: View {
                     HStack(spacing: 6) {
                         // Copy button
                         Button(action: {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(clip.text, forType: .string)
+                            appState.copyToPasteboard(clip.text)
                         }) {
                             Image(systemName: "doc.on.doc")
                                 .font(.system(size: 14))
@@ -1126,8 +1154,7 @@ struct ClipDetailView: View {
             // Footer with actions
             HStack(spacing: 12) {
                 Button(action: {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(clip.text, forType: .string)
+                    appState.copyToPasteboard(clip.text)
                     onDismiss()
                 }) {
                     Image(systemName: "doc.on.clipboard")
@@ -1228,162 +1255,166 @@ struct AboutView: View {
     @State private var hoveredShortcut: Int? = nil
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            VStack(spacing: 16) {
-                Image(systemName: "highlighter")
-                    .font(.system(size: 56, weight: .bold))
-                    .foregroundColor(Color(NibColor.pink.nsColor))
-                    .shadow(color: Color(NibColor.pink.nsColor).opacity(0.3), radius: 8)
+        ScrollView {
+            VStack(spacing: 0) {
+                // Header
+                VStack(spacing: 16) {
+                    Image(systemName: "highlighter")
+                        .font(.system(size: 56, weight: .bold))
+                        .foregroundColor(Color(NibColor.pink.nsColor))
+                        .shadow(color: Color(NibColor.pink.nsColor).opacity(0.3), radius: 8)
 
-                VStack(spacing: 6) {
-                    Text("NibNab")
-                        .font(.system(size: 32, weight: .black, design: .rounded))
-                        .foregroundColor(.primary)
+                    VStack(spacing: 6) {
+                        Text("NibNab")
+                            .font(.system(size: 32, weight: .black, design: .rounded))
+                            .foregroundColor(.primary)
 
-                    Text("Version 1.0.0")
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        Text("Version 1.0.0")
+                            .font(.system(size: 13, weight: .medium, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+
+                    Text("Capture the good bits, organized by color")
+                        .font(.system(size: 14, weight: .regular))
                         .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
                 }
+                .padding(.top, 32)
+                .padding(.bottom, 24)
 
-                Text("Capture the good bits, organized by color")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-            }
-            .padding(.top, 32)
-            .padding(.bottom, 24)
+                Divider()
 
-            Divider()
-
-            // Keyboard Shortcuts
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Keyboard Shortcuts")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 20)
-                    .padding(.bottom, 12)
-
-                VStack(spacing: 2) {
-                    ShortcutRow(
-                        icon: "highlighter",
-                        description: "Toggle popover",
-                        keys: ["⌘", "⇧", "N"],
-                        color: NibColor.pink,
-                        isHovered: hoveredShortcut == 0
-                    )
-                    .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            hoveredShortcut = hovering ? 0 : nil
-                        }
-                    }
-
-                    ShortcutRow(
-                        icon: "power",
-                        description: "Toggle auto-capture",
-                        keys: ["⌘", "⇧", "M"],
-                        color: NibColor.pink,
-                        isHovered: hoveredShortcut == 1
-                    )
-                    .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            hoveredShortcut = hovering ? 1 : nil
-                        }
-                    }
-
-                    Divider()
+                // Keyboard Shortcuts
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Keyboard Shortcuts")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundColor(.primary)
                         .padding(.horizontal, 24)
-                        .padding(.vertical, 8)
+                        .padding(.top, 20)
+                        .padding(.bottom, 12)
 
-                    ShortcutRow(
-                        icon: "circle.fill",
-                        description: "Yellow highlighter",
-                        keys: ["⌘", "⌃", "1"],
-                        color: NibColor.yellow,
-                        isHovered: hoveredShortcut == 2
-                    )
-                    .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            hoveredShortcut = hovering ? 2 : nil
+                    VStack(spacing: 2) {
+                        ShortcutRow(
+                            icon: "highlighter",
+                            description: "Toggle popover",
+                            keys: ["⌘", "⇧", "N"],
+                            color: NibColor.pink,
+                            isHovered: hoveredShortcut == 0
+                        )
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                hoveredShortcut = hovering ? 0 : nil
+                            }
                         }
-                    }
 
-                    ShortcutRow(
-                        icon: "circle.fill",
-                        description: "Orange highlighter",
-                        keys: ["⌘", "⌃", "2"],
-                        color: NibColor.orange,
-                        isHovered: hoveredShortcut == 3
-                    )
-                    .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            hoveredShortcut = hovering ? 3 : nil
+                        ShortcutRow(
+                            icon: "power",
+                            description: "Toggle auto-capture",
+                            keys: ["⌘", "⇧", "M"],
+                            color: NibColor.pink,
+                            isHovered: hoveredShortcut == 1
+                        )
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                hoveredShortcut = hovering ? 1 : nil
+                            }
                         }
-                    }
 
-                    ShortcutRow(
-                        icon: "circle.fill",
-                        description: "Pink highlighter",
-                        keys: ["⌘", "⌃", "3"],
-                        color: NibColor.pink,
-                        isHovered: hoveredShortcut == 4
-                    )
-                    .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            hoveredShortcut = hovering ? 4 : nil
+                        Divider()
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 8)
+
+                        ShortcutRow(
+                            icon: "circle.fill",
+                            description: "Yellow highlighter",
+                            keys: ["⌘", "⌃", "1"],
+                            color: NibColor.yellow,
+                            isHovered: hoveredShortcut == 2
+                        )
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                hoveredShortcut = hovering ? 2 : nil
+                            }
                         }
-                    }
 
-                    ShortcutRow(
-                        icon: "circle.fill",
-                        description: "Purple highlighter",
-                        keys: ["⌘", "⌃", "4"],
-                        color: NibColor.purple,
-                        isHovered: hoveredShortcut == 5
-                    )
-                    .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            hoveredShortcut = hovering ? 5 : nil
+                        ShortcutRow(
+                            icon: "circle.fill",
+                            description: "Orange highlighter",
+                            keys: ["⌘", "⌃", "2"],
+                            color: NibColor.orange,
+                            isHovered: hoveredShortcut == 3
+                        )
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                hoveredShortcut = hovering ? 3 : nil
+                            }
                         }
-                    }
 
-                    ShortcutRow(
-                        icon: "circle.fill",
-                        description: "Green highlighter",
-                        keys: ["⌘", "⌃", "5"],
-                        color: NibColor.green,
-                        isHovered: hoveredShortcut == 6
-                    )
-                    .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            hoveredShortcut = hovering ? 6 : nil
+                        ShortcutRow(
+                            icon: "circle.fill",
+                            description: "Pink highlighter",
+                            keys: ["⌘", "⌃", "3"],
+                            color: NibColor.pink,
+                            isHovered: hoveredShortcut == 4
+                        )
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                hoveredShortcut = hovering ? 4 : nil
+                            }
+                        }
+
+                        ShortcutRow(
+                            icon: "circle.fill",
+                            description: "Purple highlighter",
+                            keys: ["⌘", "⌃", "4"],
+                            color: NibColor.purple,
+                            isHovered: hoveredShortcut == 5
+                        )
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                hoveredShortcut = hovering ? 5 : nil
+                            }
+                        }
+
+                        ShortcutRow(
+                            icon: "circle.fill",
+                            description: "Green highlighter",
+                            keys: ["⌘", "⌃", "5"],
+                            color: NibColor.green,
+                            isHovered: hoveredShortcut == 6
+                        )
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                hoveredShortcut = hovering ? 6 : nil
+                            }
                         }
                     }
                 }
-            }
-            .padding(.bottom, 20)
+                .padding(.bottom, 20)
 
-            Divider()
+                Divider()
 
-            // Footer
-            VStack(spacing: 12) {
-                Text("Made with care for the bits worth keeping")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondary)
+                // Footer
+                VStack(spacing: 12) {
+                    Text("Made with care for the bits worth keeping")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
 
-                HStack(spacing: 8) {
-                    ForEach(NibColor.all, id: \.name) { color in
-                        Circle()
-                            .fill(Color(color.nsColor))
-                            .frame(width: 8, height: 8)
+                    HStack(spacing: 8) {
+                        ForEach(NibColor.all, id: \.name) { color in
+                            Circle()
+                                .fill(Color(color.nsColor))
+                                .frame(width: 8, height: 8)
+                        }
                     }
                 }
+                .padding(.vertical, 24)
             }
-            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity)
         }
-        .frame(width: 480, height: 560)
+        .scrollIndicators(.hidden)
+        .frame(width: 520, height: 620)
         .background(Color(NSColor.windowBackgroundColor))
     }
 }
@@ -1608,5 +1639,15 @@ struct ToastView: View {
                 )
         )
         .shadow(color: Color(color.nsColor).opacity(0.3), radius: 12, x: 0, y: 4)
+    }
+}
+
+struct StatusToastView: View {
+    let message: String
+    let color: NibColor
+
+    var body: some View {
+        ToastView(message: message, color: color)
+            .fixedSize()
     }
 }

@@ -10,7 +10,11 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(activeColor.name, forKey: "activeColorName")
             delegate?.updateMenubarIcon()
             playSound("Pop")
-            showToast(activeColor.name.replacingOccurrences(of: "Highlighter ", with: ""), color: activeColor)
+            if suppressNextColorToast {
+                suppressNextColorToast = false
+            } else {
+                showToast(activeColor.name.replacingOccurrences(of: "Highlighter ", with: ""), color: activeColor)
+            }
         }
     }
     @Published var launchAtLogin = false {
@@ -54,6 +58,7 @@ class AppState: ObservableObject {
     private var lastChangeCount: Int = 0
     var lastCapturedText: String? = nil
     var suppressNextClipboardCapture = false
+    private var suppressNextColorToast = false
     private let storageManager = StorageManager()
 
     var autoCopyEnabled: Bool {
@@ -61,15 +66,20 @@ class AppState: ObservableObject {
     }
 
     init() {
+        suppressNextColorToast = true
+
+        let initialColor: NibColor
         if let savedColorName = UserDefaults.standard.string(forKey: "activeColorName"),
            let savedColor = NibColor.all.first(where: { $0.name == savedColorName }) {
-            activeColor = savedColor
+            initialColor = savedColor
         } else {
-            activeColor = NibColor.yellow
+            initialColor = NibColor.yellow
         }
+        activeColor = initialColor
 
         soundEffectsEnabled = UserDefaults.standard.object(forKey: "soundEffectsEnabled") as? Bool ?? true
         isMonitoring = UserDefaults.standard.object(forKey: "isMonitoring") as? Bool ?? true
+        viewedColor = initialColor
 
         if let savedLabels = UserDefaults.standard.dictionary(forKey: "colorLabels") as? [String: String] {
             colorLabels = savedLabels
@@ -211,6 +221,27 @@ class AppState: ObservableObject {
         playSound("Pop")
     }
 
+    func copyToPasteboard(_ text: String) {
+        suppressNextClipboardCapture = true
+        lastCapturedText = text
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+
+    func switchToColor(_ color: NibColor, announce: Bool = true) {
+        guard activeColor.name != color.name || viewedColor.name != color.name else {
+            return
+        }
+
+        if !announce {
+            suppressNextColorToast = true
+        }
+
+        viewedColor = color
+        activeColor = color
+    }
+
     func reorderClip(_ clip: Clip, in colorName: String, to index: Int) {
         guard var colorClips = clips[colorName] else { return }
         colorClips.removeAll { $0.id == clip.id }
@@ -294,12 +325,21 @@ class AppState: ObservableObject {
     }
 
     func showToast(_ message: String, color: NibColor) {
-        toastMessage = message
-        toastColor = color
+        if delegate?.popover.isShown == true {
+            toastMessage = message
+            toastColor = color
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in
-            self?.toastMessage = nil
-            self?.toastColor = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in
+                self?.toastMessage = nil
+                self?.toastColor = nil
+            }
+        } else if let delegate {
+            toastMessage = nil
+            toastColor = nil
+            delegate.showStatusToast(message: message, color: color)
+        } else {
+            toastMessage = message
+            toastColor = color
         }
     }
 }

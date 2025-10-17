@@ -24,6 +24,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var eventMonitor: EventMonitor?
     var autoCopyMonitor: AutoCopyMonitor?
     private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 7)
+    private var statusToastWindow: NSPanel?
+    private var statusToastWorkItem: DispatchWorkItem?
 
     func applicationWillTerminate(_ notification: Notification) {
         appState?.stopClipboardMonitoring()
@@ -45,12 +47,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appState.delegate = self
         updateMenubarIcon()
 
+        let popoverSize = NSSize(width: 620, height: 540)
+
         let contentView = ContentView()
             .environmentObject(appState)
 
-        popover.contentViewController = NSViewController()
-        popover.contentViewController?.view = NSHostingView(rootView: contentView)
-        popover.contentSize = NSSize(width: 460, height: 520)
+        let hostingController = NSHostingController(rootView: contentView)
+        hostingController.preferredContentSize = popoverSize
+
+        popover.contentViewController = hostingController
+        popover.contentSize = popoverSize
         popover.behavior = .transient
 
         eventMonitor = EventMonitor(mask: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
@@ -104,6 +110,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func showPopover() {
         if let button = statusItem.button {
+            statusToastWindow?.orderOut(nil)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.becomeKey()
             eventMonitor?.start()
@@ -113,6 +120,60 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func closePopover() {
         popover.performClose(nil)
         eventMonitor?.stop()
+    }
+
+    func showStatusToast(message: String, color: NibColor) {
+        statusToastWorkItem?.cancel()
+
+        let toastView = StatusToastView(message: message, color: color)
+        let hostingController = NSHostingController(rootView: toastView)
+
+        if statusToastWindow == nil {
+            let panel = NSPanel(
+                contentRect: NSRect(x: 0, y: 0, width: 200, height: 56),
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            panel.level = .statusBar
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            panel.hasShadow = true
+            panel.ignoresMouseEvents = true
+            panel.collectionBehavior = [.transient, .ignoresCycle, .canJoinAllSpaces]
+            panel.isReleasedWhenClosed = false
+            statusToastWindow = panel
+        }
+
+        statusToastWindow?.contentViewController = hostingController
+        hostingController.view.layoutSubtreeIfNeeded()
+
+        let fittingSize = hostingController.view.fittingSize
+        let targetSize = NSSize(width: fittingSize.width, height: fittingSize.height)
+        hostingController.preferredContentSize = targetSize
+        statusToastWindow?.setContentSize(targetSize)
+
+        if let button = statusItem.button,
+           let window = button.window {
+            var buttonRect = button.bounds
+            buttonRect = button.convert(buttonRect, to: nil)
+            let screenRect = window.convertToScreen(buttonRect)
+            let x = screenRect.midX - (targetSize.width / 2)
+            let y = screenRect.minY - targetSize.height - 12
+            statusToastWindow?.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: targetSize), display: true)
+        } else if let screenFrame = NSScreen.main?.visibleFrame {
+            let x = screenFrame.maxX - targetSize.width - 20
+            let y = screenFrame.maxY - targetSize.height - 40
+            statusToastWindow?.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: targetSize), display: true)
+        }
+
+        statusToastWindow?.orderFrontRegardless()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.statusToastWindow?.orderOut(nil)
+        }
+        statusToastWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8, execute: workItem)
     }
 
     func pulseMenubarIcon() {
@@ -140,27 +201,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func updateMenubarIcon() {
         guard let button = statusItem.button else { return }
 
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-        if let highlighterImage = NSImage(systemSymbolName: "pencil.tip", accessibilityDescription: "NibNab")?.withSymbolConfiguration(config) {
-            let size = NSSize(width: 22, height: 22)
-            let compositeImage = NSImage(size: size)
-
-            compositeImage.lockFocus()
-
-            // Draw highlighter icon
-            let iconRect = NSRect(x: 3, y: 5, width: 16, height: 16)
-            highlighterImage.draw(in: iconRect)
-
-            // Draw colored dot indicator
-            let dotRect = NSRect(x: 15, y: 3, width: 7, height: 7)
-            let dotPath = NSBezierPath(ovalIn: dotRect)
-            appState.activeColor.nsColor.setFill()
-            dotPath.fill()
-
-            compositeImage.unlockFocus()
-            compositeImage.isTemplate = true
-            button.image = compositeImage
+        let config = NSImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
+        guard let symbol = NSImage(systemSymbolName: "highlighter", accessibilityDescription: "NibNab")?
+            .withSymbolConfiguration(config) else {
+            return
         }
+
+        let size = NSSize(width: 26, height: 24)
+        let compositeImage = NSImage(size: size)
+
+        compositeImage.lockFocus()
+
+        // Draw highlighter icon with a bright tint using destination masking
+        let iconRect = NSRect(x: 4, y: 4, width: 18, height: 18)
+        NSColor.white.setFill()
+        iconRect.fill()
+        symbol.draw(in: iconRect, from: .zero, operation: .destinationIn, fraction: 1.0, respectFlipped: true, hints: nil)
+
+        // Draw colored status dot
+        let dotRect = NSRect(x: size.width - 10, y: 4, width: 8, height: 8)
+        let dotPath = NSBezierPath(ovalIn: dotRect)
+        appState.activeColor.nsColor.setFill()
+        dotPath.fill()
+
+        // Subtle outline for contrast on light/dark backgrounds
+        NSColor.white.withAlphaComponent(0.9).setStroke()
+        dotPath.lineWidth = 0.8
+        dotPath.stroke()
+
+        compositeImage.unlockFocus()
+        compositeImage.isTemplate = false
+
+        button.image = compositeImage
+        button.imagePosition = .imageOnly
     }
 
     func showColorMenu() {
@@ -244,8 +317,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func selectColor(_ sender: NSMenuItem) {
         if let color = sender.representedObject as? NibColor {
-            appState.activeColor = color
-            appState.viewedColor = color
+            appState.switchToColor(color, announce: false)
         }
     }
 
@@ -292,15 +364,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showAbout() {
         let aboutView = AboutView()
         let hostingController = NSHostingController(rootView: aboutView)
+        let aboutSize = NSSize(width: 520, height: 620)
+        hostingController.preferredContentSize = aboutSize
 
         let aboutWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: aboutSize.width, height: aboutSize.height),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         aboutWindow.title = "About NibNab"
         aboutWindow.contentViewController = hostingController
+        aboutWindow.setContentSize(aboutSize)
         aboutWindow.center()
         aboutWindow.isReleasedWhenClosed = false
         aboutWindow.makeKeyAndOrderFront(nil)
@@ -411,15 +486,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     case 1:
                         selfPointer.togglePopover()
                     case 2:
-                        selfPointer.appState.activeColor = NibColor.yellow
+                        selfPointer.appState.switchToColor(NibColor.yellow)
                     case 3:
-                        selfPointer.appState.activeColor = NibColor.orange
+                        selfPointer.appState.switchToColor(NibColor.orange)
                     case 4:
-                        selfPointer.appState.activeColor = NibColor.pink
+                        selfPointer.appState.switchToColor(NibColor.pink)
                     case 5:
-                        selfPointer.appState.activeColor = NibColor.purple
+                        selfPointer.appState.switchToColor(NibColor.purple)
                     case 6:
-                        selfPointer.appState.activeColor = NibColor.green
+                        selfPointer.appState.switchToColor(NibColor.green)
                     case 7:
                         selfPointer.appState.isMonitoring.toggle()
                     default:
