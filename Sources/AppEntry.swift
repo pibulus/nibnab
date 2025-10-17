@@ -331,10 +331,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func toggleAutoCapture() {
         if appState.isMonitoring {
-            appState.isMonitoring = false
+            appState.setMonitoring(false, suppressToast: false)
             autoCopyMonitor?.stop()
         } else {
-            appState.isMonitoring = true
+            appState.setMonitoring(true, suppressToast: false)
             autoCopyMonitor?.start()
         }
     }
@@ -397,7 +397,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let toggleID = EventHotKeyID(signature: signature, id: 1)
         RegisterEventHotKey(
             UInt32(kVK_ANSI_N),
-            UInt32(cmdKey | shiftKey),
+            UInt32(cmdKey | controlKey),
             toggleID,
             GetApplicationEventTarget(),
             0,
@@ -457,7 +457,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let monitoringID = EventHotKeyID(signature: signature, id: 7)
         RegisterEventHotKey(
             UInt32(kVK_ANSI_M),
-            UInt32(cmdKey | shiftKey),
+            UInt32(cmdKey | controlKey),
             monitoringID,
             GetApplicationEventTarget(),
             0,
@@ -486,17 +486,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     case 1:
                         selfPointer.togglePopover()
                     case 2:
-                        selfPointer.appState.switchToColor(NibColor.yellow)
+                        selfPointer.appState.switchToColor(NibColor.yellow, announce: false)
+                        selfPointer.appState.showToast(
+                            NibColor.yellow.name.replacingOccurrences(of: "Highlighter ", with: ""),
+                            color: NibColor.yellow
+                        )
                     case 3:
-                        selfPointer.appState.switchToColor(NibColor.orange)
+                        selfPointer.appState.switchToColor(NibColor.orange, announce: false)
+                        selfPointer.appState.showToast(
+                            NibColor.orange.name.replacingOccurrences(of: "Highlighter ", with: ""),
+                            color: NibColor.orange
+                        )
                     case 4:
-                        selfPointer.appState.switchToColor(NibColor.pink)
+                        selfPointer.appState.switchToColor(NibColor.pink, announce: false)
+                        selfPointer.appState.showToast(
+                            NibColor.pink.name.replacingOccurrences(of: "Highlighter ", with: ""),
+                            color: NibColor.pink
+                        )
                     case 5:
-                        selfPointer.appState.switchToColor(NibColor.purple)
+                        selfPointer.appState.switchToColor(NibColor.purple, announce: false)
+                        selfPointer.appState.showToast(
+                            NibColor.purple.name.replacingOccurrences(of: "Highlighter ", with: ""),
+                            color: NibColor.purple
+                        )
                     case 6:
-                        selfPointer.appState.switchToColor(NibColor.green)
+                        selfPointer.appState.switchToColor(NibColor.green, announce: false)
+                        selfPointer.appState.showToast(
+                            NibColor.green.name.replacingOccurrences(of: "Highlighter ", with: ""),
+                            color: NibColor.green
+                        )
                     case 7:
-                        selfPointer.appState.isMonitoring.toggle()
+                        selfPointer.toggleAutoCapture()
                     default:
                         break
                     }

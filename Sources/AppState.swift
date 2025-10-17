@@ -36,10 +36,18 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(isMonitoring, forKey: "isMonitoring")
             if isMonitoring {
                 startClipboardMonitoring()
-                showToast("Capturing ON", color: NibColor.green)
+                if suppressNextMonitoringToast {
+                    suppressNextMonitoringToast = false
+                } else {
+                    showToast("Capturing ON", color: NibColor.green)
+                }
             } else {
                 stopClipboardMonitoring()
-                showToast("Capturing OFF", color: NibColor.orange)
+                if suppressNextMonitoringToast {
+                    suppressNextMonitoringToast = false
+                } else {
+                    showToast("Capturing OFF", color: NibColor.orange)
+                }
             }
         }
     }
@@ -59,6 +67,7 @@ class AppState: ObservableObject {
     var lastCapturedText: String? = nil
     var suppressNextClipboardCapture = false
     private var suppressNextColorToast = false
+    private var suppressNextMonitoringToast = false
     private let storageManager = StorageManager()
 
     var autoCopyEnabled: Bool {
@@ -240,6 +249,20 @@ class AppState: ObservableObject {
 
         viewedColor = color
         activeColor = color
+    }
+
+    func setMonitoring(_ enabled: Bool, suppressToast: Bool) {
+        if suppressToast {
+            suppressNextMonitoringToast = true
+        }
+        isMonitoring = enabled
+    }
+
+    func toggleMonitoring(suppressToast: Bool) {
+        if suppressToast {
+            suppressNextMonitoringToast = true
+        }
+        isMonitoring.toggle()
     }
 
     func reorderClip(_ clip: Clip, in colorName: String, to index: Int) {

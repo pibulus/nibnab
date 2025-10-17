@@ -38,6 +38,36 @@ struct NibToggleStyle: ToggleStyle {
     }
 }
 
+struct HeaderIconButton: View {
+    let systemName: String
+    let action: () -> Void
+    var help: String? = nil
+    var isDisabled: Bool = false
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Color.white.opacity(isDisabled ? 0.35 : (isHovered ? 1.0 : 0.75)))
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(Color.white.opacity(isHovered ? 0.24 : 0.1))
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .help(help ?? "")
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering && !isDisabled
+            }
+        }
+    }
+}
+
 // MARK: - Main Content View
 struct ContentView: View {
     private static let popoverSize = CGSize(width: 620, height: 540)
@@ -48,19 +78,20 @@ struct ContentView: View {
     @State private var searchText = ""
     @State private var sortHovered = false
     @State private var dateSortHovered = false
-    @State private var exportHovered = false
     @State private var toggleHovered = false
-    @State private var clearHovered = false
     @State private var showClearConfirm = false
     @State private var editingLabel = false
     @State private var labelText = ""
     @State private var labelHovered = false
     @State private var showAddClipModal = false
-    @State private var addHovered = false
     @State private var showExportDialog = false
     @State private var editingClip: Clip?
     @FocusState private var searchFocused: Bool
     @FocusState private var labelFocused: Bool
+
+    init() {
+        NSScrollView.appearance().scrollerKnobStyle = .dark
+    }
 
     enum SortOrder {
         case newestFirst, oldestFirst, byAppName, byLength
@@ -141,15 +172,15 @@ struct ContentView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 20) {
+        HStack(alignment: .center, spacing: 12) {
             primaryControls
             Spacer()
             searchControls
             Spacer()
             actionControls
         }
-        .padding(.horizontal, Self.horizontalPadding)
-        .padding(.top, 18)
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
         .padding(.bottom, 12)
         .background(
             LinearGradient(
@@ -173,16 +204,25 @@ struct ContentView: View {
             }
 
             ZStack {
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color.white.opacity(toggleHovered ? 0.2 : 0.0))
-                    .frame(width: 52, height: 32)
+                RoundedRectangle(cornerRadius: 15)
+                    .fill(Color.white.opacity(toggleHovered ? 0.22 : 0.08))
+                    .frame(width: 56, height: 34)
 
-                Toggle("", isOn: $appState.isMonitoring)
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { appState.isMonitoring },
+                        set: { newValue in
+                            appState.setMonitoring(newValue, suppressToast: true)
+                        }
+                    )
+                )
                     .labelsHidden()
                     .toggleStyle(.switch)
-                    .scaleEffect(toggleHovered ? 0.75 : 0.7)
+                    .scaleEffect(toggleHovered ? 0.85 : 0.8)
                     .help(appState.isMonitoring ? "Active - capturing clips" : "Paused - click to activate")
             }
+            .frame(height: 34)
             .onHover { hovering in
                 withAnimation(.easeInOut(duration: 0.2)) {
                     toggleHovered = hovering
@@ -192,16 +232,17 @@ struct ContentView: View {
     }
 
     private var searchControls: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.5))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white.opacity(0.6))
+                    .frame(width: 20)
 
                 TextField("Search...", text: $searchText)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 11))
-                    .frame(width: 90)
+                    .font(.system(size: 12))
+                    .frame(width: 130)
                     .focused($searchFocused)
                     .onAppear {
                         searchFocused = false
@@ -211,15 +252,17 @@ struct ContentView: View {
                     Button(action: { searchText = "" }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundColor(.white.opacity(0.6))
                     }
                     .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Color.white.opacity(0.1))
-            .cornerRadius(8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.white.opacity(0.12))
+            )
 
             Menu {
                 Button("Newest First") { sortOrder = .newestFirst }
@@ -229,8 +272,12 @@ struct ContentView: View {
             } label: {
                 Image(systemName: "line.3.horizontal.decrease")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white.opacity(sortHovered ? 1.0 : 0.7))
-                    .scaleEffect(sortHovered ? 1.15 : 1.0)
+                    .foregroundColor(Color.white.opacity(sortHovered ? 1.0 : 0.75))
+                    .frame(width: 26, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7)
+                            .fill(Color.white.opacity(sortHovered ? 0.24 : 0.12))
+                    )
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -243,9 +290,13 @@ struct ContentView: View {
 
             Button(action: toggleDateSort) {
                 Image(systemName: "arrow.up.arrow.down.circle")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(.white.opacity(dateSortHovered || isSortingByDate ? 1.0 : 0.55))
-                    .scaleEffect(dateSortHovered ? 1.12 : 1.0)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(Color.white.opacity(dateSortHovered || isSortingByDate ? 1.0 : 0.75))
+                    .frame(width: 26, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7)
+                            .fill(Color.white.opacity(dateSortHovered || isSortingByDate ? 0.24 : 0.1))
+                    )
                     .rotationEffect(.degrees(sortOrder == .oldestFirst ? 0 : 180))
                     .animation(.easeInOut(duration: 0.18), value: sortOrder)
             }
@@ -260,50 +311,20 @@ struct ContentView: View {
     }
 
     private var actionControls: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Button(action: {
+        HStack(alignment: .center, spacing: 8) {
+            HeaderIconButton(systemName: "plus", action: {
                 showAddClipModal = true
-            }) {
-                Image(systemName: "plus.circle")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white.opacity(addHovered ? 1.0 : 0.7))
-                    .scaleEffect(addHovered ? 1.15 : 1.0)
-            }
-            .buttonStyle(.plain)
-            .help("Add clip")
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    addHovered = hovering
-                }
-            }
+            }, help: "Add clip")
 
-            Button(action: {
-                guard hasExportableClips else { return }
-                showExportDialog = true
-            }) {
-                Image(systemName: "arrow.up.doc")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white.opacity(exportHovered ? 1.0 : 0.85))
-                    .padding(8)
-                    .background(
-                        Circle()
-                            .fill(Color.white.opacity(exportHovered ? 0.18 : 0.1))
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(Color.white.opacity(exportHovered ? 0.35 : 0.2), lineWidth: 1)
-                    )
-                    .scaleEffect(exportHovered ? 1.08 : 1.0)
-            }
-            .buttonStyle(.plain)
-            .help("Export clips")
-            .disabled(!hasExportableClips)
-            .opacity(hasExportableClips ? 1.0 : 0.35)
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    exportHovered = hasExportableClips ? hovering : false
-                }
-            }
+            HeaderIconButton(
+                systemName: "arrow.up.doc",
+                action: {
+                    guard hasExportableClips else { return }
+                    showExportDialog = true
+                },
+                help: "Export clips",
+                isDisabled: !hasExportableClips
+            )
             .confirmationDialog(
                 "Export Clips",
                 isPresented: $showExportDialog,
@@ -325,30 +346,17 @@ struct ContentView: View {
             }
             .onChange(of: hasExportableClips) { available in
                 if !available {
-                    exportHovered = false
                     showExportDialog = false
                 }
             }
 
             Divider()
-                .frame(height: 16)
+                .frame(height: 18)
                 .opacity(0.3)
 
-            Button(action: {
+            HeaderIconButton(systemName: "trash", action: {
                 showClearConfirm = true
-            }) {
-                Image(systemName: "trash")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white.opacity(clearHovered ? 1.0 : 0.7))
-                    .scaleEffect(clearHovered ? 1.15 : 1.0)
-            }
-            .buttonStyle(.plain)
-            .help("Clear all clips")
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    clearHovered = hovering
-                }
-            }
+            }, help: "Clear all clips")
         }
     }
 
@@ -393,6 +401,14 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Self.horizontalPadding)
             .padding(.vertical, 12)
+        }
+        .scrollIndicators(.visible)
+        .overlay(alignment: .trailing) {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color(appState.activeColor.nsColor).opacity(0.18))
+                .frame(width: 6)
+                .padding(.vertical, 16)
+                .allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -788,15 +804,7 @@ struct ClipView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(
-                    LinearGradient(
-                        colors: [Color(red: 1.0, green: 0.71, blue: 0.655).opacity(0.2),
-                                Color(red: 0.659, green: 0.855, blue: 0.863).opacity(0.2)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
+                .stroke(Color(appState.viewedColor.nsColor).opacity(isHovered ? 0.55 : 0.35), lineWidth: 1)
         )
         .overlay(
             Group {
@@ -1115,6 +1123,23 @@ struct ClipDetailView: View {
     @EnvironmentObject var appState: AppState
     @State private var copyHovered = false
     @State private var deleteHovered = false
+    @State private var editedText: String
+    @State private var originalText: String
+
+    init(clip: Clip, onDismiss: @escaping () -> Void) {
+        self.clip = clip
+        self.onDismiss = onDismiss
+        _editedText = State(initialValue: clip.text)
+        _originalText = State(initialValue: clip.text)
+    }
+
+    private var trimmedEditedText: String {
+        editedText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSave: Bool {
+        !trimmedEditedText.isEmpty && editedText != originalText
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1132,7 +1157,10 @@ struct ClipDetailView: View {
 
                 Spacer()
 
-                Button(action: { onDismiss() }) {
+                Button(action: {
+                    saveChangesIfNeeded()
+                    onDismiss()
+                }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 18))
                         .foregroundColor(.white.opacity(0.6))
@@ -1143,25 +1171,28 @@ struct ClipDetailView: View {
             .background(Color.black.opacity(0.9))
 
             // Content
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(clip.text)
-                        .font(.system(size: 14))
-                        .foregroundColor(Color.white.opacity(0.92))
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.black.opacity(0.7))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color(appState.viewedColor.nsColor).opacity(0.5), lineWidth: 1)
+                    )
+
+                TextEditor(text: $editedText)
+                    .font(.system(size: 14))
+                    .foregroundColor(Color.white.opacity(0.92))
+                    .scrollContentBackground(.hidden)
+                    .padding(18)
             }
-            .background(Color.black.opacity(0.7))
+            .padding()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             // Footer with actions
             HStack(spacing: 12) {
                 Button(action: {
-                    appState.copyToPasteboard(clip.text)
+                    saveChangesIfNeeded()
+                    appState.copyToPasteboard(editedText)
                     onDismiss()
                 }) {
                     Image(systemName: "doc.on.clipboard")
@@ -1204,7 +1235,7 @@ struct ClipDetailView: View {
 
                 Spacer()
 
-                Text("\(clip.text.count) characters")
+                Text("\(editedText.count) characters")
                     .font(.system(size: 11))
                     .foregroundColor(.white.opacity(0.4))
             }
@@ -1212,12 +1243,21 @@ struct ClipDetailView: View {
             .background(Color.black.opacity(0.9))
         }
         .frame(width: Self.detailSize.width, height: Self.detailSize.height)
+        .onDisappear {
+            saveChangesIfNeeded()
+        }
     }
 
     func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy 'at' h:mm a"
         return formatter.string(from: date)
+    }
+
+    private func saveChangesIfNeeded() {
+        guard canSave else { return }
+        appState.updateClip(clip, newText: editedText, in: appState.viewedColor.name)
+        originalText = editedText
     }
 }
 
@@ -1305,7 +1345,7 @@ struct AboutView: View {
                         ShortcutRow(
                             icon: "highlighter",
                             description: "Toggle popover",
-                            keys: ["⌘", "⇧", "N"],
+                            keys: ["⌘", "⌃", "N"],
                             color: NibColor.pink,
                             isHovered: hoveredShortcut == 0
                         )
@@ -1318,7 +1358,7 @@ struct AboutView: View {
                         ShortcutRow(
                             icon: "power",
                             description: "Toggle auto-capture",
-                            keys: ["⌘", "⇧", "M"],
+                            keys: ["⌘", "⌃", "M"],
                             color: NibColor.pink,
                             isHovered: hoveredShortcut == 1
                         )
@@ -1514,7 +1554,7 @@ struct WelcomeView: View {
                     icon: "keyboard",
                     color: NibColor.green,
                     title: "Keyboard Shortcuts",
-                    description: "Toggle with ⌘⇧N • Auto-capture ⌘⇧M • Check About for more"
+                    description: "Toggle with ⌘⌃N • Auto-capture ⌘⌃M • Check About for more"
                 )
 
                 FeatureRow(
