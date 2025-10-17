@@ -486,35 +486,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     case 1:
                         selfPointer.togglePopover()
                     case 2:
-                        selfPointer.appState.switchToColor(NibColor.yellow, announce: false)
-                        selfPointer.appState.showToast(
-                            NibColor.yellow.name.replacingOccurrences(of: "Highlighter ", with: ""),
-                            color: NibColor.yellow
-                        )
+                        selfPointer.appState.switchToColor(NibColor.yellow)
                     case 3:
-                        selfPointer.appState.switchToColor(NibColor.orange, announce: false)
-                        selfPointer.appState.showToast(
-                            NibColor.orange.name.replacingOccurrences(of: "Highlighter ", with: ""),
-                            color: NibColor.orange
-                        )
+                        selfPointer.appState.switchToColor(NibColor.orange)
                     case 4:
-                        selfPointer.appState.switchToColor(NibColor.pink, announce: false)
-                        selfPointer.appState.showToast(
-                            NibColor.pink.name.replacingOccurrences(of: "Highlighter ", with: ""),
-                            color: NibColor.pink
-                        )
+                        selfPointer.appState.switchToColor(NibColor.pink)
                     case 5:
-                        selfPointer.appState.switchToColor(NibColor.purple, announce: false)
-                        selfPointer.appState.showToast(
-                            NibColor.purple.name.replacingOccurrences(of: "Highlighter ", with: ""),
-                            color: NibColor.purple
-                        )
+                        selfPointer.appState.switchToColor(NibColor.purple)
                     case 6:
-                        selfPointer.appState.switchToColor(NibColor.green, announce: false)
-                        selfPointer.appState.showToast(
-                            NibColor.green.name.replacingOccurrences(of: "Highlighter ", with: ""),
-                            color: NibColor.green
-                        )
+                        selfPointer.appState.switchToColor(NibColor.green)
                     case 7:
                         selfPointer.toggleAutoCapture()
                     default:

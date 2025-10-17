@@ -68,110 +68,22 @@ struct HeaderIconButton: View {
     }
 }
 
-// MARK: - Main Content View
-struct ContentView: View {
-    private static let popoverSize = CGSize(width: 620, height: 540)
-    private static let horizontalPadding: CGFloat = 30
+struct ContentHeaderView: View {
     @EnvironmentObject var appState: AppState
-    @State private var selectedClip: Clip?
-    @State private var sortOrder: SortOrder = .newestFirst
-    @State private var searchText = ""
+    @Binding var sortOrder: ContentView.SortOrder
+    @Binding var searchText: String
+    @Binding var showAddClipModal: Bool
+    @Binding var showExportDialog: Bool
+    @Binding var showClearConfirm: Bool
+    let hasExportableClips: Bool
+    let toggleDateSort: () -> Void
+
+    @State private var toggleHovered = false
     @State private var sortHovered = false
     @State private var dateSortHovered = false
-    @State private var toggleHovered = false
-    @State private var showClearConfirm = false
-    @State private var editingLabel = false
-    @State private var labelText = ""
-    @State private var labelHovered = false
-    @State private var showAddClipModal = false
-    @State private var showExportDialog = false
-    @State private var editingClip: Clip?
-    @FocusState private var searchFocused: Bool
-    @FocusState private var labelFocused: Bool
-
-    init() {
-        NSScrollView.appearance().scrollerKnobStyle = .dark
-    }
-
-    enum SortOrder {
-        case newestFirst, oldestFirst, byAppName, byLength
-    }
-
-    var sortedClips: [Clip] {
-        guard let clips = appState.clips[appState.viewedColor.name] else { return [] }
-
-        let filteredClips = searchText.isEmpty ? clips : clips.filter {
-            $0.text.localizedCaseInsensitiveContains(searchText) ||
-            $0.appName.localizedCaseInsensitiveContains(searchText)
-        }
-
-        switch sortOrder {
-        case .newestFirst:
-            return filteredClips.sorted { $0.timestamp > $1.timestamp }
-        case .oldestFirst:
-            return filteredClips.sorted { $0.timestamp < $1.timestamp }
-        case .byAppName:
-            return filteredClips.sorted { $0.appName < $1.appName }
-        case .byLength:
-            return filteredClips.sorted { $0.text.count > $1.text.count }
-        }
-    }
-
-    var hasExportableClips: Bool {
-        guard let clips = appState.clips[appState.viewedColor.name] else { return false }
-        return !clips.isEmpty
-    }
-
-    private var isSortingByDate: Bool {
-        sortOrder == .newestFirst || sortOrder == .oldestFirst
-    }
+    @FocusState private var searchFieldFocused: Bool
 
     var body: some View {
-        ZStack {
-            VStack(spacing: 0) {
-                header
-                Divider()
-                contentArea
-                footer
-            }
-            overlays
-            toastOverlay
-        }
-        .frame(width: Self.popoverSize.width, height: Self.popoverSize.height)
-        .background(
-            ZStack {
-                Color.black.opacity(0.85)
-                LinearGradient(
-                    colors: [
-                        Color(red: 1.0, green: 0.063, blue: 0.941).opacity(0.05),
-                        Color(red: 0, green: 0.831, blue: 1.0).opacity(0.05)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            }
-        )
-        .alert("Clear All Clips?", isPresented: $showClearConfirm) {
-            Button("Cancel", role: .cancel) { }
-            Button("Clear All", role: .destructive) {
-                appState.clearAllClips(for: appState.viewedColor.name)
-            }
-        } message: {
-            let shortName = appState.viewedColor.name.replacingOccurrences(of: "Highlighter ", with: "")
-            let count = appState.clips[appState.viewedColor.name]?.count ?? 0
-            Text("This will permanently delete all \(count) \(shortName) clips.")
-        }
-    }
-
-    private func toggleDateSort() {
-        if isSortingByDate {
-            sortOrder = sortOrder == .newestFirst ? .oldestFirst : .newestFirst
-        } else {
-            sortOrder = .newestFirst
-        }
-    }
-
-    private var header: some View {
         HStack(alignment: .center, spacing: 12) {
             primaryControls
             Spacer()
@@ -217,10 +129,10 @@ struct ContentView: View {
                         }
                     )
                 )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .scaleEffect(toggleHovered ? 0.85 : 0.8)
-                    .help(appState.isMonitoring ? "Active - capturing clips" : "Paused - click to activate")
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .scaleEffect(toggleHovered ? 0.85 : 0.8)
+                .help(appState.isMonitoring ? "Active - capturing clips" : "Paused - click to activate")
             }
             .frame(height: 34)
             .onHover { hovering in
@@ -243,9 +155,9 @@ struct ContentView: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
                     .frame(width: 130)
-                    .focused($searchFocused)
+                    .focused($searchFieldFocused)
                     .onAppear {
-                        searchFocused = false
+                        searchFieldFocused = false
                     }
 
                 if !searchText.isEmpty {
@@ -357,6 +269,116 @@ struct ContentView: View {
             HeaderIconButton(systemName: "trash", action: {
                 showClearConfirm = true
             }, help: "Clear all clips")
+        }
+    }
+
+    private var isSortingByDate: Bool {
+        sortOrder == .newestFirst || sortOrder == .oldestFirst
+    }
+}
+
+// MARK: - Main Content View
+struct ContentView: View {
+    private static let popoverSize = CGSize(width: 620, height: 540)
+    private static let horizontalPadding: CGFloat = 30
+    @EnvironmentObject var appState: AppState
+    @State private var selectedClip: Clip?
+    @State private var sortOrder: SortOrder = .newestFirst
+    @State private var searchText = ""
+    @State private var showClearConfirm = false
+    @State private var editingLabel = false
+    @State private var labelText = ""
+    @State private var labelHovered = false
+    @State private var showAddClipModal = false
+    @State private var showExportDialog = false
+    @State private var editingClip: Clip?
+    @FocusState private var labelFocused: Bool
+
+    enum SortOrder {
+        case newestFirst, oldestFirst, byAppName, byLength
+    }
+
+    var sortedClips: [Clip] {
+        guard let clips = appState.clips[appState.viewedColor.name] else { return [] }
+
+        let filteredClips = searchText.isEmpty ? clips : clips.filter {
+            $0.text.localizedCaseInsensitiveContains(searchText) ||
+            $0.appName.localizedCaseInsensitiveContains(searchText)
+        }
+
+        switch sortOrder {
+        case .newestFirst:
+            return filteredClips.sorted { $0.timestamp > $1.timestamp }
+        case .oldestFirst:
+            return filteredClips.sorted { $0.timestamp < $1.timestamp }
+        case .byAppName:
+            return filteredClips.sorted { $0.appName < $1.appName }
+        case .byLength:
+            return filteredClips.sorted { $0.text.count > $1.text.count }
+        }
+    }
+
+    var hasExportableClips: Bool {
+        guard let clips = appState.clips[appState.viewedColor.name] else { return false }
+        return !clips.isEmpty
+    }
+
+    private var isSortingByDate: Bool {
+        sortOrder == .newestFirst || sortOrder == .oldestFirst
+    }
+
+    var body: some View {
+        ZStack {
+            VStack(spacing: 0) {
+                ContentHeaderView(
+                    sortOrder: $sortOrder,
+                    searchText: $searchText,
+                    showAddClipModal: $showAddClipModal,
+                    showExportDialog: $showExportDialog,
+                    showClearConfirm: $showClearConfirm,
+                    hasExportableClips: hasExportableClips,
+                    toggleDateSort: toggleDateSort
+                )
+                .environmentObject(appState)
+
+                Divider()
+                contentArea
+                footer
+            }
+            overlays
+            toastOverlay
+        }
+        .frame(width: Self.popoverSize.width, height: Self.popoverSize.height)
+        .background(
+            ZStack {
+                Color.black.opacity(0.85)
+                LinearGradient(
+                    colors: [
+                        Color(red: 1.0, green: 0.063, blue: 0.941).opacity(0.05),
+                        Color(red: 0, green: 0.831, blue: 1.0).opacity(0.05)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        )
+        .alert("Clear All Clips?", isPresented: $showClearConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear All", role: .destructive) {
+                appState.clearAllClips(for: appState.viewedColor.name)
+            }
+        } message: {
+            let shortName = appState.viewedColor.name.replacingOccurrences(of: "Highlighter ", with: "")
+            let count = appState.clips[appState.viewedColor.name]?.count ?? 0
+            Text("This will permanently delete all \(count) \(shortName) clips.")
+        }
+    }
+
+    private func toggleDateSort() {
+        if isSortingByDate {
+            sortOrder = sortOrder == .newestFirst ? .oldestFirst : .newestFirst
+        } else {
+            sortOrder = .newestFirst
         }
     }
 

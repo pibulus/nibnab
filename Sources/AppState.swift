@@ -10,9 +10,7 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(activeColor.name, forKey: "activeColorName")
             delegate?.updateMenubarIcon()
             playSound("Pop")
-            if suppressNextColorToast {
-                suppressNextColorToast = false
-            } else {
+            if toastGate.shouldAllow(.color) {
                 showToast(activeColor.name.replacingOccurrences(of: "Highlighter ", with: ""), color: activeColor)
             }
         }
@@ -36,16 +34,12 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(isMonitoring, forKey: "isMonitoring")
             if isMonitoring {
                 startClipboardMonitoring()
-                if suppressNextMonitoringToast {
-                    suppressNextMonitoringToast = false
-                } else {
+                if toastGate.shouldAllow(.monitoring) {
                     showToast("Capturing ON", color: NibColor.green)
                 }
             } else {
                 stopClipboardMonitoring()
-                if suppressNextMonitoringToast {
-                    suppressNextMonitoringToast = false
-                } else {
+                if toastGate.shouldAllow(.monitoring) {
                     showToast("Capturing OFF", color: NibColor.orange)
                 }
             }
@@ -66,8 +60,7 @@ class AppState: ObservableObject {
     private var lastChangeCount: Int = 0
     var lastCapturedText: String? = nil
     var suppressNextClipboardCapture = false
-    private var suppressNextColorToast = false
-    private var suppressNextMonitoringToast = false
+    private var toastGate = ToastGate()
     private let storageManager = StorageManager()
 
     var autoCopyEnabled: Bool {
@@ -75,7 +68,7 @@ class AppState: ObservableObject {
     }
 
     init() {
-        suppressNextColorToast = true
+        toastGate.suppressNext(.color)
 
         let initialColor: NibColor
         if let savedColorName = UserDefaults.standard.string(forKey: "activeColorName"),
@@ -244,7 +237,7 @@ class AppState: ObservableObject {
         }
 
         if !announce {
-            suppressNextColorToast = true
+            toastGate.suppressNext(.color)
         }
 
         viewedColor = color
@@ -253,14 +246,14 @@ class AppState: ObservableObject {
 
     func setMonitoring(_ enabled: Bool, suppressToast: Bool) {
         if suppressToast {
-            suppressNextMonitoringToast = true
+            toastGate.suppressNext(.monitoring)
         }
         isMonitoring = enabled
     }
 
     func toggleMonitoring(suppressToast: Bool) {
         if suppressToast {
-            suppressNextMonitoringToast = true
+            toastGate.suppressNext(.monitoring)
         }
         isMonitoring.toggle()
     }
@@ -364,5 +357,26 @@ class AppState: ObservableObject {
             toastMessage = message
             toastColor = color
         }
+    }
+}
+
+private enum ToastKind: Hashable {
+    case color
+    case monitoring
+}
+
+private struct ToastGate {
+    private var suppressedKinds: Set<ToastKind> = []
+
+    mutating func suppressNext(_ kind: ToastKind) {
+        suppressedKinds.insert(kind)
+    }
+
+    mutating func shouldAllow(_ kind: ToastKind) -> Bool {
+        if suppressedKinds.contains(kind) {
+            suppressedKinds.remove(kind)
+            return false
+        }
+        return true
     }
 }
