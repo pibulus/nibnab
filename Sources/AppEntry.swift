@@ -47,7 +47,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appState.delegate = self
         updateMenubarIcon()
 
-        let popoverSize = NSSize(width: 620, height: 540)
+        let popoverSize = NSSize(width: 600, height: 540)
 
         let contentView = ContentView()
             .environmentObject(appState)

@@ -77,6 +77,7 @@ struct ContentHeaderView: View {
     @Binding var showClearConfirm: Bool
     let hasExportableClips: Bool
     let toggleDateSort: () -> Void
+    let horizontalPadding: CGFloat
 
     @State private var toggleHovered = false
     @State private var sortHovered = false
@@ -91,7 +92,7 @@ struct ContentHeaderView: View {
             Spacer()
             actionControls
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, horizontalPadding)
         .padding(.top, 14)
         .padding(.bottom, 12)
         .background(
@@ -277,10 +278,189 @@ struct ContentHeaderView: View {
     }
 }
 
+struct ContentFooterView: View {
+    @EnvironmentObject var appState: AppState
+    @Binding var editingLabel: Bool
+    @Binding var labelText: String
+    @Binding var labelHovered: Bool
+    var labelFocused: FocusState<Bool>.Binding
+    let horizontalPadding: CGFloat
+    let viewedClipCount: Int
+    let handleColorDrop: ([NSItemProvider], NibColor) -> Bool
+
+    var body: some View {
+        ZStack {
+            HStack {
+                footerLabel
+                Spacer()
+                Text("\(viewedClipCount) clips")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color(appState.activeColor.nsColor))
+            }
+
+            HStack(spacing: 8) {
+                ForEach(NibColor.all, id: \.name) { color in
+                    ColorDropTarget(
+                        color: color,
+                        isActive: appState.activeColor.name == color.name,
+                        onTap: {
+                            appState.switchToColor(color, announce: false)
+                        },
+                        onDrop: { providers in
+                            handleColorDrop(providers, color)
+                        }
+                    )
+                }
+            }
+        }
+        .padding(.horizontal, horizontalPadding)
+        .padding(.top, 16)
+        .padding(.bottom, 20)
+        .background(
+            LinearGradient(
+                colors: [Color.black.opacity(0.6), Color.black.opacity(0.4)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+    }
+
+    private var footerLabel: some View {
+        HStack(spacing: 4) {
+            Text("Active:")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Color(appState.activeColor.nsColor))
+
+            if editingLabel {
+                TextField("", text: $labelText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color(appState.activeColor.nsColor))
+                    .frame(width: 80)
+                    .focused(labelFocused)
+                    .onSubmit {
+                        appState.setLabel(labelText, forColor: appState.activeColor.name)
+                        editingLabel = false
+                        labelFocused.wrappedValue = false
+                    }
+            } else {
+                Button(action: {
+                    labelText = appState.labelForColor(appState.activeColor.name)
+                    editingLabel = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        labelFocused.wrappedValue = true
+                    }
+                }) {
+                    HStack(spacing: 3) {
+                        Text(appState.labelForColor(appState.activeColor.name))
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(Color(appState.activeColor.nsColor))
+
+                        if labelHovered {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 8))
+                                .foregroundColor(Color(appState.activeColor.nsColor).opacity(0.6))
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        labelHovered = hovering
+                    }
+                }
+                .help("Click to rename")
+            }
+        }
+    }
+}
+
+struct ContentOverlaysView: View {
+    @EnvironmentObject var appState: AppState
+    @Binding var selectedClip: Clip?
+    @Binding var showAddClipModal: Bool
+    @Binding var editingClip: Clip?
+
+    var body: some View {
+        Group {
+            if let clip = selectedClip {
+                overlayBackground {
+                    ClipDetailView(clip: clip) {
+                        withAnimation {
+                            selectedClip = nil
+                        }
+                    }
+                    .environmentObject(appState)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+            }
+
+            if showAddClipModal {
+                overlayBackground {
+                    AddClipModal(
+                        onDismiss: {
+                            withAnimation {
+                                showAddClipModal = false
+                            }
+                        },
+                        onSave: { text in
+                            appState.saveClip(text, to: appState.activeColor, from: "Manual Entry")
+                            withAnimation {
+                                showAddClipModal = false
+                            }
+                        }
+                    )
+                    .environmentObject(appState)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+            }
+
+            if let clip = editingClip {
+                overlayBackground {
+                    EditClipModal(
+                        clip: clip,
+                        onDismiss: {
+                            withAnimation {
+                                editingClip = nil
+                            }
+                        },
+                        onSave: { newText in
+                            appState.updateClip(clip, newText: newText, in: appState.viewedColor.name)
+                            withAnimation {
+                                editingClip = nil
+                            }
+                        }
+                    )
+                    .environmentObject(appState)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+            }
+
+            // Welcome modal shown in separate window, not in popover
+        }
+    }
+
+    private func overlayBackground<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        ZStack {
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation {
+                        showAddClipModal = false
+                        editingClip = nil
+                        selectedClip = nil
+                    }
+                }
+
+            content()
+        }
+    }
+}
+
 // MARK: - Main Content View
 struct ContentView: View {
-    private static let popoverSize = CGSize(width: 620, height: 540)
-    private static let horizontalPadding: CGFloat = 30
+    private static let popoverSize = CGSize(width: 600, height: 540)
+    private static let horizontalPadding: CGFloat = 28
     @EnvironmentObject var appState: AppState
     @State private var selectedClip: Clip?
     @State private var sortOrder: SortOrder = .newestFirst
@@ -337,15 +517,32 @@ struct ContentView: View {
                     showExportDialog: $showExportDialog,
                     showClearConfirm: $showClearConfirm,
                     hasExportableClips: hasExportableClips,
-                    toggleDateSort: toggleDateSort
+                    toggleDateSort: toggleDateSort,
+                    horizontalPadding: Self.horizontalPadding - 10
                 )
                 .environmentObject(appState)
 
                 Divider()
                 contentArea
-                footer
+                ContentFooterView(
+                    editingLabel: $editingLabel,
+                    labelText: $labelText,
+                    labelHovered: $labelHovered,
+                    labelFocused: $labelFocused,
+                    horizontalPadding: Self.horizontalPadding,
+                    viewedClipCount: appState.clips[appState.viewedColor.name]?.count ?? 0,
+                    handleColorDrop: { providers, color in
+                        handleColorDrop(providers: providers, to: color)
+                    }
+                )
+                .environmentObject(appState)
             }
-            overlays
+            ContentOverlaysView(
+                selectedClip: $selectedClip,
+                showAddClipModal: $showAddClipModal,
+                editingClip: $editingClip
+            )
+            .environmentObject(appState)
             toastOverlay
         }
         .frame(width: Self.popoverSize.width, height: Self.popoverSize.height)
@@ -424,14 +621,6 @@ struct ContentView: View {
             .padding(.horizontal, Self.horizontalPadding)
             .padding(.vertical, 12)
         }
-        .scrollIndicators(.visible)
-        .overlay(alignment: .trailing) {
-            RoundedRectangle(cornerRadius: 3)
-                .fill(Color(appState.activeColor.nsColor).opacity(0.18))
-                .frame(width: 6)
-                .padding(.vertical, 16)
-                .allowsHitTesting(false)
-        }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
@@ -455,148 +644,6 @@ struct ContentView: View {
         .padding(.top, 40)
     }
 
-    private var footer: some View {
-        let viewedClipCount = appState.clips[appState.viewedColor.name]?.count ?? 0
-
-        return ZStack {
-            HStack {
-                footerLabel
-                Spacer()
-                Text("\(viewedClipCount) clips")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(appState.activeColor.nsColor))
-            }
-
-            HStack(spacing: 8) {
-                ForEach(NibColor.all, id: \.name) { color in
-                    ColorDropTarget(
-                        color: color,
-                        isActive: appState.activeColor.name == color.name,
-                        onTap: {
-                            appState.switchToColor(color, announce: false)
-                        },
-                        onDrop: { providers in
-                            handleColorDrop(providers: providers, to: color)
-                        }
-                    )
-                }
-            }
-        }
-        .padding(.horizontal, Self.horizontalPadding)
-        .padding(.top, 16)
-        .padding(.bottom, 20)
-        .background(
-            LinearGradient(
-                colors: [Color.black.opacity(0.6), Color.black.opacity(0.4)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
-
-    private var footerLabel: some View {
-        HStack(spacing: 4) {
-            Text("Active:")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color(appState.activeColor.nsColor))
-
-            if editingLabel {
-                TextField("", text: $labelText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(appState.activeColor.nsColor))
-                    .frame(width: 80)
-                    .focused($labelFocused)
-                    .onSubmit {
-                        appState.setLabel(labelText, forColor: appState.activeColor.name)
-                        editingLabel = false
-                    }
-            } else {
-                Button(action: {
-                    labelText = appState.labelForColor(appState.activeColor.name)
-                    editingLabel = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        labelFocused = true
-                    }
-                }) {
-                    HStack(spacing: 3) {
-                        Text(appState.labelForColor(appState.activeColor.name))
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(Color(appState.activeColor.nsColor))
-
-                        if labelHovered {
-                            Image(systemName: "pencil")
-                                .font(.system(size: 8))
-                                .foregroundColor(Color(appState.activeColor.nsColor).opacity(0.6))
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        labelHovered = hovering
-                    }
-                }
-                .help("Click to rename")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var overlays: some View {
-        if let clip = selectedClip {
-            overlayBackground {
-                ClipDetailView(clip: clip) {
-                    withAnimation {
-                        selectedClip = nil
-                    }
-                }
-                .environmentObject(appState)
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            }
-        }
-
-        if showAddClipModal {
-            overlayBackground {
-                AddClipModal(onDismiss: {
-                    withAnimation {
-                        showAddClipModal = false
-                    }
-                }, onSave: { text in
-                    appState.saveClip(text, to: appState.activeColor, from: "Manual Entry")
-                    withAnimation {
-                        showAddClipModal = false
-                    }
-                })
-                .environmentObject(appState)
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            }
-        }
-
-        if let clip = editingClip {
-            overlayBackground {
-                EditClipModal(
-                    clip: clip,
-                    onDismiss: {
-                        withAnimation {
-                            editingClip = nil
-                        }
-                    },
-                    onSave: { newText in
-                        appState.updateClip(clip, newText: newText, in: appState.viewedColor.name)
-                        withAnimation {
-                            editingClip = nil
-                        }
-                    }
-                )
-                .environmentObject(appState)
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            }
-        }
-
-        // Welcome modal shown in separate window, not in popover
-    }
-
     @ViewBuilder
     private var toastOverlay: some View {
         if let message = appState.toastMessage, let color = appState.toastColor {
@@ -607,22 +654,6 @@ struct ContentView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.75), value: appState.toastMessage)
-        }
-    }
-
-    private func overlayBackground<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        ZStack {
-            Color.black.opacity(0.5)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation {
-                        showAddClipModal = false
-                        editingClip = nil
-                        selectedClip = nil
-                    }
-                }
-
-            content()
         }
     }
 
