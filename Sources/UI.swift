@@ -1109,6 +1109,7 @@ struct AddClipModal: View {
 
 // MARK: - Clip Detail View
 struct ClipDetailView: View {
+    private static let detailSize = CGSize(width: 560, height: 420)
     let clip: Clip
     let onDismiss: () -> Void
     @EnvironmentObject var appState: AppState
@@ -1143,13 +1144,19 @@ struct ClipDetailView: View {
 
             // Content
             ScrollView {
-                Text(clip.text)
-                    .font(.system(size: 14))
-                    .foregroundColor(Color.white.opacity(0.9))
-                    .textSelection(.enabled)
-                    .padding()
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(clip.text)
+                        .font(.system(size: 14))
+                        .foregroundColor(Color.white.opacity(0.92))
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(Color.black.opacity(0.7))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             // Footer with actions
             HStack(spacing: 12) {
@@ -1204,7 +1211,7 @@ struct ClipDetailView: View {
             .padding()
             .background(Color.black.opacity(0.9))
         }
-        .frame(width: 500, height: 400)
+        .frame(width: Self.detailSize.width, height: Self.detailSize.height)
     }
 
     func formatDate(_ date: Date) -> String {
