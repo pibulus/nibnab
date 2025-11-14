@@ -251,7 +251,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func showColorMenu() {
         let menu = NSMenu()
 
-        for color in NibColor.all {
+        let colorShortcuts = ["⌘⌃1", "⌘⌃2", "⌘⌃3", "⌘⌃4", "⌘⌃5"]
+
+        for (index, color) in NibColor.all.enumerated() {
             let size = NSSize(width: 16, height: 16)
             let image = NSImage(size: size)
             image.lockFocus()
@@ -275,6 +277,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             item.image = image
             item.representedObject = color
             item.state = appState.activeColor.name == color.name ? .on : .off
+            item.toolTip = "Keyboard shortcut: \(colorShortcuts[index])"
             menu.addItem(item)
         }
 
@@ -302,6 +305,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             keyEquivalent: ""
         )
         autoCaptureItem.state = appState.isMonitoring ? .on : .off
+        autoCaptureItem.toolTip = "Keyboard shortcut: ⌘⌃M"
         menu.addItem(autoCaptureItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -329,7 +333,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func selectColor(_ sender: NSMenuItem) {
         if let color = sender.representedObject as? NibColor {
-            appState.switchToColor(color, announce: false)
+            appState.switchToColor(color, announce: true)
         }
     }
 

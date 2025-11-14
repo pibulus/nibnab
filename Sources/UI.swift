@@ -126,7 +126,7 @@ struct ContentHeaderView: View {
                     isOn: Binding(
                         get: { appState.isMonitoring },
                         set: { newValue in
-                            appState.setMonitoring(newValue, suppressToast: true)
+                            appState.setMonitoring(newValue, suppressToast: false)
                         }
                     )
                 )
@@ -304,7 +304,7 @@ struct ContentFooterView: View {
                         color: color,
                         isActive: appState.activeColor.name == color.name,
                         onTap: {
-                            appState.switchToColor(color, announce: false)
+                            appState.switchToColor(color, announce: true)
                         },
                         onDrop: { providers in
                             handleColorDrop(providers, color)
@@ -689,7 +689,7 @@ struct ContentView: View {
             }
 
             appState.moveClip(droppedClip, from: sourceColor, to: targetColor.name)
-            appState.switchToColor(targetColor, announce: false)
+            appState.switchToColor(targetColor, announce: true)
         }
     }
 
@@ -1623,7 +1623,7 @@ struct WelcomeView: View {
                     icon: "keyboard",
                     color: NibColor.green,
                     title: "Keyboard Shortcuts",
-                    description: "Toggle with ⌘⌃N • Auto-capture ⌘⌃M • Check About for more"
+                    description: "Toggle popover: ⌘⌃N • Auto-capture: ⌘⌃M • Right-click menubar icon for more"
                 )
 
                 FeatureRow(
