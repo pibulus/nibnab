@@ -76,12 +76,10 @@ struct ContentHeaderView: View {
     @Binding var showExportDialog: Bool
     @Binding var showClearConfirm: Bool
     let hasExportableClips: Bool
-    let toggleDateSort: () -> Void
     let horizontalPadding: CGFloat
 
     @State private var toggleHovered = false
     @State private var sortHovered = false
-    @State private var dateSortHovered = false
     @FocusState private var searchFieldFocused: Bool
 
     var body: some View {
@@ -178,46 +176,35 @@ struct ContentHeaderView: View {
             )
 
             Menu {
-                Button("Newest First") { sortOrder = .newestFirst }
-                Button("Oldest First") { sortOrder = .oldestFirst }
-                Button("By App Name") { sortOrder = .byAppName }
-                Button("By Length") { sortOrder = .byLength }
+                Button(action: { sortOrder = .newestFirst }) {
+                    Label("Newest First", systemImage: sortOrder == .newestFirst ? "checkmark" : "")
+                }
+                Button(action: { sortOrder = .oldestFirst }) {
+                    Label("Oldest First", systemImage: sortOrder == .oldestFirst ? "checkmark" : "")
+                }
+                Divider()
+                Button(action: { sortOrder = .byAppName }) {
+                    Label("By App Name", systemImage: sortOrder == .byAppName ? "checkmark" : "")
+                }
+                Button(action: { sortOrder = .byLength }) {
+                    Label("By Length", systemImage: sortOrder == .byLength ? "checkmark" : "")
+                }
             } label: {
                 Image(systemName: "line.3.horizontal.decrease")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundColor(Color.white.opacity(sortHovered ? 1.0 : 0.75))
                     .frame(width: 26, height: 26)
                     .background(
                         RoundedRectangle(cornerRadius: 7)
-                            .fill(Color.white.opacity(sortHovered ? 0.24 : 0.12))
+                            .fill(Color.white.opacity(sortHovered ? 0.24 : 0.1))
                     )
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .help("Sort clips")
             .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(.easeInOut(duration: 0.15)) {
                     sortHovered = hovering
-                }
-            }
-
-            Button(action: toggleDateSort) {
-                Image(systemName: "arrow.up.arrow.down.circle")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(Color.white.opacity(dateSortHovered || isSortingByDate ? 1.0 : 0.75))
-                    .frame(width: 26, height: 26)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7)
-                            .fill(Color.white.opacity(dateSortHovered || isSortingByDate ? 0.24 : 0.1))
-                    )
-                    .rotationEffect(.degrees(sortOrder == .oldestFirst ? 0 : 180))
-                    .animation(.easeInOut(duration: 0.18), value: sortOrder)
-            }
-            .buttonStyle(.plain)
-            .help(sortOrder == .oldestFirst ? "Sort: Oldest → Newest" : "Sort: Newest → Oldest")
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    dateSortHovered = hovering
                 }
             }
         }
@@ -271,10 +258,6 @@ struct ContentHeaderView: View {
                 showClearConfirm = true
             }, help: "Clear all clips")
         }
-    }
-
-    private var isSortingByDate: Bool {
-        sortOrder == .newestFirst || sortOrder == .oldestFirst
     }
 }
 
@@ -521,10 +504,6 @@ struct ContentView: View {
         return !clips.isEmpty
     }
 
-    private var isSortingByDate: Bool {
-        sortOrder == .newestFirst || sortOrder == .oldestFirst
-    }
-
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
@@ -535,7 +514,6 @@ struct ContentView: View {
                     showExportDialog: $showExportDialog,
                     showClearConfirm: $showClearConfirm,
                     hasExportableClips: hasExportableClips,
-                    toggleDateSort: toggleDateSort,
                     horizontalPadding: Self.horizontalPadding - 10
                 )
                 .environmentObject(appState)
@@ -586,14 +564,6 @@ struct ContentView: View {
             let shortName = appState.viewedColor.name.replacingOccurrences(of: "Highlighter ", with: "")
             let count = appState.clips[appState.viewedColor.name]?.count ?? 0
             Text("This will permanently delete all \(count) \(shortName) clips.")
-        }
-    }
-
-    private func toggleDateSort() {
-        if isSortingByDate {
-            sortOrder = sortOrder == .newestFirst ? .oldestFirst : .newestFirst
-        } else {
-            sortOrder = .newestFirst
         }
     }
 
