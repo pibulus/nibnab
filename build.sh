@@ -62,6 +62,10 @@ cat > "$BUILD_DIR/${APP_NAME}.app/Contents/Info.plist" << EOF
     <false/>
     <key>NSAccessibilityUsageDescription</key>
     <string>NibNab needs accessibility access to auto-capture selected text. You can still use NibNab with just Cmd+C if you deny this permission.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>NibNab may use Apple Events to capture the current URL from your browser when saving clips.</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2024 Pibulus. All rights reserved.</string>
 </dict>
 </plist>
 EOF

@@ -332,17 +332,28 @@ struct ContentFooterView: View {
                 .foregroundColor(Color(appState.activeColor.nsColor))
 
             if editingLabel {
-                TextField("", text: $labelText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(appState.activeColor.nsColor))
-                    .frame(width: 80)
-                    .focused(labelFocused)
-                    .onSubmit {
-                        appState.setLabel(labelText, forColor: appState.activeColor.name)
-                        editingLabel = false
-                        labelFocused.wrappedValue = false
-                    }
+                HStack(spacing: 4) {
+                    TextField("", text: $labelText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color(appState.activeColor.nsColor))
+                        .frame(width: 120)
+                        .focused(labelFocused)
+                        .onSubmit {
+                            appState.setLabel(labelText, forColor: appState.activeColor.name)
+                            editingLabel = false
+                            labelFocused.wrappedValue = false
+                        }
+                        .onExitCommand {
+                            // Cancel editing on Escape key
+                            editingLabel = false
+                            labelFocused.wrappedValue = false
+                        }
+
+                    Text("\(labelText.count)/12")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(Color.white.opacity(labelText.count > 12 ? 0.8 : 0.4))
+                }
             } else {
                 Button(action: {
                     labelText = appState.labelForColor(appState.activeColor.name)
@@ -529,7 +540,7 @@ struct ContentView: View {
                     labelText: $labelText,
                     labelHovered: $labelHovered,
                     labelFocused: $labelFocused,
-                    horizontalPadding: Self.horizontalPadding,
+                    horizontalPadding: Self.horizontalPadding - 10,
                     viewedClipCount: appState.clips[appState.viewedColor.name]?.count ?? 0,
                     handleColorDrop: { providers, color in
                         handleColorDrop(providers: providers, to: color)
@@ -906,19 +917,17 @@ struct ClipView: View {
                 return nil
             }
             provider.registerObject(jsonString as NSString, visibility: .all)
+
+            // Reset drag state after a reasonable delay to allow drop to complete
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                isDragging = false
+            }
+
             return provider
         }
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hovering
-            }
-        }
-        .onChange(of: isDragging) { newValue in
-            if !newValue {
-                // Reset drag state with delay to allow drop to complete
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    isDragging = false
-                }
             }
         }
     }

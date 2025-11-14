@@ -178,23 +178,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func pulseMenubarIcon() {
         guard let button = statusItem.button else { return }
+
+        // Enable layer-backing if not already enabled
+        if button.layer == nil {
+            button.wantsLayer = true
+        }
+
+        guard let buttonLayer = button.layer else { return }
+
+        // Create animation layer
         let animationLayer = CALayer()
-        animationLayer.frame = CGRect(x: 0, y: 0, width: 18, height: 18)
-        animationLayer.cornerRadius = 9
+        animationLayer.frame = buttonLayer.bounds
+        animationLayer.cornerRadius = min(buttonLayer.bounds.width, buttonLayer.bounds.height) / 2
         animationLayer.backgroundColor = appState.activeColor.nsColor.cgColor
         animationLayer.opacity = 0.0
-        button.layer = CALayer()
-        button.layer?.addSublayer(animationLayer)
+
+        // Add as sublayer (don't replace the root layer!)
+        buttonLayer.addSublayer(animationLayer)
 
         let fadeIn = CABasicAnimation(keyPath: "opacity")
         fadeIn.fromValue = 0.0
         fadeIn.toValue = 0.4
-        fadeIn.duration = 0.1
+        fadeIn.duration = 0.15
         fadeIn.autoreverses = true
         animationLayer.add(fadeIn, forKey: "pulse")
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak button] in
             animationLayer.removeFromSuperlayer()
+            // Ensure button updates its display after animation
+            button?.needsDisplay = true
         }
     }
 
