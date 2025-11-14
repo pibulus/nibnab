@@ -875,7 +875,7 @@ struct ClipView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color(appState.viewedColor.nsColor).opacity(isHovered ? 0.55 : 0.35), lineWidth: 1)
+                .stroke(Color.white.opacity(isHovered ? 0.2 : 0.08), lineWidth: 1)
         )
         .overlay(
             Group {
@@ -988,6 +988,7 @@ struct EditClipModal: View {
                         .foregroundColor(.white.opacity(0.6))
                 }
                 .buttonStyle(.plain)
+                .help("Close (Esc)")
             }
             .padding()
             .background(Color.black.opacity(0.9))
@@ -1059,6 +1060,11 @@ struct EditClipModal: View {
         }
         .frame(width: 500, height: 400)
         .cornerRadius(12)
+        .shadow(color: .black.opacity(0.5), radius: 20)
+        .onExitCommand {
+            // Allow Escape key to close without saving
+            onDismiss()
+        }
     }
 
     func formatDate(_ date: Date) -> String {
@@ -1110,6 +1116,7 @@ struct AddClipModal: View {
                         .foregroundColor(.white.opacity(0.6))
                 }
                 .buttonStyle(.plain)
+                .help("Close (Esc)")
             }
             .padding()
             .background(Color.black.opacity(0.9))
@@ -1181,6 +1188,11 @@ struct AddClipModal: View {
         }
         .frame(width: 500, height: 400)
         .cornerRadius(12)
+        .shadow(color: .black.opacity(0.5), radius: 20)
+        .onExitCommand {
+            // Allow Escape key to close without saving
+            onDismiss()
+        }
     }
 }
 
@@ -1235,6 +1247,7 @@ struct ClipDetailView: View {
                         .foregroundColor(.white.opacity(0.6))
                 }
                 .buttonStyle(.plain)
+                .help("Close (Esc)")
             }
             .padding()
             .background(Color.black.opacity(0.9))
@@ -1312,8 +1325,15 @@ struct ClipDetailView: View {
             .background(Color.black.opacity(0.9))
         }
         .frame(width: Self.detailSize.width, height: Self.detailSize.height)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.5), radius: 20)
         .onDisappear {
             saveChangesIfNeeded()
+        }
+        .onExitCommand {
+            // Allow Escape key to close
+            saveChangesIfNeeded()
+            onDismiss()
         }
     }
 
