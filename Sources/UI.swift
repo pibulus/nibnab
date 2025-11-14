@@ -383,6 +383,13 @@ struct ContentFooterView: View {
                 .help("Click to rename")
             }
         }
+        .onChange(of: appState.activeColor.name) { _ in
+            // Cancel editing when switching colors to prevent label bleeding
+            if editingLabel {
+                editingLabel = false
+                labelFocused.wrappedValue = false
+            }
+        }
     }
 }
 
