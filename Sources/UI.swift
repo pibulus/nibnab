@@ -568,9 +568,8 @@ struct ContentView: View {
                 appState.clearAllClips(for: appState.viewedColor.name)
             }
         } message: {
-            let shortName = appState.viewedColor.name.replacingOccurrences(of: "Highlighter ", with: "")
             let count = appState.clips[appState.viewedColor.name]?.count ?? 0
-            Text("This will permanently delete all \(count) \(shortName) clips.")
+            Text("This will permanently delete all \(count) \(appState.viewedColor.shortName) clips.")
         }
     }
 
@@ -1054,9 +1053,7 @@ struct EditClipModal: View {
     }
 
     func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, h:mm a"
-        return formatter.string(from: date)
+        DateFormatter.nibNabShort.string(from: date)
     }
 }
 
@@ -1310,9 +1307,7 @@ struct ClipDetailView: View {
     }
 
     func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy 'at' h:mm a"
-        return formatter.string(from: date)
+        DateFormatter.nibNabDetailed.string(from: date)
     }
 
     private func saveChangesIfNeeded() {

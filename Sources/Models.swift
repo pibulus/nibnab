@@ -23,3 +23,24 @@ struct Clip: Identifiable, Codable, Equatable, Hashable, Sendable {
 extension UTType {
     static let nibNabClip = UTType(exportedAs: "com.pibulus.nibnab.clip")
 }
+
+// MARK: - Date Formatting
+extension DateFormatter {
+    static let nibNabShort: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, h:mm a"
+        return formatter
+    }()
+
+    static let nibNabDetailed: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy 'at' h:mm a"
+        return formatter
+    }()
+
+    static let nibNabExport: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy h:mm a"
+        return formatter
+    }()
+}

@@ -31,6 +31,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appState?.stopClipboardMonitoring()
         autoCopyMonitor?.stop()
         eventMonitor?.stop()
+
+        // Unregister global hotkeys
+        for ref in hotKeyRefs {
+            if let ref = ref {
+                UnregisterEventHotKey(ref)
+            }
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -85,11 +92,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if appState.isMonitoring {
             appState.startClipboardMonitoring()
-        }
-
-        // Don't prompt for accessibility on launch - only when user explicitly enables
-        if appState.autoCopyEnabled && autoCopyMonitor != nil {
-            autoCopyMonitor?.start(promptForPermission: false)
         }
     }
 
@@ -255,9 +257,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             image.unlockFocus()
 
-            let shortName = color.name.replacingOccurrences(of: "Highlighter ", with: "")
             let item = NSMenuItem(
-                title: shortName,
+                title: color.shortName,
                 action: #selector(selectColor(_:)),
                 keyEquivalent: ""
             )

@@ -11,7 +11,7 @@ class AppState: ObservableObject {
             delegate?.updateMenubarIcon()
             playSound("Pop")
             if toastGate.shouldAllow(.color) {
-                showToast(activeColor.name.replacingOccurrences(of: "Highlighter ", with: ""), color: activeColor)
+                showToast(activeColor.shortName, color: activeColor)
             }
         }
     }
@@ -71,10 +71,6 @@ class AppState: ObservableObject {
     private var toastGate = ToastGate()
     private let storageManager = StorageManager()
 
-    var autoCopyEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "autoCopyEnabled")
-    }
-
     init() {
         toastGate.suppressNext(.color)
 
@@ -115,7 +111,11 @@ class AppState: ObservableObject {
         if let customLabel = colorLabels[colorName], !customLabel.isEmpty {
             return customLabel
         }
-        return colorName.replacingOccurrences(of: "Highlighter ", with: "")
+        // Find the color and return its short name
+        if let color = NibColor.all.first(where: { $0.name == colorName }) {
+            return color.shortName
+        }
+        return colorName
     }
 
     func setLabel(_ label: String, forColor colorName: String) {
@@ -339,21 +339,19 @@ class AppState: ObservableObject {
     func exportClipsAsMarkdown(for colorName: String) {
         guard let colorClips = clips[colorName], !colorClips.isEmpty else { return }
 
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy h:mm a"
-
         var markdown = "# NibNab Export - \(colorName)\n"
-        markdown += "Exported: \(formatter.string(from: Date()))\n\n"
+        markdown += "Exported: \(DateFormatter.nibNabExport.string(from: Date()))\n\n"
 
         for clip in colorClips {
             markdown += "---\n"
             markdown += "### \(clip.appName)\n"
-            markdown += "*\(formatter.string(from: clip.timestamp))*\n\n"
+            markdown += "*\(DateFormatter.nibNabExport.string(from: clip.timestamp))*\n\n"
             markdown += "\(clip.text)\n\n"
         }
 
         let savePanel = NSSavePanel()
-        let shortName = colorName.replacingOccurrences(of: "Highlighter ", with: "").lowercased()
+        let color = NibColor.all.first(where: { $0.name == colorName })
+        let shortName = color?.shortNameLowercased ?? colorName.lowercased()
         savePanel.nameFieldStringValue = "\(shortName)-clips.md"
         savePanel.allowedContentTypes = [.plainText]
         savePanel.canCreateDirectories = true
@@ -379,7 +377,8 @@ class AppState: ObservableObject {
         }
 
         let savePanel = NSSavePanel()
-        let shortName = colorName.replacingOccurrences(of: "Highlighter ", with: "").lowercased()
+        let color = NibColor.all.first(where: { $0.name == colorName })
+        let shortName = color?.shortNameLowercased ?? colorName.lowercased()
         savePanel.nameFieldStringValue = "\(shortName)-clips.txt"
         savePanel.allowedContentTypes = [.plainText]
         savePanel.canCreateDirectories = true

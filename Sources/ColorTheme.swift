@@ -38,37 +38,12 @@ struct NibColor {
     )
 
     static let all = [yellow, orange, pink, purple, green]
-}
 
-// MARK: - Gradient Colors
-struct NibGradients {
-    static let yellow = LinearGradient(
-        colors: [Color(red: 1.0, green: 0.922, blue: 0.231), Color(red: 0.95, green: 0.872, blue: 0.181)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
+    var shortName: String {
+        name.replacingOccurrences(of: "Highlighter ", with: "")
+    }
 
-    static let orange = LinearGradient(
-        colors: [Color(red: 0.965, green: 0.529, blue: 0.090), Color(red: 0.915, green: 0.479, blue: 0.040)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-
-    static let pink = LinearGradient(
-        colors: [Color(red: 0.965, green: 0.016, blue: 0.455), Color(red: 0.915, green: 0.0, blue: 0.405)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-
-    static let purple = LinearGradient(
-        colors: [Color(red: 0.529, green: 0.090, blue: 0.965), Color(red: 0.479, green: 0.040, blue: 0.915)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
-
-    static let green = LinearGradient(
-        colors: [Color(red: 0.224, green: 1.0, blue: 0.078), Color(red: 0.174, green: 0.95, blue: 0.028)],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-    )
+    var shortNameLowercased: String {
+        shortName.lowercased()
+    }
 }
