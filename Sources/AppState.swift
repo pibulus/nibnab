@@ -17,10 +17,16 @@ class AppState: ObservableObject {
     }
     @Published var launchAtLogin = false {
         didSet {
-            if launchAtLogin {
-                try? SMAppService.mainApp.register()
-            } else {
-                try? SMAppService.mainApp.unregister()
+            do {
+                if launchAtLogin {
+                    try SMAppService.mainApp.register()
+                } else {
+                    try SMAppService.mainApp.unregister()
+                }
+            } catch {
+                // Revert if registration failed
+                launchAtLogin = !launchAtLogin
+                showToast("Launch at Login unavailable", color: NibColor.orange)
             }
         }
     }

@@ -87,8 +87,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState.startClipboardMonitoring()
         }
 
+        // Don't prompt for accessibility on launch - only when user explicitly enables
         if appState.autoCopyEnabled && autoCopyMonitor != nil {
-            autoCopyMonitor?.start()
+            autoCopyMonitor?.start(promptForPermission: false)
         }
     }
 

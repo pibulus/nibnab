@@ -48,7 +48,7 @@ The colors mean whatever you want:
 • Sort by date, source app, or length
 • View full clip details with timestamp
 • Copy or delete with one click
-• Keyboard shortcut (Cmd+Shift+V) for quick access
+• Keyboard shortcut (⌘⌃N) for quick access
 
 **TWO EXPORT OPTIONS**
 
@@ -122,7 +122,7 @@ Built by one person who believes good tools should:
 1. Install NibNab
 2. Grant accessibility permission (optional, for auto-capture)
 3. Start copying stuff
-4. Use the menubar icon or Cmd+Shift+V to view clips
+4. Use the menubar icon or ⌘⌃N to view clips
 
 That's it. No tutorial, no onboarding, no account creation. Just open it and it works.
 
@@ -146,7 +146,7 @@ NEW FEATURES:
 • Mac-native settings menu (right-click menubar)
 • Optional sound effects with toggle
 • Launch at login support
-• Global keyboard shortcut (Cmd+Shift+V)
+• Global keyboard shortcuts (⌘⌃N to toggle, ⌘⌃1-5 to switch colors)
 • Search and sort functionality
 • Privacy-first local storage (no cloud, no tracking)
 

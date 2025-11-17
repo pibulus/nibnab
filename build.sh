@@ -66,8 +66,9 @@ cat > "$BUILD_DIR/${APP_NAME}.app/Contents/Info.plist" << EOF
 </plist>
 EOF
 
-# Copy entitlements
+# Copy entitlements and privacy manifest
 cp NibNab.entitlements "$BUILD_DIR/${APP_NAME}.app/Contents/"
+cp PrivacyInfo.xcprivacy "$BUILD_DIR/${APP_NAME}.app/Contents/Resources/"
 
 # Compile Swift
 echo -e "${YELLOW}Compiling Swift code...${NC}"

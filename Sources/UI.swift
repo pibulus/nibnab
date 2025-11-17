@@ -157,9 +157,6 @@ struct ContentHeaderView: View {
                     .font(.system(size: 12))
                     .frame(width: 130)
                     .focused($searchFieldFocused)
-                    .onAppear {
-                        searchFieldFocused = false
-                    }
 
                 if !searchText.isEmpty {
                     Button(action: { searchText = "" }) {
@@ -201,24 +198,28 @@ struct ContentHeaderView: View {
                 }
             }
 
-            Button(action: toggleDateSort) {
-                Image(systemName: "arrow.up.arrow.down.circle")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(Color.white.opacity(dateSortHovered || isSortingByDate ? 1.0 : 0.75))
-                    .frame(width: 26, height: 26)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7)
-                            .fill(Color.white.opacity(dateSortHovered || isSortingByDate ? 0.24 : 0.1))
-                    )
-                    .rotationEffect(.degrees(sortOrder == .oldestFirst ? 0 : 180))
-                    .animation(.easeInOut(duration: 0.18), value: sortOrder)
-            }
-            .buttonStyle(.plain)
-            .help(sortOrder == .oldestFirst ? "Sort: Oldest → Newest" : "Sort: Newest → Oldest")
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    dateSortHovered = hovering
+            // Only show date toggle when sorting by date
+            if isSortingByDate {
+                Button(action: toggleDateSort) {
+                    Image(systemName: "arrow.up.arrow.down.circle")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(Color.white.opacity(dateSortHovered ? 1.0 : 0.75))
+                        .frame(width: 26, height: 26)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7)
+                                .fill(Color.white.opacity(dateSortHovered ? 0.24 : 0.1))
+                        )
+                        .rotationEffect(.degrees(sortOrder == .oldestFirst ? 0 : 180))
+                        .animation(.easeInOut(duration: 0.18), value: sortOrder)
                 }
+                .buttonStyle(.plain)
+                .help(sortOrder == .oldestFirst ? "Sort: Oldest → Newest" : "Sort: Newest → Oldest")
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        dateSortHovered = hovering
+                    }
+                }
+                .transition(.scale.combined(with: .opacity))
             }
         }
     }
