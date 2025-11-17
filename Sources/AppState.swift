@@ -54,6 +54,8 @@ class AppState: ObservableObject {
     @Published var showWelcome: Bool = false
     @Published var toastMessage: String? = nil
     @Published var toastColor: NibColor? = nil
+    @Published var recentlyDeleted: [(clip: Clip, colorName: String)] = []
+    @Published var canUndo: Bool = false
 
     weak var delegate: AppDelegate?
     private var clipboardTimer: Timer?
@@ -196,7 +198,50 @@ class AppState: ObservableObject {
     func deleteClip(_ clip: Clip, from colorName: String) {
         clips[colorName]?.removeAll { $0.id == clip.id }
         storageManager.deleteClip(clip, from: colorName)
+
+        // Add to recently deleted for undo
+        recentlyDeleted.append((clip: clip, colorName: colorName))
+        canUndo = true
+
+        // Clear undo after 5 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            self?.clearUndoIfMatching(clip.id)
+        }
+
         playSound("Tink")
+
+        // Show undo toast
+        if toastGate.shouldAllow(.undo) {
+            showToast("Clip deleted • Tap to undo", color: NibColor.orange)
+        }
+    }
+
+    func undoDelete() {
+        guard let lastDeleted = recentlyDeleted.popLast() else { return }
+
+        let clip = lastDeleted.clip
+        let colorName = lastDeleted.colorName
+
+        // Restore to clips
+        if clips[colorName] == nil {
+            clips[colorName] = []
+        }
+        clips[colorName]?.insert(clip, at: 0)
+
+        // Restore to storage
+        storageManager.saveClip(clip, to: colorName)
+
+        canUndo = !recentlyDeleted.isEmpty
+        playSound("Pop")
+
+        if toastGate.shouldAllow(.undo) {
+            showToast("Clip restored", color: NibColor.green)
+        }
+    }
+
+    private func clearUndoIfMatching(_ clipId: UUID) {
+        recentlyDeleted.removeAll { $0.clip.id == clipId }
+        canUndo = !recentlyDeleted.isEmpty
     }
 
     func clearAllClips(for colorName: String) {
@@ -363,6 +408,7 @@ class AppState: ObservableObject {
 private enum ToastKind: Hashable {
     case color
     case monitoring
+    case undo
 }
 
 private struct ToastGate {

@@ -444,6 +444,7 @@ struct ContentOverlaysView: View {
         ZStack {
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
+                .contentShape(Rectangle())
                 .onTapGesture {
                     withAnimation {
                         showAddClipModal = false
@@ -453,6 +454,7 @@ struct ContentOverlaysView: View {
                 }
 
             content()
+                .allowsHitTesting(true)
         }
     }
 }
@@ -652,6 +654,11 @@ struct ContentView: View {
                 ToastView(message: message, color: color)
                     .padding(.bottom, 16)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .onTapGesture {
+                        if message.contains("undo") && appState.canUndo {
+                            appState.undoDelete()
+                        }
+                    }
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.75), value: appState.toastMessage)
         }
