@@ -317,7 +317,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func selectColor(_ sender: NSMenuItem) {
         if let color = sender.representedObject as? NibColor {
-            appState.switchToColor(color, announce: false)
+            appState.switchToColor(color, announce: true)
         }
     }
 

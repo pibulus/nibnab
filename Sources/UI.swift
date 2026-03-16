@@ -304,7 +304,7 @@ struct ContentFooterView: View {
                         color: color,
                         isActive: appState.activeColor.name == color.name,
                         onTap: {
-                            appState.switchToColor(color, announce: false)
+                            appState.switchToColor(color, announce: true)
                         },
                         onDrop: { providers in
                             handleColorDrop(providers, color)
@@ -906,17 +906,19 @@ struct ClipView: View {
                 return nil
             }
             provider.registerObject(jsonString as NSString, visibility: .all)
+
+            // Reset drag state after a delay - SwiftUI doesn't provide a drag-end callback
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                isDragging = false
+            }
+
             return provider
         }
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hovering
-            }
-        }
-        .onChange(of: isDragging) { newValue in
-            if !newValue {
-                // Reset drag state with delay to allow drop to complete
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                // Also reset drag state when mouse re-enters after a drop
+                if hovering && isDragging {
                     isDragging = false
                 }
             }
@@ -1311,42 +1313,6 @@ struct ClipDetailView: View {
         guard canSave else { return }
         appState.updateClip(clip, newText: editedText, in: appState.viewedColor.name)
         originalText = editedText
-    }
-}
-
-// MARK: - Color Picker View
-struct ColorPickerView: View {
-    let text: String
-    let onColorSelected: (NibColor) -> Void
-    @State private var hoveredColor: String? = nil
-
-    var body: some View {
-        HStack(spacing: 20) {
-            ForEach(NibColor.all, id: \.name) { color in
-                Button(action: { onColorSelected(color) }) {
-                    Circle()
-                        .fill(Color(color.nsColor))
-                        .frame(width: 44, height: 44)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(0.8), lineWidth: 2)
-                        )
-                        .scaleEffect(hoveredColor == color.name ? 1.15 : 1.0)
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                        hoveredColor = hovering ? color.name : nil
-                    }
-                }
-            }
-        }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(NSColor.windowBackgroundColor))
-                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
-        )
     }
 }
 
