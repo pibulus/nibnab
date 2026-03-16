@@ -1,5 +1,6 @@
 import Foundation
 import UniformTypeIdentifiers
+import CoreTransferable
 
 // MARK: - Clip Model
 struct Clip: Identifiable, Codable, Equatable, Hashable, Sendable {
@@ -17,6 +18,13 @@ struct Clip: Identifiable, Codable, Equatable, Hashable, Sendable {
         self.url = url
         self.appName = appName
         self.screenshotPath = screenshotPath
+    }
+}
+
+extension Clip: Transferable {
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .nibNabClip)
+        ProxyRepresentation(exporting: \.text)
     }
 }
 
