@@ -1,6 +1,19 @@
 import SwiftUI
 import Cocoa
-import UniformTypeIdentifiers
+
+private enum DateFormatters {
+    static let short: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d, h:mm a"
+        return f
+    }()
+
+    static let full: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d, yyyy 'at' h:mm a"
+        return f
+    }()
+}
 
 struct NibToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -286,7 +299,7 @@ struct ContentFooterView: View {
     var labelFocused: FocusState<Bool>.Binding
     let horizontalPadding: CGFloat
     let viewedClipCount: Int
-    let handleColorDrop: ([NSItemProvider], NibColor) -> Bool
+    let handleColorDrop: ([Clip], NibColor) -> Void
 
     var body: some View {
         ZStack {
@@ -304,10 +317,10 @@ struct ContentFooterView: View {
                         color: color,
                         isActive: appState.activeColor.name == color.name,
                         onTap: {
-                            appState.switchToColor(color, announce: false)
+                            appState.switchToColor(color, announce: true)
                         },
-                        onDrop: { providers in
-                            handleColorDrop(providers, color)
+                        onDrop: { clips in
+                            handleColorDrop(clips, color)
                         }
                     )
                 }
@@ -531,8 +544,8 @@ struct ContentView: View {
                     labelFocused: $labelFocused,
                     horizontalPadding: Self.horizontalPadding,
                     viewedClipCount: appState.clips[appState.viewedColor.name]?.count ?? 0,
-                    handleColorDrop: { providers, color in
-                        handleColorDrop(providers: providers, to: color)
+                    handleColorDrop: { clips, color in
+                        handleColorDrop(clips: clips, targetColor: color)
                     }
                 )
                 .environmentObject(appState)
@@ -588,8 +601,10 @@ struct ContentView: View {
                             .onTapGesture {
                                 selectedClip = clip
                             }
-                            .onDrop(of: [UTType.nibNabClip, .text], isTargeted: nil) { providers in
-                                handleDrop(providers: providers, at: index)
+                            .dropDestination(for: Clip.self) { droppedClips, _ in
+                                guard let droppedClip = droppedClips.first else { return false }
+                                appState.reorderClip(droppedClip, in: appState.viewedColor.name, to: index)
+                                return true
                             }
                             .contextMenu {
                                 Button(action: {
@@ -657,80 +672,11 @@ struct ContentView: View {
         }
     }
 
-    private func handleDrop(providers: [NSItemProvider], at index: Int) -> Bool {
-        loadClip(from: providers) { droppedClip in
-            appState.reorderClip(droppedClip, in: appState.viewedColor.name, to: index)
-        }
-    }
-
-    private func handleColorDrop(providers: [NSItemProvider], to targetColor: NibColor) -> Bool {
-        loadClip(from: providers) { droppedClip in
-            guard let (sourceColor, _) = appState.clips.first(where: { $0.value.contains(droppedClip) }) else {
-                print("🔴 Drop failed: clip not found in current collections")
-                return
-            }
-
-            appState.moveClip(droppedClip, from: sourceColor, to: targetColor.name)
-            appState.switchToColor(targetColor, announce: false)
-        }
-    }
-
-    @discardableResult
-    private func loadClip(from providers: [NSItemProvider], completion: @escaping (Clip) -> Void) -> Bool {
-        guard let provider = providers.first else {
-            print("🔴 Drop failed: no item provider")
-            return false
-        }
-
-        let decoder = JSONDecoder()
-
-        let handleData: (Data) -> Void = { data in
-            if let clip = try? decoder.decode(Clip.self, from: data) {
-                DispatchQueue.main.async {
-                    completion(clip)
-                }
-            } else {
-                print("🔴 Drop failed: unable to decode clip payload")
-            }
-        }
-
-        if provider.hasItemConformingToTypeIdentifier(UTType.nibNabClip.identifier) {
-            provider.loadDataRepresentation(forTypeIdentifier: UTType.nibNabClip.identifier) { data, error in
-                if let error = error {
-                    print("🔴 Drop failed: custom type load error - \(error)")
-                    return
-                }
-                guard let data = data else {
-                    print("🔴 Drop failed: custom type returned nil data")
-                    return
-                }
-                handleData(data)
-            }
-            return true
-        }
-
-        if provider.hasItemConformingToTypeIdentifier(UTType.text.identifier) {
-            provider.loadItem(forTypeIdentifier: UTType.text.identifier, options: nil) { item, error in
-                if let error = error {
-                    print("🔴 Drop failed: text load error - \(error)")
-                    return
-                }
-
-                if let string = item as? String, let data = string.data(using: .utf8) {
-                    handleData(data)
-                } else if let data = item as? Data {
-                    handleData(data)
-                } else if let url = item as? URL, let data = try? Data(contentsOf: url) {
-                    handleData(data)
-                } else {
-                    print("🔴 Drop failed: unsupported item type \(String(describing: item))")
-                }
-            }
-            return true
-        }
-
-        print("🔴 Drop failed: provider does not conform to supported types")
-        return false
+    private func handleColorDrop(clips: [Clip], targetColor: NibColor) {
+        guard let droppedClip = clips.first else { return }
+        guard let (sourceColor, _) = appState.clips.first(where: { $0.value.contains(droppedClip) }) else { return }
+        appState.moveClip(droppedClip, from: sourceColor, to: targetColor.name)
+        appState.switchToColor(targetColor, announce: false)
     }
 }
 
@@ -739,7 +685,7 @@ struct ColorDropTarget: View {
     let color: NibColor
     let isActive: Bool
     let onTap: () -> Void
-    let onDrop: ([NSItemProvider]) -> Bool
+    let onDrop: ([Clip]) -> Void
 
     @State private var isTargeted = false
     @State private var isHovered = false
@@ -772,9 +718,16 @@ struct ColorDropTarget: View {
             .scaleEffect(isTargeted ? 1.12 : (isHovered ? 1.06 : 1.0))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(color.name.replacingOccurrences(of: "Highlighter ", with: "") + (isActive ? ", active" : ""))
+        .accessibilityHint("Double-tap to switch. Drop clips to move them here.")
         .help("Switch to \(color.name)\nDrag clips here to change color")
-        .onDrop(of: [UTType.nibNabClip, .text], isTargeted: $isTargeted) { providers in
-            return onDrop(providers)
+        .dropDestination(for: Clip.self) { clips, _ in
+            onDrop(clips)
+            return true
+        } isTargeted: { targeted in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isTargeted = targeted
+            }
         }
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -818,7 +771,6 @@ struct ClipView: View {
     let clip: Clip
     @EnvironmentObject var appState: AppState
     @State private var isHovered = false
-    @State private var isDragging = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -833,7 +785,7 @@ struct ClipView: View {
                 Text(timeAgo(from: clip.timestamp))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundColor(Color.white.opacity(0.4))
-                    .padding(.trailing, isHovered ? 50 : 0) // Make room for buttons when hovered
+                    .padding(.trailing, isHovered ? 50 : 0)
             }
 
             Text(clip.text.prefix(150) + (clip.text.count > 150 ? "..." : ""))
@@ -890,35 +842,17 @@ struct ClipView: View {
             },
             alignment: .topTrailing
         )
-        .opacity(isDragging ? 0.5 : 1.0)
-        .onDrag {
-            isDragging = true
-            let encoder = JSONEncoder()
-            guard let data = try? encoder.encode(clip),
-                  let jsonString = String(data: data, encoding: .utf8) else {
-                isDragging = false
-                return NSItemProvider()
-            }
-
-            let provider = NSItemProvider()
-            provider.registerDataRepresentation(forTypeIdentifier: UTType.nibNabClip.identifier, visibility: .all) { completion in
-                completion(data, nil)
-                return nil
-            }
-            provider.registerObject(jsonString as NSString, visibility: .all)
-            return provider
+        .draggable(clip) {
+            // Drag preview
+            Text(clip.text.prefix(50))
+                .font(.system(size: 12))
+                .padding(8)
+                .background(Color(appState.viewedColor.nsColor).opacity(0.3))
+                .cornerRadius(8)
         }
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hovering
-            }
-        }
-        .onChange(of: isDragging) { newValue in
-            if !newValue {
-                // Reset drag state with delay to allow drop to complete
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    isDragging = false
-                }
             }
         }
     }
@@ -1046,9 +980,7 @@ struct EditClipModal: View {
     }
 
     func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, h:mm a"
-        return formatter.string(from: date)
+        DateFormatters.short.string(from: date)
     }
 }
 
@@ -1302,51 +1234,13 @@ struct ClipDetailView: View {
     }
 
     func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy 'at' h:mm a"
-        return formatter.string(from: date)
+        DateFormatters.full.string(from: date)
     }
 
     private func saveChangesIfNeeded() {
         guard canSave else { return }
         appState.updateClip(clip, newText: editedText, in: appState.viewedColor.name)
         originalText = editedText
-    }
-}
-
-// MARK: - Color Picker View
-struct ColorPickerView: View {
-    let text: String
-    let onColorSelected: (NibColor) -> Void
-    @State private var hoveredColor: String? = nil
-
-    var body: some View {
-        HStack(spacing: 20) {
-            ForEach(NibColor.all, id: \.name) { color in
-                Button(action: { onColorSelected(color) }) {
-                    Circle()
-                        .fill(Color(color.nsColor))
-                        .frame(width: 44, height: 44)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(0.8), lineWidth: 2)
-                        )
-                        .scaleEffect(hoveredColor == color.name ? 1.15 : 1.0)
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                        hoveredColor = hovering ? color.name : nil
-                    }
-                }
-            }
-        }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(NSColor.windowBackgroundColor))
-                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
-        )
     }
 }
 

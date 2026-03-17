@@ -23,6 +23,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var appState: AppState!
     var eventMonitor: EventMonitor?
     var autoCopyMonitor: AutoCopyMonitor?
+    private var localKeyMonitor: Any?
     private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 7)
     private var statusToastWindow: NSPanel?
     private var statusToastWorkItem: DispatchWorkItem?
@@ -31,6 +32,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appState?.stopClipboardMonitoring()
         autoCopyMonitor?.stop()
         eventMonitor?.stop()
+        if let monitor = localKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -68,6 +72,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         eventMonitor?.start()
+
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 /* Escape */ && self?.popover.isShown == true {
+                self?.closePopover()
+                return nil
+            }
+            return event
+        }
 
         registerGlobalShortcut()
 
@@ -317,7 +329,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func selectColor(_ sender: NSMenuItem) {
         if let color = sender.representedObject as? NibColor {
-            appState.switchToColor(color, announce: false)
+            appState.switchToColor(color, announce: true)
         }
     }
 

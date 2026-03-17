@@ -121,6 +121,7 @@ class AppState: ObservableObject {
     }
 
     func startClipboardMonitoring() {
+        clipboardTimer?.invalidate()
         lastChangeCount = NSPasteboard.general.changeCount
 
         clipboardTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -171,7 +172,9 @@ class AppState: ObservableObject {
         clips[color.name]?.insert(clip, at: 0)
 
         if clips[color.name]!.count > 100 {
+            let removed = clips[color.name]!.count - 100
             clips[color.name] = Array(clips[color.name]!.prefix(100))
+            showToast("\(removed) old clip\(removed == 1 ? "" : "s") trimmed (max 100)", color: color)
         }
 
         storageManager.saveClip(clip, to: color.name)
@@ -186,6 +189,8 @@ class AppState: ObservableObject {
     }
 
     private func getCurrentURL() -> String? {
+        // Browser URL extraction requires scripting-targets entitlement per browser bundle ID.
+        // Deferred until specific browser support is added.
         return nil
     }
 
