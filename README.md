@@ -11,7 +11,7 @@
 
 You copy stuff all day. Links, quotes, code snippets, random thoughts. Where does it all go?
 
-NibNab sits in your menu bar and catches **everything you copy**, sorting it into four color-coded collections. No cloud, no accounts, no tracking. Just your clips, organized by vibe.
+NibNab sits in your menu bar and catches **everything you copy**, sorting it into five color-coded collections. No cloud, no accounts, no tracking. Just your clips, organized by vibe.
 
 ## How it works
 
@@ -27,6 +27,7 @@ That's it. No color picker interrupting your flow. No "should I save this?" deci
 - **🟠 Orange** - Could be research
 - **🩷 Pink** - Perhaps quotes
 - **🟣 Purple** - Whatever feels right
+- **🟢 Green** - Fresh bits worth keeping close
 
 Pick your active color, copy text, it's saved forever (or until you delete it).
 
@@ -39,7 +40,7 @@ Pick your active color, copy text, it's saved forever (or until you delete it).
 - Menubar icon shows current color
 
 ### ✅ Organization
-- Four highlighter colors for categorizing
+- Five highlighter colors for categorizing
 - Search across clips
 - Sort by date, app, or length
 - View full clip details
@@ -61,7 +62,7 @@ Pick your active color, copy text, it's saved forever (or until you delete it).
 - Toggle in settings menu
 
 ### ✅ Privacy First
-- Everything stored locally in `~/.nibnab/`
+- Everything stored locally in `~/Library/Application Support/com.pibulus.nibnab/`
 - Markdown files you can read/edit
 - No cloud, no sync, no tracking
 - You own your data
@@ -77,6 +78,12 @@ open build/NibNab.app
 
 Or drag the built app to `/Applications` if you're feeling permanent about it.
 
+For a distributable DMG:
+
+```bash
+./build-dmg.sh
+```
+
 ### First Launch
 
 NibNab will ask for:
@@ -87,23 +94,25 @@ That's it. No signup, no account, no BS.
 
 ## Keyboard Shortcuts
 
-- **Cmd+Shift+V** - Toggle NibNab window
+- **Cmd+Ctrl+N** - Toggle NibNab window
 - **Cmd+C** - Auto-captures to active color
 - **Right-click menubar** - Settings & color picker
 
 ## Storage
 
-Everything lives in `~/.nibnab/` as markdown files:
+Everything lives in `~/Library/Application Support/com.pibulus.nibnab/` as markdown files:
 ```
-~/.nibnab/
+~/Library/Application Support/com.pibulus.nibnab/
 ├── highlighter yellow/
 │   └── highlighter yellow_clips.md
 ├── highlighter orange/
 │   └── highlighter orange_clips.md
 ├── highlighter pink/
 │   └── highlighter pink_clips.md
-└── highlighter purple/
-    └── highlighter purple_clips.md
+├── highlighter purple/
+│   └── highlighter purple_clips.md
+└── highlighter green/
+    └── highlighter green_clips.md
 ```
 
 No database. No complexity. You own your data.
@@ -130,7 +139,7 @@ But honestly? It's pretty much done. Adding features just to add features is how
 - **Swift/SwiftUI** - Native macOS feels better
 - **NSPopover architecture** - MenuBarExtra kept crashing
 - **No dependencies** - Just macOS 13.0+
-- **Single file** - ~1200 lines of readable Swift
+- **Small native codebase** - split into focused Swift source files
 - **Local storage** - Markdown files, nothing fancy
 
 ## Contributing

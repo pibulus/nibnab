@@ -1,7 +1,10 @@
+import CryptoKit
 import Foundation
 import OSLog
 
 final class StorageManager {
+    private static let maxClipsPerColor = 100
+
     private let baseURL: URL
     private let fileManager: FileManager
     private let logger: Logger
@@ -34,39 +37,9 @@ final class StorageManager {
     }
 
     func saveClip(_ clip: Clip, to colorName: String) {
-        ensureDirectoryExists(for: colorName)
-        let fileURL = clipFileURL(for: colorName)
-
-        var markdown = "\n---\n"
-        markdown += "### \(clip.appName)"
-        if let url = clip.url {
-            markdown += " | [\(url)](\(url))"
-        }
-        markdown += "\n"
-        markdown += "\(formatter.string(from: clip.timestamp))\n\n"
-        markdown += "\(clip.text)\n"
-
-        guard let data = markdown.data(using: .utf8) else {
-            self.logger.error("Unable to encode clip markdown for \(colorName, privacy: .public)")
-            return
-        }
-
-        if self.fileManager.fileExists(atPath: fileURL.path) {
-            do {
-                let handle = try FileHandle(forWritingTo: fileURL)
-                defer { try? handle.close() }
-                try handle.seekToEnd()
-                try handle.write(contentsOf: data)
-            } catch {
-                self.logger.error("Failed appending clip to \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            }
-        } else {
-            do {
-                try data.write(to: fileURL, options: .atomic)
-            } catch {
-                self.logger.error("Failed writing clip file \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            }
-        }
+        let clipsToPersist = Array(([clip] + loadClips(for: colorName))
+            .prefix(Self.maxClipsPerColor))
+        rewriteClips(clipsToPersist, for: colorName)
     }
 
     func deleteAllClips(for colorName: String) {
@@ -82,26 +55,31 @@ final class StorageManager {
 
     func deleteClip(_ clip: Clip, from colorName: String) {
         let remainingClips = loadClips(for: colorName).filter { $0.id != clip.id }
-        if remainingClips.isEmpty {
-            deleteAllClips(for: colorName)
-        } else {
-            rewriteClips(remainingClips, for: colorName)
-        }
+        rewriteClips(remainingClips, for: colorName)
     }
 
     func rewriteClips(_ clips: [Clip], for colorName: String) {
-        let fileURL = clipFileURL(for: colorName)
+        ensureDirectoryExists(for: colorName)
 
-        do {
-            if self.fileManager.fileExists(atPath: fileURL.path) {
-                try self.fileManager.removeItem(at: fileURL)
-            }
-        } catch {
-            self.logger.error("Failed removing existing clip file \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        let normalizedClips = Array(clips.prefix(Self.maxClipsPerColor))
+
+        if normalizedClips.isEmpty {
+            deleteAllClips(for: colorName)
+            return
         }
 
-        for clip in clips {
-            saveClip(clip, to: colorName)
+        let fileURL = clipFileURL(for: colorName)
+        let markdown = normalizedClips.map(markdownSection(for:)).joined()
+
+        guard let data = markdown.data(using: .utf8) else {
+            self.logger.error("Unable to encode clip markdown for \(colorName, privacy: .public)")
+            return
+        }
+
+        do {
+            try data.write(to: fileURL, options: .atomic)
+        } catch {
+            self.logger.error("Failed writing clip file \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -120,70 +98,132 @@ final class StorageManager {
             return []
         }
 
-        var clips: [Clip] = []
+        let sections = content.components(separatedBy: "\n---\n")
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
-        let sections = content.components(separatedBy: "\n---\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-
-        for section in sections {
-            let lines = section.components(separatedBy: "\n")
-            guard lines.count >= 3 else { continue }
-
-            var appName = ""
-            var url: String? = nil
-            var timestamp = Date()
-            var text = ""
-
-            var lineIndex = 0
-
-            for (index, line) in lines.enumerated() {
-                if line.hasPrefix("###") {
-                    lineIndex = index
-                    let headerContent = line.replacingOccurrences(of: "###", with: "").trimmingCharacters(in: .whitespaces)
-
-                    if headerContent.contains("|") {
-                        let parts = headerContent.components(separatedBy: "|")
-                        appName = parts[0].trimmingCharacters(in: .whitespaces)
-
-                        if let urlPart = parts.last,
-                           let urlStart = urlPart.range(of: "](")?.upperBound,
-                           let urlEnd = urlPart[urlStart...].firstIndex(of: ")") {
-                            url = String(urlPart[urlStart..<urlEnd])
-                        }
-                    } else {
-                        appName = headerContent
-                    }
-                    break
-                }
-            }
-
-            if lineIndex + 1 < lines.count {
-                let timestampLine = lines[lineIndex + 1].trimmingCharacters(in: .whitespaces)
-                let cleanedTimestamp = timestampLine.replacingOccurrences(of: " Bangkok", with: "")
-                if let parsedDate = formatter.date(from: cleanedTimestamp) {
-                    timestamp = parsedDate
-                }
-            }
-
-            if lineIndex + 2 < lines.count {
-                let textLines = Array(lines[(lineIndex + 2)...])
-                text = textLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-
-            if !appName.isEmpty && !text.isEmpty {
-                let clip = Clip(
-                    text: text,
-                    timestamp: timestamp,
-                    url: url,
-                    appName: appName
-                )
-                clips.append(clip)
-            }
-        }
-
+        let clips = sections.compactMap(parseClip(from:))
         return clips.sorted { $0.timestamp > $1.timestamp }
     }
 
     // MARK: - Helpers
+
+    private func parseClip(from section: String) -> Clip? {
+        let lines = section.components(separatedBy: "\n")
+        guard lines.count >= 3 else { return nil }
+
+        var appName = ""
+        var url: String? = nil
+        var clipID: UUID? = nil
+        var timestamp = Date()
+        var text = ""
+        var headerIndex = 0
+
+        for (index, line) in lines.enumerated() {
+            guard line.hasPrefix("###") else { continue }
+
+            headerIndex = index
+            let headerContent = line.replacingOccurrences(of: "###", with: "").trimmingCharacters(in: .whitespaces)
+
+            if headerContent.contains("|") {
+                let parts = headerContent.components(separatedBy: "|")
+                appName = parts[0].trimmingCharacters(in: .whitespaces)
+
+                if let urlPart = parts.last,
+                   let urlStart = urlPart.range(of: "](")?.upperBound,
+                   let urlEnd = urlPart[urlStart...].firstIndex(of: ")") {
+                    url = String(urlPart[urlStart..<urlEnd])
+                }
+            } else {
+                appName = headerContent
+            }
+            break
+        }
+
+        guard !appName.isEmpty else { return nil }
+
+        var contentStartIndex = headerIndex + 1
+
+        while contentStartIndex < lines.count {
+            let metadataLine = lines[contentStartIndex].trimmingCharacters(in: .whitespaces)
+
+            if metadataLine.isEmpty {
+                contentStartIndex += 1
+                break
+            }
+
+            if metadataLine.hasPrefix("id: ") {
+                clipID = UUID(uuidString: String(metadataLine.dropFirst(4)))
+            } else if metadataLine.hasPrefix("timestamp: ") {
+                let timestampValue = String(metadataLine.dropFirst("timestamp: ".count))
+                if let parsedDate = formatter.date(from: timestampValue) {
+                    timestamp = parsedDate
+                }
+            } else {
+                let cleanedTimestamp = metadataLine.replacingOccurrences(of: " Bangkok", with: "")
+                if let parsedDate = formatter.date(from: cleanedTimestamp) {
+                    timestamp = parsedDate
+                } else {
+                    break
+                }
+            }
+
+            contentStartIndex += 1
+        }
+
+        if contentStartIndex < lines.count {
+            let textLines = Array(lines[contentStartIndex...])
+            text = textLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        guard !text.isEmpty else { return nil }
+
+        let resolvedID = clipID ?? legacyID(
+            appName: appName,
+            url: url,
+            timestamp: timestamp,
+            text: text
+        )
+
+        return Clip(
+            text: text,
+            timestamp: timestamp,
+            url: url,
+            appName: appName,
+            id: resolvedID
+        )
+    }
+
+    private func markdownSection(for clip: Clip) -> String {
+        var markdown = "\n---\n"
+        markdown += "### \(clip.appName)"
+        if let url = clip.url {
+            markdown += " | [\(url)](\(url))"
+        }
+        markdown += "\n"
+        markdown += "id: \(clip.id.uuidString)\n"
+        markdown += "timestamp: \(formatter.string(from: clip.timestamp))\n\n"
+        markdown += "\(clip.text)\n"
+        return markdown
+    }
+
+    private func legacyID(appName: String, url: String?, timestamp: Date, text: String) -> UUID {
+        let legacyFingerprint = [
+            appName,
+            url ?? "",
+            formatter.string(from: timestamp),
+            text
+        ].joined(separator: "\u{1F}")
+
+        let digest = SHA256.hash(data: Data(legacyFingerprint.utf8))
+        let bytes = Array(digest.prefix(16))
+
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+    }
 
     private func migrateLegacyStorage() {
         let legacyBase = self.fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".nibnab", isDirectory: true)

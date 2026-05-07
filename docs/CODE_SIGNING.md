@@ -68,25 +68,49 @@ codesign --verify --verbose build/NibNab.app
 codesign -dv build/NibNab.app
 ```
 
-### Add to Build Script
+### Build Script Shortcut
 
-Edit `build.sh` after compilation:
+`build.sh` now ad hoc signs the bundle by default so local builds verify cleanly on your own Mac.
+
+For a real release build, pass your signing identity:
 
 ```bash
-# After successful compilation, add:
+SIGNING_IDENTITY="Developer ID Application: Your Name (TEAM_ID)" ./build.sh
+```
 
-# Sign the app (replace with your identity)
-SIGNING_IDENTITY="Developer ID Application: Your Name (TEAM_ID)"
+### DMG Release Shortcut
 
-if codesign --force --deep --sign "$SIGNING_IDENTITY" \
-    "$BUILD_DIR/${APP_NAME}.app"; then
-    echo -e "${GREEN}✅ App signed successfully${NC}"
+Create a local DMG:
 
-    # Verify
-    codesign --verify --verbose "$BUILD_DIR/${APP_NAME}.app"
-else
-    echo -e "${YELLOW}⚠️  Signing failed - app will work but may show warnings${NC}"
-fi
+```bash
+./build-dmg.sh
+```
+
+Create a signed DMG:
+
+```bash
+SIGNING_IDENTITY="Developer ID Application: Your Name (TEAM_ID)" ./build-dmg.sh
+```
+
+Create a signed and notarized DMG:
+
+```bash
+SIGNING_IDENTITY="Developer ID Application: Your Name (TEAM_ID)" \
+NOTARY_PROFILE="nibnab-notary" \
+./build-dmg.sh
+```
+
+### Add to Build Script
+
+If you want to sign manually outside the script:
+
+```bash
+codesign --force --deep --options runtime \
+  --entitlements NibNab.entitlements \
+  --sign "Developer ID Application: Your Name (TEAM_ID)" \
+  build/NibNab.app
+
+codesign --verify --verbose build/NibNab.app
 ```
 
 ## Notarization (For Direct Distribution)
@@ -171,15 +195,7 @@ productbuild --component build/NibNab.app /Applications \
 
 ### 5. Upload to App Store
 
-```bash
-xcrun altool --upload-app \
-  --type macos \
-  --file NibNab-1.0.0.pkg \
-  --username "your@email.com" \
-  --password "app-specific-password"
-```
-
-Or use Transporter app (easier).
+Use Transporter (recommended) to upload the signed `.pkg` to App Store Connect.
 
 ## Troubleshooting
 

@@ -4,6 +4,8 @@ import ServiceManagement
 
 @MainActor
 class AppState: ObservableObject {
+    private static let maxClipsPerColor = 100
+
     @Published var viewedColor: NibColor = NibColor.yellow
     @Published var activeColor: NibColor {
         didSet {
@@ -43,6 +45,7 @@ class AppState: ObservableObject {
                     showToast("Capturing OFF", color: NibColor.orange)
                 }
             }
+            delegate?.syncSelectionMonitoring()
         }
     }
     @Published var clips: [String: [Clip]] = [:]
@@ -64,7 +67,7 @@ class AppState: ObservableObject {
     private let storageManager = StorageManager()
 
     var autoCopyEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "autoCopyEnabled")
+        UserDefaults.standard.object(forKey: "autoCopyEnabled") as? Bool ?? true
     }
 
     init() {
@@ -82,6 +85,9 @@ class AppState: ObservableObject {
         soundEffectsEnabled = UserDefaults.standard.object(forKey: "soundEffectsEnabled") as? Bool ?? true
         isMonitoring = UserDefaults.standard.object(forKey: "isMonitoring") as? Bool ?? true
         viewedColor = initialColor
+        if UserDefaults.standard.object(forKey: "autoCopyEnabled") == nil {
+            UserDefaults.standard.set(true, forKey: "autoCopyEnabled")
+        }
 
         if let savedLabels = UserDefaults.standard.dictionary(forKey: "colorLabels") as? [String: String] {
             colorLabels = savedLabels
@@ -170,11 +176,13 @@ class AppState: ObservableObject {
         }
         clips[color.name]?.insert(clip, at: 0)
 
-        if clips[color.name]!.count > 100 {
-            clips[color.name] = Array(clips[color.name]!.prefix(100))
+        if clips[color.name]!.count > Self.maxClipsPerColor {
+            clips[color.name] = Array(clips[color.name]!.prefix(Self.maxClipsPerColor))
         }
 
-        storageManager.saveClip(clip, to: color.name)
+        if let colorClips = clips[color.name] {
+            storageManager.rewriteClips(colorClips, for: color.name)
+        }
         playSound("Purr")
     }
 
@@ -195,7 +203,7 @@ class AppState: ObservableObject {
 
     func deleteClip(_ clip: Clip, from colorName: String) {
         clips[colorName]?.removeAll { $0.id == clip.id }
-        storageManager.deleteClip(clip, from: colorName)
+        storageManager.rewriteClips(clips[colorName] ?? [], for: colorName)
         playSound("Tink")
     }
 
@@ -218,8 +226,12 @@ class AppState: ObservableObject {
             clips[targetColor]!.append(clip)
         }
 
-        storageManager.deleteClip(clip, from: sourceColor)
-        storageManager.saveClip(clip, to: targetColor)
+        if clips[targetColor]!.count > Self.maxClipsPerColor {
+            clips[targetColor] = Array(clips[targetColor]!.prefix(Self.maxClipsPerColor))
+        }
+
+        storageManager.rewriteClips(clips[sourceColor] ?? [], for: sourceColor)
+        storageManager.rewriteClips(clips[targetColor] ?? [], for: targetColor)
         playSound("Pop")
     }
 

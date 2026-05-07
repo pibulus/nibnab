@@ -13,7 +13,7 @@ A highlighter for your digital life. Captures everything you copy and organizes 
 
 **Your clipboard deserves better than Cmd+V into Notes.app**
 
-NibNab is a menubar clipboard manager that captures everything you copy and organizes it into four color-coded collections. It's the simplest way to keep track of the good bits—quotes, links, code snippets, random thoughts—without the complexity of traditional clipboard managers.
+NibNab is a menubar clipboard manager that captures everything you copy and organizes it into five color-coded collections. It's the simplest way to keep track of the good bits—quotes, links, code snippets, random thoughts—without the complexity of traditional clipboard managers.
 
 **HOW IT WORKS**
 
@@ -30,12 +30,13 @@ That's it. No interruptions. No "should I save this?" decisions. Just copy and i
 • Saves to your active color automatically
 • Menubar icon shows current color with visual feedback
 
-**FOUR COLORS, YOUR RULES**
+**FIVE COLORS, YOUR RULES**
 
 🟡 Yellow
 🟠 Orange
 🩷 Pink
 🟣 Purple
+🟢 Green
 
 The colors mean whatever you want:
 • Organize by project (work, side hustle, personal, learning)
@@ -48,7 +49,7 @@ The colors mean whatever you want:
 • Sort by date, source app, or length
 • View full clip details with timestamp
 • Copy or delete with one click
-• Keyboard shortcut (Cmd+Shift+V) for quick access
+• Keyboard shortcut (Cmd+Ctrl+N) for quick access
 
 **TWO EXPORT OPTIONS**
 
@@ -72,7 +73,7 @@ Right-click the menubar icon to access:
 
 **PRIVACY FIRST**
 
-• Everything stored locally in ~/.nibnab/
+• Everything stored locally in ~/Library/Application Support/com.pibulus.nibnab/
 • Plain markdown files you can read and edit
 • No cloud sync, no accounts, no tracking
 • Zero network requests
@@ -98,7 +99,7 @@ Built by one person who believes good tools should:
 • Native Swift/SwiftUI app
 • Requires macOS 13.0 or later
 • Apple Silicon optimized
-• Single-file architecture (~1200 lines)
+• Small native codebase split into focused Swift files
 • No external dependencies
 • Lightweight and fast
 
@@ -122,7 +123,7 @@ Built by one person who believes good tools should:
 1. Install NibNab
 2. Grant accessibility permission (optional, for auto-capture)
 3. Start copying stuff
-4. Use the menubar icon or Cmd+Shift+V to view clips
+4. Use the menubar icon or Cmd+Ctrl+N to view clips
 
 That's it. No tutorial, no onboarding, no account creation. Just open it and it works.
 
@@ -140,13 +141,13 @@ NibNab v1.0 brings color-coded clipboard management to your menubar:
 
 NEW FEATURES:
 • Automatic clipboard capture (Cmd+C and text selection)
-• Four-color organization system (Yellow, Orange, Pink, Purple)
+• Five-color organization system (Yellow, Orange, Pink, Purple, Green)
 • Dual export options (Markdown with metadata, Plain Text)
 • Copy and delete actions from both list and detail views
 • Mac-native settings menu (right-click menubar)
 • Optional sound effects with toggle
 • Launch at login support
-• Global keyboard shortcut (Cmd+Shift+V)
+• Global keyboard shortcut (Cmd+Ctrl+N)
 • Search and sort functionality
 • Privacy-first local storage (no cloud, no tracking)
 
@@ -160,8 +161,8 @@ DESIGN:
 TECHNICAL:
 • Native Swift/SwiftUI
 • Apple Silicon optimized
-• Single-file architecture
-• Markdown storage in ~/.nibnab/
+• Small native codebase
+• Markdown storage in ~/Library/Application Support/com.pibulus.nibnab/
 • No external dependencies
 
 This is v1.0 because it does what it says. No beta, no "coming soon" features, no incomplete implementations. It's done, it works, and it's ready.
@@ -191,7 +192,7 @@ NibNab does not share any data with third parties.
 **Data Stored Locally:**
 All clipboard content is stored locally on your Mac in:
 • Plain text markdown files
-• Located at ~/.nibnab/
+• Located at ~/Library/Application Support/com.pibulus.nibnab/
 • Never transmitted over network
 • User has full control and ownership
 
@@ -208,7 +209,7 @@ https://github.com/pibulus/nibnab
 
 ### Screenshot 1: Main Interface
 **Title:** Color-Coded Clipboard Collections
-**Description:** Organize everything you copy into four highlighter colors. Search, sort, and find clips instantly.
+**Description:** Organize everything you copy into five highlighter colors. Search, sort, and find clips instantly.
 
 ### Screenshot 2: Export Options
 **Title:** Export Your Way
@@ -240,7 +241,7 @@ https://github.com/pibulus/nibnab
 • App can function fully without this permission using Cmd+C capture
 
 **Privacy:**
-• All data stored locally in ~/.nibnab/
+• All data stored locally in ~/Library/Application Support/com.pibulus.nibnab/
 • No network requests made
 • No analytics or telemetry
 • No third-party SDKs or frameworks
@@ -249,7 +250,7 @@ https://github.com/pibulus/nibnab
 Not required - no login functionality
 
 **Demo Content:**
-App starts empty. Copy text to populate clips. Sample markdown files can be found in ~/.nibnab/ after first use.
+App starts empty. Copy text to populate clips. Sample markdown files can be found in ~/Library/Application Support/com.pibulus.nibnab/ after first use.
 
 ---
 

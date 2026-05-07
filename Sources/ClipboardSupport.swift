@@ -66,6 +66,8 @@ class AutoCopyMonitor {
     }
 
     func start() {
+        guard timer == nil, permissionPollTimer == nil else { return }
+
         // Check if we already have accessibility permission (don't prompt every time!)
         let isTrusted = AXIsProcessTrusted()
 

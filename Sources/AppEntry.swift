@@ -86,10 +86,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if appState.isMonitoring {
             appState.startClipboardMonitoring()
         }
-
-        if appState.autoCopyEnabled && autoCopyMonitor != nil {
-            autoCopyMonitor?.start()
-        }
+        syncSelectionMonitoring()
     }
 
     @objc func handleMenubarClick(_ sender: NSStatusBarButton) {
@@ -348,10 +345,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func toggleAutoCapture() {
         if appState.isMonitoring {
             appState.setMonitoring(false, suppressToast: false)
-            autoCopyMonitor?.stop()
         } else {
             appState.setMonitoring(true, suppressToast: false)
+        }
+    }
+
+    func syncSelectionMonitoring() {
+        guard autoCopyMonitor != nil else { return }
+
+        if appState.isMonitoring && appState.autoCopyEnabled {
             autoCopyMonitor?.start()
+        } else {
+            autoCopyMonitor?.stop()
         }
     }
 

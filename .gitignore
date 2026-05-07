@@ -1,6 +1,8 @@
 # Build artifacts
 build/
+release/
 *.app
+*.dmg
 
 # Xcode
 *.xcuserstate

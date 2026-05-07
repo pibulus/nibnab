@@ -68,7 +68,7 @@ Find any clip instantly. Search across text and source apps. Sort by date, app, 
 **Plain Text** - Clean and simple, ready to paste
 
 #### Privacy First
-Everything stored locally in `~/.nibnab/`
+Everything stored locally in `~/Library/Application Support/com.pibulus.nibnab/`
 No cloud. No sync. No tracking. You own your data.
 
 #### Mac Native
@@ -145,7 +145,7 @@ If you copy things and want to find them later, NibNab is for you.
 ### Tech Stack
 - **Native Swift/SwiftUI** - Feels like macOS because it is
 - **No dependencies** - Just you, your Mac, and the clipboard
-- **Local storage** - Plain markdown in `~/.nibnab/`
+- **Local storage** - Plain markdown in `~/Library/Application Support/com.pibulus.nibnab/`
 - **Apple Silicon optimized** - Fast on M1/M2/M3 Macs
 - **Single file** - ~1200 lines of readable code
 
@@ -194,7 +194,7 @@ macOS 13.0+ (Ventura or later)
 Everything you copy with Cmd+C, plus selected text (with accessibility permission). Only text—no images or files.
 
 ### Where is my data stored?
-Locally on your Mac in `~/.nibnab/` as markdown files. No cloud. No sync. You own it.
+Locally on your Mac in `~/Library/Application Support/com.pibulus.nibnab/` as markdown files. No cloud. No sync. You own it.
 
 ### Does it work offline?
 Yes. NibNab never connects to the internet. Ever.
@@ -220,7 +220,7 @@ Yes. No trial, no freemium, no "pro" version. Free means free.
 NibNab doesn't track anything. No analytics, no telemetry, no "anonymous usage data." Your clips stay on your Mac.
 
 ### Can I edit the stored files?
-Absolutely! They're plain markdown in `~/.nibnab/`. Edit, backup, grep, do whatever you want.
+Absolutely! They're plain markdown in `~/Library/Application Support/com.pibulus.nibnab/`. Edit, backup, grep, do whatever you want.
 
 ### What's the catch?
 There isn't one. I built this because existing clipboard managers annoyed me. Maybe it'll help you too.
@@ -280,7 +280,7 @@ This is the 80/20 version 🎯 [link]
 Excited to share NibNab - a privacy-first clipboard manager for macOS.
 
 What makes it different:
-• Color-coded organization (4 highlighter colors)
+• Color-coded organization (5 highlighter colors)
 • Smart auto-capture (Cmd+C or text selection)
 • Dual export formats (Markdown & Plain Text)
 • 100% local storage (no cloud, no tracking)
@@ -312,7 +312,7 @@ Hey r/macapps! I built a clipboard manager that might not annoy you.
 
 **Tech:** Native Swift/SwiftUI, macOS 13.0+, single file (~1200 lines)
 
-**Storage:** Plain markdown in ~/.nibnab/ - you own your data
+**Storage:** Plain markdown in ~/Library/Application Support/com.pibulus.nibnab/ - you own your data
 
 Built it because I was tired of clipboard managers that either do too much or too little. This is the 80/20 version.
 
@@ -332,13 +332,13 @@ A highlighter for your digital life
 Color-coded clipboard manager for macOS that respects your privacy
 
 ### Description (50 words)
-NibNab captures everything you copy and organizes it into four color-coded collections. Export as Markdown or Plain Text. Everything stored locally—no cloud, no tracking. Free, open source, built with Swift for macOS 13+.
+NibNab captures everything you copy and organizes it into five color-coded collections. Export as Markdown or Plain Text. Everything stored locally—no cloud, no tracking. Free, open source, built with Swift for macOS 13+.
 
 ### Description (100 words)
 NibNab is a menubar clipboard manager that captures everything you copy and organizes it by color. Four highlighter colors let you categorize clips by project, type, or whatever makes sense. Search across all clips, sort by date or app, export as Markdown or Plain Text. Built with Swift/SwiftUI for macOS 13+, it stores everything locally in plain markdown files—no cloud sync, no tracking, no accounts. Part of the anti-scale movement: tools that do one thing well and respect your privacy. Free and open source.
 
 ### Key Features Bullet Points
-- Color-coded organization (4 highlighter colors)
+- Color-coded organization (5 highlighter colors)
 - Auto-capture (Cmd+C or text selection)
 - Smart search and sorting
 - Dual export formats (Markdown & Plain Text)

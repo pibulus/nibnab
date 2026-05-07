@@ -36,7 +36,7 @@ This will:
 2. **Click footer colors** in popover (white ring = active)
 3. Your choice persists between launches
 
-**Global Shortcut**: `Cmd+Shift+V` - Opens NibNab from anywhere
+**Global Shortcut**: `Cmd+Ctrl+N` - Opens NibNab from anywhere
 
 ## ⚙️ Settings (Header Toggles)
 
@@ -66,6 +66,7 @@ NibNab uses vintage highlighter colors for organizing:
 - **Orange** (#f68717) - Important, urgent
 - **Pink** (#f60474) - Ideas, creative
 - **Purple** (#8717f6) - Code, technical
+- **Green** (#39ff14) - Fresh, current, close at hand
 
 Use them however you want - they're just colors!
 
@@ -88,10 +89,10 @@ Use them however you want - they're just colors!
 
 ## 📁 Storage
 
-All clips saved to: `~/.nibnab/[color-name]/`
+All clips saved to: `~/Library/Application Support/com.pibulus.nibnab/[color-name]/`
 
 Each clip is a markdown file with:
-- Timestamp (Bangkok timezone)
+- Timestamp (stored in UTC)
 - Source app name
 - The selected text
 - Optional URL (if from browser) - *coming soon*
@@ -109,6 +110,23 @@ open build/NibNab.app   # Run locally without installing
 ### Installing
 ```bash
 ./install.sh            # Full install workflow
+```
+
+### Building a DMG
+```bash
+./build-dmg.sh
+```
+
+For a signed DMG:
+```bash
+SIGNING_IDENTITY="Developer ID Application: Your Name (TEAM_ID)" ./build-dmg.sh
+```
+
+For a signed + notarized DMG:
+```bash
+SIGNING_IDENTITY="Developer ID Application: Your Name (TEAM_ID)" \
+NOTARY_PROFILE="nibnab-notary" \
+./build-dmg.sh
 ```
 
 Or manually:
@@ -149,14 +167,14 @@ pkill NibNab && ./build.sh && open build/NibNab.app
 ✨ **Set color before browsing** - active color = where new clips go
 🎯 **Footer colors are dual-purpose** - view clips AND set active color
 ⚡ **Watch the menubar pulse** - confirms clip was saved
-🌈 **4 colors = 4 contexts** - work, personal, research, misc
+🌈 **5 colors = 5 contexts** - work, personal, research, misc, fresh grabs
 📦 **Local only** - no cloud, no sync, no tracking
 
 ## 🎸 Philosophy
 
 NibNab is designed around **compression over complexity**:
 
-- **Four colors** - Not a hundred tags
+- **Five colors** - Not a hundred tags
 - **One active color** - Not decision fatigue every copy
 - **Local markdown** - Not a cloud database
 - **Menubar only** - Not another window to manage
