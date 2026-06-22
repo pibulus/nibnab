@@ -86,13 +86,21 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
             </dict>
         </dict>
     </array>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>NibNab may use Apple Events to capture the current URL from your browser when saving clips.</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2024 Pibulus. All rights reserved.</string>
 </dict>
 </plist>
 EOF
+
+# Copy app icon if it exists
+if [ -f "AppIcon.icns" ]; then
+    cp "AppIcon.icns" "$APP_BUNDLE/Contents/Resources/"
+    echo "App icon bundled."
+else
+    echo -e "${YELLOW}⚠️  No AppIcon.icns found — app will use default icon${NC}"
+fi
 
 # Compile Swift
 echo -e "${YELLOW}Compiling Swift code...${NC}"
