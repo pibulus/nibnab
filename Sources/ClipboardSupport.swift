@@ -66,10 +66,15 @@ class AutoCopyMonitor {
     }
 
     func start() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        let isTrusted = AXIsProcessTrustedWithOptions(options)
+        guard timer == nil, permissionPollTimer == nil else { return }
+
+        // Check if we already have accessibility permission (don't prompt every time!)
+        let isTrusted = AXIsProcessTrusted()
 
         guard isTrusted else {
+            // Only prompt once when permission is actually needed
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(options)
             pollForAccessibilityPermission()
             return
         }

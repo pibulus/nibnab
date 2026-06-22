@@ -89,12 +89,10 @@ struct ContentHeaderView: View {
     @Binding var showExportDialog: Bool
     @Binding var showClearConfirm: Bool
     let hasExportableClips: Bool
-    let toggleDateSort: () -> Void
     let horizontalPadding: CGFloat
 
     @State private var toggleHovered = false
     @State private var sortHovered = false
-    @State private var dateSortHovered = false
     @FocusState private var searchFieldFocused: Bool
 
     var body: some View {
@@ -139,7 +137,7 @@ struct ContentHeaderView: View {
                     isOn: Binding(
                         get: { appState.isMonitoring },
                         set: { newValue in
-                            appState.setMonitoring(newValue, suppressToast: true)
+                            appState.setMonitoring(newValue, suppressToast: false)
                         }
                     )
                 )
@@ -191,46 +189,35 @@ struct ContentHeaderView: View {
             )
 
             Menu {
-                Button("Newest First") { sortOrder = .newestFirst }
-                Button("Oldest First") { sortOrder = .oldestFirst }
-                Button("By App Name") { sortOrder = .byAppName }
-                Button("By Length") { sortOrder = .byLength }
+                Button(action: { sortOrder = .newestFirst }) {
+                    Label("Newest First", systemImage: sortOrder == .newestFirst ? "checkmark" : "")
+                }
+                Button(action: { sortOrder = .oldestFirst }) {
+                    Label("Oldest First", systemImage: sortOrder == .oldestFirst ? "checkmark" : "")
+                }
+                Divider()
+                Button(action: { sortOrder = .byAppName }) {
+                    Label("By App Name", systemImage: sortOrder == .byAppName ? "checkmark" : "")
+                }
+                Button(action: { sortOrder = .byLength }) {
+                    Label("By Length", systemImage: sortOrder == .byLength ? "checkmark" : "")
+                }
             } label: {
                 Image(systemName: "line.3.horizontal.decrease")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundColor(Color.white.opacity(sortHovered ? 1.0 : 0.75))
                     .frame(width: 26, height: 26)
                     .background(
                         RoundedRectangle(cornerRadius: 7)
-                            .fill(Color.white.opacity(sortHovered ? 0.24 : 0.12))
+                            .fill(Color.white.opacity(sortHovered ? 0.24 : 0.1))
                     )
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .help("Sort clips")
             .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(.easeInOut(duration: 0.15)) {
                     sortHovered = hovering
-                }
-            }
-
-            Button(action: toggleDateSort) {
-                Image(systemName: "arrow.up.arrow.down.circle")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(Color.white.opacity(dateSortHovered || isSortingByDate ? 1.0 : 0.75))
-                    .frame(width: 26, height: 26)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7)
-                            .fill(Color.white.opacity(dateSortHovered || isSortingByDate ? 0.24 : 0.1))
-                    )
-                    .rotationEffect(.degrees(sortOrder == .oldestFirst ? 0 : 180))
-                    .animation(.easeInOut(duration: 0.18), value: sortOrder)
-            }
-            .buttonStyle(.plain)
-            .help(sortOrder == .oldestFirst ? "Sort: Oldest → Newest" : "Sort: Newest → Oldest")
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    dateSortHovered = hovering
                 }
             }
         }
@@ -284,10 +271,6 @@ struct ContentHeaderView: View {
                 showClearConfirm = true
             }, help: "Clear all clips")
         }
-    }
-
-    private var isSortingByDate: Bool {
-        sortOrder == .newestFirst || sortOrder == .oldestFirst
     }
 }
 
@@ -345,17 +328,28 @@ struct ContentFooterView: View {
                 .foregroundColor(Color(appState.activeColor.nsColor))
 
             if editingLabel {
-                TextField("", text: $labelText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(appState.activeColor.nsColor))
-                    .frame(width: 80)
-                    .focused(labelFocused)
-                    .onSubmit {
-                        appState.setLabel(labelText, forColor: appState.activeColor.name)
-                        editingLabel = false
-                        labelFocused.wrappedValue = false
-                    }
+                HStack(spacing: 4) {
+                    TextField("", text: $labelText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color(appState.activeColor.nsColor))
+                        .frame(width: 120)
+                        .focused(labelFocused)
+                        .onSubmit {
+                            appState.setLabel(labelText, forColor: appState.activeColor.name)
+                            editingLabel = false
+                            labelFocused.wrappedValue = false
+                        }
+                        .onExitCommand {
+                            // Cancel editing on Escape key
+                            editingLabel = false
+                            labelFocused.wrappedValue = false
+                        }
+
+                    Text("\(labelText.count)/12")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(Color.white.opacity(labelText.count > 12 ? 0.8 : 0.4))
+                }
             } else {
                 Button(action: {
                     labelText = appState.labelForColor(appState.activeColor.name)
@@ -383,6 +377,13 @@ struct ContentFooterView: View {
                     }
                 }
                 .help("Click to rename")
+            }
+        }
+        .onChange(of: appState.activeColor.name) { _ in
+            // Cancel editing when switching colors to prevent label bleeding
+            if editingLabel {
+                editingLabel = false
+                labelFocused.wrappedValue = false
             }
         }
     }
@@ -516,10 +517,6 @@ struct ContentView: View {
         return !clips.isEmpty
     }
 
-    private var isSortingByDate: Bool {
-        sortOrder == .newestFirst || sortOrder == .oldestFirst
-    }
-
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
@@ -530,7 +527,6 @@ struct ContentView: View {
                     showExportDialog: $showExportDialog,
                     showClearConfirm: $showClearConfirm,
                     hasExportableClips: hasExportableClips,
-                    toggleDateSort: toggleDateSort,
                     horizontalPadding: Self.horizontalPadding - 10
                 )
                 .environmentObject(appState)
@@ -542,7 +538,7 @@ struct ContentView: View {
                     labelText: $labelText,
                     labelHovered: $labelHovered,
                     labelFocused: $labelFocused,
-                    horizontalPadding: Self.horizontalPadding,
+                    horizontalPadding: Self.horizontalPadding - 10,
                     viewedClipCount: appState.clips[appState.viewedColor.name]?.count ?? 0,
                     handleColorDrop: { clips, color in
                         handleColorDrop(clips: clips, targetColor: color)
@@ -581,14 +577,6 @@ struct ContentView: View {
             let shortName = appState.viewedColor.name.replacingOccurrences(of: "Highlighter ", with: "")
             let count = appState.clips[appState.viewedColor.name]?.count ?? 0
             Text("This will permanently delete all \(count) \(shortName) clips.")
-        }
-    }
-
-    private func toggleDateSort() {
-        if isSortingByDate {
-            sortOrder = sortOrder == .newestFirst ? .oldestFirst : .newestFirst
-        } else {
-            sortOrder = .newestFirst
         }
     }
 
@@ -676,7 +664,7 @@ struct ContentView: View {
         guard let droppedClip = clips.first else { return }
         guard let (sourceColor, _) = appState.clips.first(where: { $0.value.contains(droppedClip) }) else { return }
         appState.moveClip(droppedClip, from: sourceColor, to: targetColor.name)
-        appState.switchToColor(targetColor, announce: false)
+        appState.switchToColor(targetColor, announce: true)
     }
 }
 
@@ -809,7 +797,7 @@ struct ClipView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color(appState.viewedColor.nsColor).opacity(isHovered ? 0.55 : 0.35), lineWidth: 1)
+                .stroke(Color.white.opacity(isHovered ? 0.2 : 0.08), lineWidth: 1)
         )
         .overlay(
             Group {
@@ -906,6 +894,7 @@ struct EditClipModal: View {
                         .foregroundColor(.white.opacity(0.6))
                 }
                 .buttonStyle(.plain)
+                .help("Close (Esc)")
             }
             .padding()
             .background(Color.black.opacity(0.9))
@@ -977,6 +966,11 @@ struct EditClipModal: View {
         }
         .frame(width: 500, height: 400)
         .cornerRadius(12)
+        .shadow(color: .black.opacity(0.5), radius: 20)
+        .onExitCommand {
+            // Allow Escape key to close without saving
+            onDismiss()
+        }
     }
 
     func formatDate(_ date: Date) -> String {
@@ -1026,6 +1020,7 @@ struct AddClipModal: View {
                         .foregroundColor(.white.opacity(0.6))
                 }
                 .buttonStyle(.plain)
+                .help("Close (Esc)")
             }
             .padding()
             .background(Color.black.opacity(0.9))
@@ -1097,6 +1092,11 @@ struct AddClipModal: View {
         }
         .frame(width: 500, height: 400)
         .cornerRadius(12)
+        .shadow(color: .black.opacity(0.5), radius: 20)
+        .onExitCommand {
+            // Allow Escape key to close without saving
+            onDismiss()
+        }
     }
 }
 
@@ -1151,6 +1151,7 @@ struct ClipDetailView: View {
                         .foregroundColor(.white.opacity(0.6))
                 }
                 .buttonStyle(.plain)
+                .help("Close (Esc)")
             }
             .padding()
             .background(Color.black.opacity(0.9))
@@ -1228,8 +1229,15 @@ struct ClipDetailView: View {
             .background(Color.black.opacity(0.9))
         }
         .frame(width: Self.detailSize.width, height: Self.detailSize.height)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.5), radius: 20)
         .onDisappear {
             saveChangesIfNeeded()
+        }
+        .onExitCommand {
+            // Allow Escape key to close
+            saveChangesIfNeeded()
+            onDismiss()
         }
     }
 
@@ -1501,7 +1509,7 @@ struct WelcomeView: View {
                     icon: "keyboard",
                     color: NibColor.green,
                     title: "Keyboard Shortcuts",
-                    description: "Toggle with ⌘⌃N • Auto-capture ⌘⌃M • Check About for more"
+                    description: "Toggle popover: ⌘⌃N • Auto-capture: ⌘⌃M • Right-click menubar icon for more"
                 )
 
                 FeatureRow(

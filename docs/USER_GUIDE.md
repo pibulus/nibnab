@@ -63,7 +63,7 @@ Whatever you want! Here are some ideas:
 
 **Open NibNab:**
 - Click menubar icon, OR
-- Press **Cmd+Shift+V** (global shortcut)
+- Press **Cmd+Ctrl+N** (global shortcut)
 
 **Browse clips:**
 - Scroll through your collection
@@ -168,7 +168,7 @@ Third clip...
 
 | Shortcut | Action |
 |----------|--------|
-| **Cmd+Shift+V** | Toggle NibNab window |
+| **Cmd+Ctrl+N** | Toggle NibNab window |
 | **Cmd+C** | Copy & auto-capture |
 | **Cmd+Q** | Quit (when app is focused) |
 
@@ -176,7 +176,7 @@ Third clip...
 
 All clips are saved locally at:
 ```
-~/.nibnab/
+~/Library/Application Support/com.pibulus.nibnab/
 ```
 
 Each color gets its own folder with a markdown file:
@@ -184,6 +184,7 @@ Each color gets its own folder with a markdown file:
 - `highlighter orange/highlighter orange_clips.md`
 - `highlighter pink/highlighter pink_clips.md`
 - `highlighter purple/highlighter purple_clips.md`
+- `highlighter green/highlighter green_clips.md`
 
 ### You Can:
 - Read these files in any text editor
@@ -251,7 +252,7 @@ Each color gets its own folder with a markdown file:
 ### Can't find old clips
 - Use search bar to filter
 - Try sorting by date or app name
-- Check the markdown files in `~/.nibnab/`
+- Check the markdown files in `~/Library/Application Support/com.pibulus.nibnab/`
 
 ### Sounds not working
 - Right-click menubar → check "Sound Effects" is ✅
@@ -281,7 +282,7 @@ Each color gets its own folder with a markdown file:
 ### What You Own
 - Everything. It's your data.
 - Stored in plain markdown you can read
-- Delete `~/.nibnab/` to wipe everything
+- Delete `~/Library/Application Support/com.pibulus.nibnab/` to wipe everything
 
 ## Need More Help?
 

@@ -98,10 +98,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if appState.isMonitoring {
             appState.startClipboardMonitoring()
         }
-
-        if appState.autoCopyEnabled && autoCopyMonitor != nil {
-            autoCopyMonitor?.start()
-        }
+        syncSelectionMonitoring()
     }
 
     @objc func handleMenubarClick(_ sender: NSStatusBarButton) {
@@ -190,23 +187,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func pulseMenubarIcon() {
         guard let button = statusItem.button else { return }
+
+        // Enable layer-backing if not already enabled
+        if button.layer == nil {
+            button.wantsLayer = true
+        }
+
+        guard let buttonLayer = button.layer else { return }
+
+        // Create animation layer
         let animationLayer = CALayer()
-        animationLayer.frame = CGRect(x: 0, y: 0, width: 18, height: 18)
-        animationLayer.cornerRadius = 9
+        animationLayer.frame = buttonLayer.bounds
+        animationLayer.cornerRadius = min(buttonLayer.bounds.width, buttonLayer.bounds.height) / 2
         animationLayer.backgroundColor = appState.activeColor.nsColor.cgColor
         animationLayer.opacity = 0.0
-        button.layer = CALayer()
-        button.layer?.addSublayer(animationLayer)
+
+        // Add as sublayer (don't replace the root layer!)
+        buttonLayer.addSublayer(animationLayer)
 
         let fadeIn = CABasicAnimation(keyPath: "opacity")
         fadeIn.fromValue = 0.0
         fadeIn.toValue = 0.4
-        fadeIn.duration = 0.1
+        fadeIn.duration = 0.15
         fadeIn.autoreverses = true
         animationLayer.add(fadeIn, forKey: "pulse")
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak button] in
             animationLayer.removeFromSuperlayer()
+            // Ensure button updates its display after animation
+            button?.needsDisplay = true
         }
     }
 
@@ -251,7 +260,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func showColorMenu() {
         let menu = NSMenu()
 
-        for color in NibColor.all {
+        let colorShortcuts = ["⌘⌃1", "⌘⌃2", "⌘⌃3", "⌘⌃4", "⌘⌃5"]
+
+        for (index, color) in NibColor.all.enumerated() {
             let size = NSSize(width: 16, height: 16)
             let image = NSImage(size: size)
             image.lockFocus()
@@ -275,6 +286,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             item.image = image
             item.representedObject = color
             item.state = appState.activeColor.name == color.name ? .on : .off
+            item.toolTip = "Keyboard shortcut: \(colorShortcuts[index])"
             menu.addItem(item)
         }
 
@@ -302,6 +314,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             keyEquivalent: ""
         )
         autoCaptureItem.state = appState.isMonitoring ? .on : .off
+        autoCaptureItem.toolTip = "Keyboard shortcut: ⌘⌃M"
         menu.addItem(autoCaptureItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -344,10 +357,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func toggleAutoCapture() {
         if appState.isMonitoring {
             appState.setMonitoring(false, suppressToast: false)
-            autoCopyMonitor?.stop()
         } else {
             appState.setMonitoring(true, suppressToast: false)
+        }
+    }
+
+    func syncSelectionMonitoring() {
+        guard autoCopyMonitor != nil else { return }
+
+        if appState.isMonitoring && appState.autoCopyEnabled {
             autoCopyMonitor?.start()
+        } else {
+            autoCopyMonitor?.stop()
         }
     }
 

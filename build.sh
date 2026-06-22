@@ -11,6 +11,9 @@ APP_NAME="NibNab"
 BUNDLE_ID="com.pibulus.nibnab"
 VERSION="1.0.0"
 BUILD_DIR="build"
+APP_BUNDLE="$BUILD_DIR/${APP_NAME}.app"
+SIGNING_IDENTITY="${SIGNING_IDENTITY:--}"
+ENTITLEMENTS_PATH="NibNab.entitlements"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -27,11 +30,11 @@ if [ -d "$BUILD_DIR" ]; then
 fi
 
 # Create build directory structure
-mkdir -p "$BUILD_DIR/${APP_NAME}.app/Contents/MacOS"
-mkdir -p "$BUILD_DIR/${APP_NAME}.app/Contents/Resources"
+mkdir -p "$APP_BUNDLE/Contents/MacOS"
+mkdir -p "$APP_BUNDLE/Contents/Resources"
 
 # Create Info.plist
-cat > "$BUILD_DIR/${APP_NAME}.app/Contents/Info.plist" << EOF
+cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -83,61 +86,52 @@ cat > "$BUILD_DIR/${APP_NAME}.app/Contents/Info.plist" << EOF
             </dict>
         </dict>
     </array>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>NibNab may use Apple Events to capture the current URL from your browser when saving clips.</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2024 Pibulus. All rights reserved.</string>
 </dict>
 </plist>
 EOF
 
 # Copy entitlements
-cp NibNab.entitlements "$BUILD_DIR/${APP_NAME}.app/Contents/"
+cp NibNab.entitlements "$APP_BUNDLE/Contents/"
 
-# Compile Swift - build universal binary (arm64 + x86_64)
-echo -e "${YELLOW}Compiling Swift code (arm64)...${NC}"
+# Compile Swift
+echo -e "${YELLOW}Compiling Swift code...${NC}"
 swiftc -O -parse-as-library \
     -target arm64-apple-macos13.0 \
     -framework Cocoa \
     -framework SwiftUI \
-    -o "$BUILD_DIR/${APP_NAME}_arm64" \
+    -o "$APP_BUNDLE/Contents/MacOS/${APP_NAME}" \
     Sources/*.swift
 
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ arm64 build failed!${NC}"
+# Check if compilation was successful
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✅ Build successful!${NC}"
+    echo -e "${GREEN}📦 App created at: $APP_BUNDLE${NC}"
+
+    # Make it executable
+    chmod +x "$APP_BUNDLE/Contents/MacOS/${APP_NAME}"
+
+    echo -e "${YELLOW}Signing app bundle...${NC}"
+    if [ "$SIGNING_IDENTITY" = "-" ]; then
+        codesign --force --deep --sign - "$APP_BUNDLE"
+        echo "Signed with ad hoc identity for local use."
+    else
+        codesign --force --deep --options runtime \
+            --entitlements "$ENTITLEMENTS_PATH" \
+            --sign "$SIGNING_IDENTITY" \
+            "$APP_BUNDLE"
+        echo "Signed with identity: $SIGNING_IDENTITY"
+    fi
+
+    echo -e "\n${YELLOW}To run the app:${NC}"
+    echo "  open $APP_BUNDLE"
+
+    echo -e "\n${YELLOW}To install to Applications:${NC}"
+    echo "  cp -r $APP_BUNDLE /Applications/"
+else
+    echo -e "${RED}❌ Build failed!${NC}"
     exit 1
 fi
-
-echo -e "${YELLOW}Compiling Swift code (x86_64)...${NC}"
-swiftc -O -parse-as-library \
-    -target x86_64-apple-macos13.0 \
-    -framework Cocoa \
-    -framework SwiftUI \
-    -o "$BUILD_DIR/${APP_NAME}_x86_64" \
-    Sources/*.swift
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ x86_64 build failed!${NC}"
-    exit 1
-fi
-
-echo -e "${YELLOW}Creating universal binary...${NC}"
-lipo -create \
-    "$BUILD_DIR/${APP_NAME}_arm64" \
-    "$BUILD_DIR/${APP_NAME}_x86_64" \
-    -output "$BUILD_DIR/${APP_NAME}.app/Contents/MacOS/${APP_NAME}"
-
-rm "$BUILD_DIR/${APP_NAME}_arm64" "$BUILD_DIR/${APP_NAME}_x86_64"
-
-# Make it executable
-chmod +x "$BUILD_DIR/${APP_NAME}.app/Contents/MacOS/${APP_NAME}"
-
-# Ad-hoc codesign with entitlements
-echo -e "${YELLOW}Signing with entitlements...${NC}"
-codesign --force --sign - --entitlements NibNab.entitlements \
-    "$BUILD_DIR/${APP_NAME}.app"
-
-echo -e "${GREEN}✅ Build successful!${NC}"
-echo -e "${GREEN}📦 App created at: $BUILD_DIR/${APP_NAME}.app${NC}"
-
-echo -e "\n${YELLOW}To run the app:${NC}"
-echo "  open $BUILD_DIR/${APP_NAME}.app"
-
-echo -e "\n${YELLOW}To install to Applications:${NC}"
-echo "  cp -r $BUILD_DIR/${APP_NAME}.app /Applications/"
