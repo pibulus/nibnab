@@ -34,7 +34,12 @@ if [ ! -d "$APP_BUNDLE" ]; then
     exit 1
 fi
 
-VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_BUNDLE/Contents/Info.plist")
+VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null)
+if [ -z "$VERSION" ]; then
+    echo -e "${RED}❌ Failed to read version from Info.plist${NC}"
+    exit 1
+fi
+
 DMG_PATH="${RELEASE_DIR}/${APP_NAME}-${VERSION}.dmg"
 
 mkdir -p "$RELEASE_DIR"
@@ -46,20 +51,30 @@ cleanup() {
 }
 trap cleanup EXIT
 
-ditto "$APP_BUNDLE" "$STAGING_DIR/${APP_NAME}.app"
+if ! ditto "$APP_BUNDLE" "$STAGING_DIR/${APP_NAME}.app"; then
+    echo -e "${RED}❌ Failed to copy app bundle to staging directory${NC}"
+    exit 1
+fi
+
 ln -s /Applications "$STAGING_DIR/Applications"
 
 echo -e "${YELLOW}Creating DMG image...${NC}"
-hdiutil create \
+if ! hdiutil create \
     -volname "$VOLUME_NAME" \
     -srcfolder "$STAGING_DIR" \
     -ov \
     -format UDZO \
-    "$DMG_PATH"
+    "$DMG_PATH"; then
+    echo -e "${RED}❌ DMG creation failed${NC}"
+    exit 1
+fi
 
 if [ -n "$SIGNING_IDENTITY" ]; then
     echo -e "${YELLOW}Signing DMG...${NC}"
-    codesign --force --sign "$SIGNING_IDENTITY" "$DMG_PATH"
+    if ! codesign --force --sign "$SIGNING_IDENTITY" "$DMG_PATH"; then
+        echo -e "${RED}❌ DMG signing failed${NC}"
+        exit 1
+    fi
 else
     echo -e "${YELLOW}No SIGNING_IDENTITY set. DMG is for local testing only.${NC}"
 fi
@@ -71,16 +86,21 @@ if [ -n "$NOTARY_PROFILE" ]; then
     fi
 
     echo -e "${YELLOW}Submitting DMG for notarization...${NC}"
-    xcrun notarytool submit "$DMG_PATH" \
+    if ! xcrun notarytool submit "$DMG_PATH" \
         --keychain-profile "$NOTARY_PROFILE" \
-        --wait
+        --wait; then
+        echo -e "${RED}❌ Notarization submission failed${NC}"
+    fi
 
     echo -e "${YELLOW}Stapling notarization ticket...${NC}"
-    xcrun stapler staple "$DMG_PATH"
+    xcrun stapler staple "$DMG_PATH" || true
 fi
 
 echo -e "${YELLOW}Verifying DMG checksum and mountability...${NC}"
-hdiutil verify "$DMG_PATH"
+if ! hdiutil verify "$DMG_PATH"; then
+    echo -e "${RED}❌ DMG verification failed${NC}"
+    exit 1
+fi
 
 echo -e "${GREEN}✅ DMG created at ${DMG_PATH}${NC}"
 

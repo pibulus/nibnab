@@ -5,7 +5,7 @@
 # Compiles the Swift app into a macOS application bundle
 # ===================================================================
 
-set -e
+set -euo pipefail
 
 APP_NAME="NibNab"
 BUNDLE_ID="com.pibulus.nibnab"
@@ -94,20 +94,15 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
 </plist>
 EOF
 
-# Copy entitlements
-cp NibNab.entitlements "$APP_BUNDLE/Contents/"
-
 # Compile Swift
 echo -e "${YELLOW}Compiling Swift code...${NC}"
-swiftc -O -parse-as-library \
+if swiftc -O -parse-as-library \
     -target arm64-apple-macos13.0 \
     -framework Cocoa \
     -framework SwiftUI \
     -o "$APP_BUNDLE/Contents/MacOS/${APP_NAME}" \
-    Sources/*.swift
+    Sources/*.swift; then
 
-# Check if compilation was successful
-if [ $? -eq 0 ]; then
     echo -e "${GREEN}✅ Build successful!${NC}"
     echo -e "${GREEN}📦 App created at: $APP_BUNDLE${NC}"
 
@@ -116,10 +111,10 @@ if [ $? -eq 0 ]; then
 
     echo -e "${YELLOW}Signing app bundle...${NC}"
     if [ "$SIGNING_IDENTITY" = "-" ]; then
-        codesign --force --deep --sign - "$APP_BUNDLE"
+        codesign --force --sign - --entitlements "$ENTITLEMENTS_PATH" "$APP_BUNDLE"
         echo "Signed with ad hoc identity for local use."
     else
-        codesign --force --deep --options runtime \
+        codesign --force --options runtime \
             --entitlements "$ENTITLEMENTS_PATH" \
             --sign "$SIGNING_IDENTITY" \
             "$APP_BUNDLE"

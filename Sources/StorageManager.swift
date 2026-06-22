@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import OSLog
 
+@MainActor
 final class StorageManager {
     private static let maxClipsPerColor = 100
 
@@ -36,12 +37,6 @@ final class StorageManager {
         createColorDirectories()
     }
 
-    func saveClip(_ clip: Clip, to colorName: String) {
-        let clipsToPersist = Array(([clip] + loadClips(for: colorName))
-            .prefix(Self.maxClipsPerColor))
-        rewriteClips(clipsToPersist, for: colorName)
-    }
-
     func deleteAllClips(for colorName: String) {
         let fileURL = clipFileURL(for: colorName)
         do {
@@ -51,11 +46,6 @@ final class StorageManager {
         } catch {
             self.logger.error("Failed deleting clip file \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
-    }
-
-    func deleteClip(_ clip: Clip, from colorName: String) {
-        let remainingClips = loadClips(for: colorName).filter { $0.id != clip.id }
-        rewriteClips(remainingClips, for: colorName)
     }
 
     func rewriteClips(_ clips: [Clip], for colorName: String) {

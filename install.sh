@@ -5,7 +5,7 @@
 # Builds and installs NibNab to Applications, kills old version
 # ===================================================================
 
-set -e
+set -euo pipefail
 
 APP_NAME="NibNab"
 BUILD_DIR="build"
@@ -32,6 +32,10 @@ fi
 
 # Build the app
 echo -e "${YELLOW}🔨 Building $APP_NAME...${NC}"
+if [ ! -x ./build.sh ]; then
+    echo -e "${RED}❌ build.sh not found or not executable${NC}"
+    exit 1
+fi
 ./build.sh
 
 if [ ! -d "$BUILD_DIR/${APP_NAME}.app" ]; then
@@ -39,22 +43,35 @@ if [ ! -d "$BUILD_DIR/${APP_NAME}.app" ]; then
     exit 1
 fi
 
-# Remove old version if it exists
-if [ -d "$INSTALL_PATH/${APP_NAME}.app" ]; then
-    echo -e "${YELLOW}🗑️  Removing old version...${NC}"
-    rm -rf "$INSTALL_PATH/${APP_NAME}.app"
-fi
+# Check for write permission to /Applications
+if [ ! -w "$INSTALL_PATH" ]; then
+    echo -e "${YELLOW}🔐 Admin privileges required to install to $INSTALL_PATH${NC}"
+    echo -e "${CYAN}Requesting permission...${NC}"
 
-# Install new version
-echo -e "${YELLOW}📦 Installing to $INSTALL_PATH...${NC}"
-cp -r "$BUILD_DIR/${APP_NAME}.app" "$INSTALL_PATH/"
+    # Remove old version if it exists
+    if [ -d "$INSTALL_PATH/${APP_NAME}.app" ]; then
+        echo -e "${YELLOW}🗑️  Removing old version...${NC}"
+        sudo rm -rf "$INSTALL_PATH/${APP_NAME}.app"
+    fi
+
+    sudo cp -r "$BUILD_DIR/${APP_NAME}.app" "$INSTALL_PATH/"
+else
+    # Remove old version if it exists
+    if [ -d "$INSTALL_PATH/${APP_NAME}.app" ]; then
+        echo -e "${YELLOW}🗑️  Removing old version...${NC}"
+        rm -rf "$INSTALL_PATH/${APP_NAME}.app"
+    fi
+
+    echo -e "${YELLOW}📦 Installing to $INSTALL_PATH...${NC}"
+    cp -r "$BUILD_DIR/${APP_NAME}.app" "$INSTALL_PATH/"
+fi
 
 echo ""
 echo -e "${GREEN}✅ Installation complete!${NC}"
 echo ""
 echo -e "${CYAN}🎯 Quick Start:${NC}"
 echo -e "  • Launch from Spotlight: ${YELLOW}Cmd+Space${NC} → type '${YELLOW}nibnab${NC}'"
-echo -e "  • Global shortcut: ${YELLOW}Cmd+Shift+V${NC} to open anywhere"
+echo -e "  • Global shortcut: ${YELLOW}Cmd+Ctrl+N${NC} to open anywhere"
 echo -e "  • Look for ${YELLOW}highlighter icon${NC} in menubar"
 echo ""
 echo -e "${CYAN}⚙️  Settings in menubar:${NC}"

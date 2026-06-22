@@ -257,11 +257,11 @@ struct ContentHeaderView: View {
             } message: {
                 Text("Choose how you want to export the \(appState.clips[appState.viewedColor.name]?.count ?? 0) clips in this collection.")
             }
-            .onChange(of: hasExportableClips) { available in
+            .onChange(of: hasExportableClips, perform: { available in
                 if !available {
                     showExportDialog = false
                 }
-            }
+            })
 
             Divider()
                 .frame(height: 18)
@@ -379,13 +379,13 @@ struct ContentFooterView: View {
                 .help("Click to rename")
             }
         }
-        .onChange(of: appState.activeColor.name) { _ in
+        .onChange(of: appState.activeColor.name, perform: { _ in
             // Cancel editing when switching colors to prevent label bleeding
             if editingLabel {
                 editingLabel = false
                 labelFocused.wrappedValue = false
             }
-        }
+        })
     }
 }
 

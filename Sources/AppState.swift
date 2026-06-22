@@ -191,8 +191,9 @@ class AppState: ObservableObject {
 
     func playSound(_ name: String) {
         guard soundEffectsEnabled else { return }
+        guard let sound = NSSound(named: name) else { return }
         DispatchQueue.global(qos: .userInitiated).async {
-            NSSound(named: name)?.play()
+            sound.play()
         }
     }
 

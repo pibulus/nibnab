@@ -410,7 +410,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         aboutWindow.contentViewController = hostingController
         aboutWindow.setContentSize(aboutSize)
         aboutWindow.center()
-        aboutWindow.isReleasedWhenClosed = false
+        aboutWindow.isReleasedWhenClosed = true
         aboutWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }

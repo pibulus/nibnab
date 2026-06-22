@@ -16,3 +16,21 @@ xcuserdata/
 
 # Local storage
 .nibnab/
+
+# Editor swap/temp files
+*.swp
+*.swo
+*.tmp
+*.bak
+*~
+
+# IDE
+.vscode/
+.idea/
+
+# Debug symbols
+*.dSYM.zip
+*.dSYM/
+
+# Archives
+*.xcarchive
