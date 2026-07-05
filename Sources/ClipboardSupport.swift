@@ -54,7 +54,8 @@ extension AXUIElement {
 class AutoCopyMonitor {
     private var timer: Timer?
     private var permissionPollTimer: Timer?
-    private var lastSelectedText: String?
+    private var lastCapturedSelection: String?
+    private var pendingSelection: String?
     private let selectionHandler: (String) -> Void
 
     init(onTextSelected: @escaping (String) -> Void) {
@@ -90,15 +91,24 @@ class AutoCopyMonitor {
         timer = nil
         permissionPollTimer?.invalidate()
         permissionPollTimer = nil
-        lastSelectedText = nil
+        lastCapturedSelection = nil
+        pendingSelection = nil
     }
 
     private func checkForSelectedText() {
         guard let selectedText = AXUIElement.focusedElement?.selectedText,
               !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              selectedText != lastSelectedText else { return }
+              selectedText != lastCapturedSelection else { return }
 
-        lastSelectedText = selectedText
+        // Debounce: only capture once the selection has held steady for a
+        // full poll cycle, so drag-selecting doesn't spray partial clips.
+        guard selectedText == pendingSelection else {
+            pendingSelection = selectedText
+            return
+        }
+
+        pendingSelection = nil
+        lastCapturedSelection = selectedText
 
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
