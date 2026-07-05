@@ -174,7 +174,7 @@ Third clip...
 
 ## Where Your Data Lives
 
-All clips are saved locally at:
+All clips are saved locally in the app's Application Support folder (for sandboxed builds this lives inside `~/Library/Containers/com.pibulus.nibnab/Data`):
 ```
 ~/Library/Application Support/com.pibulus.nibnab/
 ```

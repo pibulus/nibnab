@@ -73,7 +73,7 @@ Right-click the menubar icon to access:
 
 **PRIVACY FIRST**
 
-• Everything stored locally in ~/Library/Application Support/com.pibulus.nibnab/
+• Everything stored locally in the app's local Application Support folder
 • Plain markdown files you can read and edit
 • No cloud sync, no accounts, no tracking
 • Zero network requests
@@ -162,7 +162,7 @@ TECHNICAL:
 • Native Swift/SwiftUI
 • Apple Silicon optimized
 • Small native codebase
-• Markdown storage in ~/Library/Application Support/com.pibulus.nibnab/
+• Markdown storage in the app's local Application Support folder
 • No external dependencies
 
 This is v1.0 because it does what it says. No beta, no "coming soon" features, no incomplete implementations. It's done, it works, and it's ready.
@@ -192,7 +192,7 @@ NibNab does not share any data with third parties.
 **Data Stored Locally:**
 All clipboard content is stored locally on your Mac in:
 • Plain text markdown files
-• Located at ~/Library/Application Support/com.pibulus.nibnab/
+• Located at the app's local Application Support folder
 • Never transmitted over network
 • User has full control and ownership
 
@@ -241,7 +241,7 @@ https://github.com/pibulus/nibnab
 • App can function fully without this permission using Cmd+C capture
 
 **Privacy:**
-• All data stored locally in ~/Library/Application Support/com.pibulus.nibnab/
+• All data stored locally in the app's local Application Support folder
 • No network requests made
 • No analytics or telemetry
 • No third-party SDKs or frameworks
@@ -250,7 +250,7 @@ https://github.com/pibulus/nibnab
 Not required - no login functionality
 
 **Demo Content:**
-App starts empty. Copy text to populate clips. Sample markdown files can be found in ~/Library/Application Support/com.pibulus.nibnab/ after first use.
+App starts empty. Copy text to populate clips. Sample markdown files can be found in the app's local Application Support folder after first use.
 
 ---
 

@@ -58,7 +58,7 @@ Side-by-side screenshots or animated walkthrough
 Monitors clipboard changes and text selections. Saves automatically to your active color. No interruptions, no decisions.
 
 #### Color Organization
-Four highlighter colors for categorizing clips. Organize by project, type, or whatever makes sense to you.
+Five highlighter colors for categorizing clips. Organize by project, type, or whatever makes sense to you.
 
 #### Powerful Search
 Find any clip instantly. Search across text and source apps. Sort by date, app, or length.
@@ -147,7 +147,7 @@ If you copy things and want to find them later, NibNab is for you.
 - **No dependencies** - Just you, your Mac, and the clipboard
 - **Local storage** - Plain markdown in `~/Library/Application Support/com.pibulus.nibnab/`
 - **Apple Silicon optimized** - Fast on M1/M2/M3 Macs
-- **Single file** - ~1200 lines of readable code
+- **Small codebase** - a handful of focused Swift files
 
 ### Requirements
 - macOS 13.0 or later
@@ -310,7 +310,7 @@ Hey r/macapps! I built a clipboard manager that might not annoy you.
 - Cost money (free forever)
 - Require an account
 
-**Tech:** Native Swift/SwiftUI, macOS 13.0+, single file (~1200 lines)
+**Tech:** Native Swift/SwiftUI, macOS 13.0+, small modular codebase
 
 **Storage:** Plain markdown in ~/Library/Application Support/com.pibulus.nibnab/ - you own your data
 
@@ -335,7 +335,7 @@ Color-coded clipboard manager for macOS that respects your privacy
 NibNab captures everything you copy and organizes it into five color-coded collections. Export as Markdown or Plain Text. Everything stored locally—no cloud, no tracking. Free, open source, built with Swift for macOS 13+.
 
 ### Description (100 words)
-NibNab is a menubar clipboard manager that captures everything you copy and organizes it by color. Four highlighter colors let you categorize clips by project, type, or whatever makes sense. Search across all clips, sort by date or app, export as Markdown or Plain Text. Built with Swift/SwiftUI for macOS 13+, it stores everything locally in plain markdown files—no cloud sync, no tracking, no accounts. Part of the anti-scale movement: tools that do one thing well and respect your privacy. Free and open source.
+NibNab is a menubar clipboard manager that captures everything you copy and organizes it by color. Five highlighter colors let you categorize clips by project, type, or whatever makes sense. Search across all clips, sort by date or app, export as Markdown or Plain Text. Built with Swift/SwiftUI for macOS 13+, it stores everything locally in plain markdown files—no cloud sync, no tracking, no accounts. Part of the anti-scale movement: tools that do one thing well and respect your privacy. Free and open source.
 
 ### Key Features Bullet Points
 - Color-coded organization (5 highlighter colors)

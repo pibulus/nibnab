@@ -89,9 +89,9 @@ Use them however you want - they're just colors!
 
 ## 📁 Storage
 
-All clips saved to: `~/Library/Application Support/com.pibulus.nibnab/[color-name]/`
+All clips saved to: `<Application Support>/com.pibulus.nibnab/[color-name]/` (inside `~/Library/Containers/com.pibulus.nibnab/Data` for sandboxed builds)
 
-Each clip is a markdown file with:
+Each color keeps one markdown file; each clip section has:
 - Timestamp (stored in UTC)
 - Source app name
 - The selected text

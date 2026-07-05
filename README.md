@@ -62,8 +62,8 @@ Pick your active color, copy text, it's saved forever (or until you delete it).
 - Toggle in settings menu
 
 ### ✅ Privacy First
-- Everything stored locally in `~/Library/Application Support/com.pibulus.nibnab/`
-- Markdown files you can read/edit
+- Everything stored locally as markdown files you can read/edit
+- Skips anything marked concealed by password managers (never captures your passwords)
 - No cloud, no sync, no tracking
 - You own your data
 
@@ -95,14 +95,16 @@ That's it. No signup, no account, no BS.
 ## Keyboard Shortcuts
 
 - **Cmd+Ctrl+N** - Toggle NibNab window
+- **Cmd+Ctrl+M** - Toggle auto-capture on/off
+- **Cmd+Ctrl+1…5** - Switch active color (yellow, orange, pink, purple, green)
 - **Cmd+C** - Auto-captures to active color
 - **Right-click menubar** - Settings & color picker
 
 ## Storage
 
-Everything lives in `~/Library/Application Support/com.pibulus.nibnab/` as markdown files:
+Everything lives in the app's Application Support folder as markdown files:
 ```
-~/Library/Application Support/com.pibulus.nibnab/
+com.pibulus.nibnab/
 ├── highlighter yellow/
 │   └── highlighter yellow_clips.md
 ├── highlighter orange/
@@ -114,6 +116,8 @@ Everything lives in `~/Library/Application Support/com.pibulus.nibnab/` as markd
 └── highlighter green/
     └── highlighter green_clips.md
 ```
+
+That's `~/Library/Application Support/com.pibulus.nibnab/` for non-sandboxed builds, or `~/Library/Containers/com.pibulus.nibnab/Data/Library/Application Support/com.pibulus.nibnab/` when built with the sandbox entitlements (the current default).
 
 No database. No complexity. You own your data.
 
