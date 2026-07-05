@@ -584,15 +584,10 @@ struct ContentView: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 8) {
                 if !sortedClips.isEmpty {
-                    ForEach(Array(sortedClips.enumerated()), id: \.element.id) { index, clip in
+                    ForEach(sortedClips) { clip in
                         ClipView(clip: clip)
                             .onTapGesture {
                                 selectedClip = clip
-                            }
-                            .dropDestination(for: Clip.self) { droppedClips, _ in
-                                guard let droppedClip = droppedClips.first else { return false }
-                                appState.reorderClip(droppedClip, in: appState.viewedColor.name, to: index)
-                                return true
                             }
                             .contextMenu {
                                 Button(action: {
@@ -627,19 +622,25 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
+    private var isSearchingWithNoMatches: Bool {
+        !searchText.isEmpty && !(appState.clips[appState.viewedColor.name] ?? []).isEmpty
+    }
+
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "doc.on.clipboard")
+            Image(systemName: isSearchingWithNoMatches ? "magnifyingglass" : "doc.on.clipboard")
                 .font(.system(size: 64, weight: .light))
                 .foregroundColor(Color.white.opacity(0.3))
 
             VStack(spacing: 8) {
-                Text("Nothing nabbed yet")
+                Text(isSearchingWithNoMatches ? "No matches" : "Nothing nabbed yet")
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundColor(Color.white.opacity(0.8))
-                Text("Copy something good")
+                Text(isSearchingWithNoMatches ? "Nothing here matches \"\(searchText)\"" : "Copy something good")
                     .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundColor(Color.white.opacity(0.5))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
         }
         .frame(maxWidth: .infinity)
@@ -722,35 +723,6 @@ struct ColorDropTarget: View {
                 isHovered = hovering
             }
         }
-    }
-}
-
-// MARK: - Color Tab Component
-struct ColorTab: View {
-    let color: NibColor
-    let isSelected: Bool
-    let isHovered: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Circle()
-                .fill(Color(color.nsColor))
-                .frame(width: 32, height: 32)
-                .overlay(
-                    Circle()
-                        .stroke(Color.white, lineWidth: isSelected ? 4 : (isHovered ? 2 : 0))
-                )
-                .overlay(
-                    // Selected indicator - inner ring
-                    Circle()
-                        .stroke(Color.black.opacity(0.2), lineWidth: isSelected ? 2 : 0)
-                        .frame(width: 24, height: 24)
-                )
-                .scaleEffect(isHovered ? 1.15 : (isSelected ? 1.1 : 1.0))
-                .shadow(color: isSelected ? Color.black.opacity(0.3) : (isHovered ? Color.black.opacity(0.1) : Color.clear), radius: isSelected ? 4 : 2, x: 0, y: 2)
-        }
-        .buttonStyle(.plain)
     }
 }
 

@@ -16,8 +16,7 @@ struct NibNabApp: App {
 }
 
 @MainActor
-class AppDelegate: NSObject, NSApplicationDelegate {
-    static weak var shared: AppDelegate?
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var statusItem: NSStatusItem!
     var popover = NSPopover()
     var appState: AppState!
@@ -27,6 +26,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 7)
     private var statusToastWindow: NSPanel?
     private var statusToastWorkItem: DispatchWorkItem?
+    private var welcomeWindow: NSWindow?
+    private var aboutWindow: NSWindow?
 
     func applicationWillTerminate(_ notification: Notification) {
         appState?.stopClipboardMonitoring()
@@ -38,8 +39,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        AppDelegate.shared = self
-
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
@@ -373,50 +372,83 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showWelcomeWindow() {
-        let welcomeView = WelcomeView(onDismiss: {
-            NSApp.keyWindow?.close()
+        if let welcomeWindow {
+            welcomeWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let welcomeView = WelcomeView(onDismiss: { [weak self] in
+            self?.welcomeWindow?.close()
         })
         .environmentObject(appState)
 
-        let hostingController = NSHostingController(rootView: welcomeView)
-
-        let welcomeWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 460, height: 480),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
+        welcomeWindow = makeAuxiliaryWindow(
+            title: "Welcome to NibNab",
+            contentViewController: NSHostingController(rootView: welcomeView),
+            size: NSSize(width: 460, height: 480)
         )
-        welcomeWindow.title = "Welcome to NibNab"
-        welcomeWindow.contentViewController = hostingController
-        welcomeWindow.center()
-        welcomeWindow.isReleasedWhenClosed = true
-        welcomeWindow.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc func showAbout() {
-        let aboutView = AboutView()
-        let hostingController = NSHostingController(rootView: aboutView)
+        if let aboutWindow {
+            aboutWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
         let aboutSize = NSSize(width: 520, height: 620)
+        let hostingController = NSHostingController(rootView: AboutView())
         hostingController.preferredContentSize = aboutSize
 
-        let aboutWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: aboutSize.width, height: aboutSize.height),
+        aboutWindow = makeAuxiliaryWindow(
+            title: "About NibNab",
+            contentViewController: hostingController,
+            size: aboutSize
+        )
+    }
+
+    // Windows created in Swift must keep isReleasedWhenClosed = false — AppKit's
+    // extra release on close plus ARC's own release over-releases and crashes.
+    // The delegate holds the strong reference and drops it in windowWillClose.
+    private func makeAuxiliaryWindow(
+        title: String,
+        contentViewController: NSViewController,
+        size: NSSize
+    ) -> NSWindow {
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
-        aboutWindow.title = "About NibNab"
-        aboutWindow.contentViewController = hostingController
-        aboutWindow.setContentSize(aboutSize)
-        aboutWindow.center()
-        aboutWindow.isReleasedWhenClosed = true
-        aboutWindow.makeKeyAndOrderFront(nil)
+        window.title = title
+        window.contentViewController = contentViewController
+        window.setContentSize(size)
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.delegate = self
+
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        return window
     }
 
     @objc func quitApp() {
         NSApp.terminate(nil)
+    }
+
+    // MARK: - NSWindowDelegate
+
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        // The deferred release below lets AppKit finish its close teardown
+        // before ARC drops the last reference.
+        if window == welcomeWindow {
+            DispatchQueue.main.async { [weak self] in self?.welcomeWindow = nil }
+        } else if window == aboutWindow {
+            DispatchQueue.main.async { [weak self] in self?.aboutWindow = nil }
+        }
     }
 
     private func registerGlobalShortcut() {
