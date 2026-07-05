@@ -13,7 +13,9 @@ VERSION="1.0.0"
 BUILD_DIR="build"
 APP_BUNDLE="$BUILD_DIR/${APP_NAME}.app"
 SIGNING_IDENTITY="${SIGNING_IDENTITY:--}"
-ENTITLEMENTS_PATH="NibNab.entitlements"
+# Overridable so build-dmg.sh can use the dev entitlements (which include the
+# legacy ~/.nibnab migration exception). Default is the App Store set.
+ENTITLEMENTS_PATH="${ENTITLEMENTS_PATH:-NibNab.entitlements}"
 
 # Colors for output
 GREEN='\033[0;32m'
