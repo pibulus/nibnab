@@ -24,6 +24,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var autoCopyMonitor: AutoCopyMonitor?
     private var localKeyMonitor: Any?
     private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 7)
+    private var hotKeyHandlerRef: EventHandlerRef?
     private var statusToastWindow: NSPanel?
     private var statusToastWorkItem: DispatchWorkItem?
     private var welcomeWindow: NSWindow?
@@ -36,6 +37,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let monitor = localKeyMonitor {
             NSEvent.removeMonitor(monitor)
         }
+        for ref in hotKeyRefs {
+            if let ref { UnregisterEventHotKey(ref) }
+        }
+        if let hotKeyHandlerRef { RemoveEventHandler(hotKeyHandlerRef) }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -82,16 +87,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         registerGlobalShortcut()
 
-        if appState.launchAtLogin {
-            try? SMAppService.mainApp.register()
-        }
-
-        autoCopyMonitor = AutoCopyMonitor { [weak self] selectedText in
-            guard let self = self else { return }
-            self.appState.suppressNextClipboardCapture = true
-            let sourceApp = self.appState.getCurrentAppName()
-            self.appState.saveClip(selectedText, to: self.appState.activeColor, from: sourceApp)
-            self.pulseMenubarIcon()
+        // Selection capture needs the Accessibility API, which sandboxed
+        // (App Store) builds can never be granted — don't even create the
+        // monitor there, so no dead permission prompt ever shows.
+        if !SandboxInfo.isSandboxed {
+            autoCopyMonitor = AutoCopyMonitor { [weak self] selectedText in
+                guard let self = self else { return }
+                self.appState.suppressNextClipboardCapture = true
+                let sourceApp = self.appState.getCurrentAppName()
+                self.appState.saveClip(selectedText, to: self.appState.activeColor, from: sourceApp)
+                self.pulseMenubarIcon()
+            }
         }
 
         if appState.isMonitoring {
@@ -316,6 +322,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         autoCaptureItem.toolTip = "Keyboard shortcut: ⌘⌃M"
         menu.addItem(autoCaptureItem)
 
+        // Only offered where the Accessibility API can actually work
+        // (non-sandboxed builds).
+        if autoCopyMonitor != nil {
+            let selectionItem = NSMenuItem(
+                title: "Capture Text Selections",
+                action: #selector(toggleSelectionCapture),
+                keyEquivalent: ""
+            )
+            selectionItem.state = appState.selectionCaptureEnabled ? .on : .off
+            selectionItem.toolTip = "Highlight text in any app to nab it (also copies it to your clipboard)"
+            menu.addItem(selectionItem)
+        }
+
         menu.addItem(NSMenuItem.separator())
 
         let aboutItem = NSMenuItem(
@@ -361,10 +380,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    @objc func toggleSelectionCapture() {
+        appState.selectionCaptureEnabled.toggle()
+    }
+
     func syncSelectionMonitoring() {
         guard autoCopyMonitor != nil else { return }
 
-        if appState.isMonitoring && appState.autoCopyEnabled {
+        if appState.isMonitoring && appState.selectionCaptureEnabled {
             autoCopyMonitor?.start()
         } else {
             autoCopyMonitor?.stop()
@@ -459,75 +482,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let signature = OSType(0x4E42_4E42) // 'NBNB'
 
-        let toggleID = EventHotKeyID(signature: signature, id: 1)
-        RegisterEventHotKey(
-            UInt32(kVK_ANSI_N),
-            UInt32(cmdKey | controlKey),
-            toggleID,
-            GetApplicationEventTarget(),
-            0,
-            &hotKeyRefs[0]
-        )
+        // IDs map to actions in the handler below.
+        let bindings: [(keyCode: Int, id: UInt32, label: String)] = [
+            (kVK_ANSI_N, 1, "⌘⌃N toggle popover"),
+            (kVK_ANSI_1, 2, "⌘⌃1 yellow"),
+            (kVK_ANSI_2, 3, "⌘⌃2 orange"),
+            (kVK_ANSI_3, 4, "⌘⌃3 pink"),
+            (kVK_ANSI_4, 5, "⌘⌃4 purple"),
+            (kVK_ANSI_5, 6, "⌘⌃5 green"),
+            (kVK_ANSI_M, 7, "⌘⌃M toggle capture")
+        ]
 
-        let yellowID = EventHotKeyID(signature: signature, id: 2)
-        RegisterEventHotKey(
-            UInt32(kVK_ANSI_1),
-            UInt32(cmdKey | controlKey),
-            yellowID,
-            GetApplicationEventTarget(),
-            0,
-            &hotKeyRefs[1]
-        )
-
-        let orangeID = EventHotKeyID(signature: signature, id: 3)
-        RegisterEventHotKey(
-            UInt32(kVK_ANSI_2),
-            UInt32(cmdKey | controlKey),
-            orangeID,
-            GetApplicationEventTarget(),
-            0,
-            &hotKeyRefs[2]
-        )
-
-        let pinkID = EventHotKeyID(signature: signature, id: 4)
-        RegisterEventHotKey(
-            UInt32(kVK_ANSI_3),
-            UInt32(cmdKey | controlKey),
-            pinkID,
-            GetApplicationEventTarget(),
-            0,
-            &hotKeyRefs[3]
-        )
-
-        let purpleID = EventHotKeyID(signature: signature, id: 5)
-        RegisterEventHotKey(
-            UInt32(kVK_ANSI_4),
-            UInt32(cmdKey | controlKey),
-            purpleID,
-            GetApplicationEventTarget(),
-            0,
-            &hotKeyRefs[4]
-        )
-
-        let greenID = EventHotKeyID(signature: signature, id: 6)
-        RegisterEventHotKey(
-            UInt32(kVK_ANSI_5),
-            UInt32(cmdKey | controlKey),
-            greenID,
-            GetApplicationEventTarget(),
-            0,
-            &hotKeyRefs[5]
-        )
-
-        let monitoringID = EventHotKeyID(signature: signature, id: 7)
-        RegisterEventHotKey(
-            UInt32(kVK_ANSI_M),
-            UInt32(cmdKey | controlKey),
-            monitoringID,
-            GetApplicationEventTarget(),
-            0,
-            &hotKeyRefs[6]
-        )
+        for (index, binding) in bindings.enumerated() {
+            let hotKeyID = EventHotKeyID(signature: signature, id: binding.id)
+            let status = RegisterEventHotKey(
+                UInt32(binding.keyCode),
+                UInt32(cmdKey | controlKey),
+                hotKeyID,
+                GetApplicationEventTarget(),
+                0,
+                &hotKeyRefs[index]
+            )
+            if status != noErr {
+                // Another app (window managers love ⌘⌃ digits) owns this
+                // combo — the shortcut silently won't fire, so leave a trace.
+                NSLog("NibNab: couldn't register global hotkey %@ (OSStatus %d)", binding.label, status)
+            }
+        }
 
         InstallEventHandler(
             GetApplicationEventTarget(),
@@ -572,7 +553,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             1,
             &eventType,
             Unmanaged.passUnretained(self).toOpaque(),
-            nil
+            &hotKeyHandlerRef
         )
     }
 }

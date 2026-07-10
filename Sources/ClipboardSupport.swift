@@ -1,6 +1,14 @@
 import Cocoa
 import ApplicationServices
 
+// The App Store build runs sandboxed, where the Accessibility API is dead on
+// arrival: the permission prompt never appears, the app can't be added in
+// System Settings, and AXIsProcessTrusted can never become true. Selection
+// capture is disabled entirely in sandboxed builds — clipboard capture only.
+enum SandboxInfo {
+    static let isSandboxed = ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil
+}
+
 class EventMonitor {
     private var monitor: Any?
     private let mask: NSEvent.EventTypeMask
@@ -34,6 +42,11 @@ extension AXUIElement {
 
     var selectedText: String? {
         rawValue(for: kAXSelectedTextAttribute) as? String
+    }
+
+    var ownerPID: pid_t? {
+        var pid: pid_t = 0
+        return AXUIElementGetPid(self, &pid) == .success ? pid : nil
     }
 
     private static var systemWide = AXUIElementCreateSystemWide()
@@ -96,7 +109,13 @@ class AutoCopyMonitor {
     }
 
     private func checkForSelectedText() {
-        guard let selectedText = AXUIElement.focusedElement?.selectedText,
+        guard let focusedElement = AXUIElement.focusedElement else { return }
+
+        // Never capture selections made inside NibNab's own UI (edit modals,
+        // search field) — that would re-save clips and clobber the clipboard.
+        if focusedElement.ownerPID == ProcessInfo.processInfo.processIdentifier { return }
+
+        guard let selectedText = focusedElement.selectedText,
               !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               selectedText != lastCapturedSelection else { return }
 

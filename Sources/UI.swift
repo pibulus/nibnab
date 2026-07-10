@@ -394,12 +394,16 @@ struct ContentOverlaysView: View {
     @Binding var selectedClip: Clip?
     @Binding var showAddClipModal: Bool
     @Binding var editingClip: Clip?
+    // The color the open modal belongs to, captured when it was opened —
+    // a ⌘⌃1-5 hotkey can change viewedColor while a modal is up, and
+    // saving/deleting against the new color would hit the wrong file.
+    let modalColorName: String
 
     var body: some View {
         Group {
             if let clip = selectedClip {
                 overlayBackground {
-                    ClipDetailView(clip: clip) {
+                    ClipDetailView(clip: clip, colorName: modalColorName) {
                         withAnimation {
                             selectedClip = nil
                         }
@@ -439,7 +443,7 @@ struct ContentOverlaysView: View {
                             }
                         },
                         onSave: { newText in
-                            appState.updateClip(clip, newText: newText, in: appState.viewedColor.name)
+                            appState.updateClip(clip, newText: newText, in: modalColorName)
                             withAnimation {
                                 editingClip = nil
                             }
@@ -486,6 +490,7 @@ struct ContentView: View {
     @State private var showAddClipModal = false
     @State private var showExportDialog = false
     @State private var editingClip: Clip?
+    @State private var modalColorName = ""
     @FocusState private var labelFocused: Bool
 
     enum SortOrder {
@@ -549,7 +554,8 @@ struct ContentView: View {
             ContentOverlaysView(
                 selectedClip: $selectedClip,
                 showAddClipModal: $showAddClipModal,
-                editingClip: $editingClip
+                editingClip: $editingClip,
+                modalColorName: modalColorName
             )
             .environmentObject(appState)
             toastOverlay
@@ -587,6 +593,7 @@ struct ContentView: View {
                     ForEach(sortedClips) { clip in
                         ClipView(clip: clip)
                             .onTapGesture {
+                                modalColorName = appState.viewedColor.name
                                 selectedClip = clip
                             }
                             .contextMenu {
@@ -597,6 +604,7 @@ struct ContentView: View {
                                 }
 
                                 Button(action: {
+                                    modalColorName = appState.viewedColor.name
                                     editingClip = clip
                                 }) {
                                     Label("Edit", systemImage: "pencil")
@@ -1076,6 +1084,7 @@ struct AddClipModal: View {
 struct ClipDetailView: View {
     private static let detailSize = CGSize(width: 560, height: 420)
     let clip: Clip
+    let colorName: String
     let onDismiss: () -> Void
     @EnvironmentObject var appState: AppState
     @State private var copyHovered = false
@@ -1083,8 +1092,9 @@ struct ClipDetailView: View {
     @State private var editedText: String
     @State private var originalText: String
 
-    init(clip: Clip, onDismiss: @escaping () -> Void) {
+    init(clip: Clip, colorName: String, onDismiss: @escaping () -> Void) {
         self.clip = clip
+        self.colorName = colorName
         self.onDismiss = onDismiss
         _editedText = State(initialValue: clip.text)
         _originalText = State(initialValue: clip.text)
@@ -1172,7 +1182,7 @@ struct ClipDetailView: View {
                 Button(action: {
                     onDismiss()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        appState.deleteClip(clip, from: appState.viewedColor.name)
+                        appState.deleteClip(clip, from: colorName)
                     }
                 }) {
                     Image(systemName: "trash")
@@ -1219,7 +1229,7 @@ struct ClipDetailView: View {
 
     private func saveChangesIfNeeded() {
         guard canSave else { return }
-        appState.updateClip(clip, newText: editedText, in: appState.viewedColor.name)
+        appState.updateClip(clip, newText: editedText, in: colorName)
         originalText = editedText
     }
 }
@@ -1227,6 +1237,11 @@ struct ClipDetailView: View {
 // MARK: - About View
 struct AboutView: View {
     @State private var hoveredShortcut: Int? = nil
+
+    private var versionText: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        return "Version \(version)"
+    }
 
     var body: some View {
         ScrollView {
@@ -1243,7 +1258,7 @@ struct AboutView: View {
                             .font(.system(size: 32, weight: .black, design: .rounded))
                             .foregroundColor(.primary)
 
-                        Text("Version 1.0.0")
+                        Text(versionText)
                             .font(.system(size: 13, weight: .medium, design: .monospaced))
                             .foregroundColor(.secondary)
                     }

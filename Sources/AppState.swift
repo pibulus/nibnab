@@ -19,13 +19,24 @@ class AppState: ObservableObject {
     }
     @Published var launchAtLogin = false {
         didSet {
-            if launchAtLogin {
-                try? SMAppService.mainApp.register()
-            } else {
-                try? SMAppService.mainApp.unregister()
+            guard !isSyncingLaunchAtLogin, launchAtLogin != oldValue else { return }
+            do {
+                if launchAtLogin {
+                    try SMAppService.mainApp.register()
+                } else {
+                    try SMAppService.mainApp.unregister()
+                }
+            } catch {
+                // register/unregister fails for builds run outside /Applications —
+                // snap the toggle back to what the system actually has instead
+                // of showing a checkbox that lies.
+                isSyncingLaunchAtLogin = true
+                launchAtLogin = SMAppService.mainApp.status == .enabled
+                isSyncingLaunchAtLogin = false
             }
         }
     }
+    private var isSyncingLaunchAtLogin = false
     @Published var soundEffectsEnabled: Bool {
         didSet {
             UserDefaults.standard.set(soundEffectsEnabled, forKey: "soundEffectsEnabled")
@@ -66,8 +77,11 @@ class AppState: ObservableObject {
     private var toastGate = ToastGate()
     private let storageManager = StorageManager()
 
-    var autoCopyEnabled: Bool {
-        UserDefaults.standard.object(forKey: "autoCopyEnabled") as? Bool ?? true
+    @Published var selectionCaptureEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(selectionCaptureEnabled, forKey: "autoCopyEnabled")
+            delegate?.syncSelectionMonitoring()
+        }
     }
 
     init() {
@@ -84,10 +98,8 @@ class AppState: ObservableObject {
 
         soundEffectsEnabled = UserDefaults.standard.object(forKey: "soundEffectsEnabled") as? Bool ?? true
         isMonitoring = UserDefaults.standard.object(forKey: "isMonitoring") as? Bool ?? true
+        selectionCaptureEnabled = UserDefaults.standard.object(forKey: "autoCopyEnabled") as? Bool ?? true
         viewedColor = initialColor
-        if UserDefaults.standard.object(forKey: "autoCopyEnabled") == nil {
-            UserDefaults.standard.set(true, forKey: "autoCopyEnabled")
-        }
 
         if let savedLabels = UserDefaults.standard.dictionary(forKey: "colorLabels") as? [String: String] {
             colorLabels = savedLabels
@@ -236,25 +248,23 @@ class AppState: ObservableObject {
         playSound("Basso")
     }
 
-    func moveClip(_ clip: Clip, from sourceColor: String, to targetColor: String, at index: Int? = nil) {
+    func moveClip(_ clip: Clip, from sourceColor: String, to targetColor: String) {
         clips[sourceColor]?.removeAll { $0.id == clip.id }
 
-        if clips[targetColor] == nil {
-            clips[targetColor] = []
-        }
+        var targetClips = clips[targetColor] ?? []
+        // Insert preserving newest-first order so the cap below always trims
+        // the oldest clip — never the clip the user just moved.
+        let insertionIndex = targetClips.firstIndex { $0.timestamp <= clip.timestamp } ?? targetClips.count
+        targetClips.insert(clip, at: insertionIndex)
 
-        if let index = index, index < clips[targetColor]!.count {
-            clips[targetColor]!.insert(clip, at: index)
-        } else {
-            clips[targetColor]!.append(clip)
+        if targetClips.count > Self.maxClipsPerColor,
+           let dropIndex = targetClips.indices.reversed().first(where: { targetClips[$0].id != clip.id }) {
+            targetClips.remove(at: dropIndex)
         }
-
-        if clips[targetColor]!.count > Self.maxClipsPerColor {
-            clips[targetColor] = Array(clips[targetColor]!.prefix(Self.maxClipsPerColor))
-        }
+        clips[targetColor] = targetClips
 
         storageManager.rewriteClips(clips[sourceColor] ?? [], for: sourceColor)
-        storageManager.rewriteClips(clips[targetColor] ?? [], for: targetColor)
+        storageManager.rewriteClips(targetClips, for: targetColor)
         playSound("Pop")
     }
 

@@ -41,7 +41,11 @@ final class StorageManager {
             self.logger.error("Failed to create storage root at \(self.baseURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
 
-        migrateLegacyStorage()
+        // Only migrate ~/.nibnab into the real storage root — never into a
+        // test/override location (migration deletes the legacy dir on success).
+        if baseURLOverride == nil {
+            migrateLegacyStorage()
+        }
         createColorDirectories()
     }
 
