@@ -2,20 +2,24 @@
 
 # ===================================================================
 # NibNab App Store Build Script
-# Builds, signs with Apple Distribution cert, and creates a .pkg
-# for Mac App Store submission.
+# Builds via build.sh (sandboxed entitlements), embeds the provisioning
+# profile, signs with Apple Distribution, and creates a .pkg signed with
+# the Mac Installer Distribution certificate for App Store submission.
 # ===================================================================
 
 set -euo pipefail
 
 APP_NAME="NibNab"
 BUNDLE_ID="com.pibulus.nibnab"
-VERSION="1.0.0"
+export VERSION="${VERSION:-1.0.0}"
+export BUILD_NUMBER="${BUILD_NUMBER:-1}"   # must increase for every upload
 BUILD_DIR="build"
 APP_BUNDLE="$BUILD_DIR/${APP_NAME}.app"
 ENTITLEMENTS_PATH="NibNab.entitlements"
-SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
+SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"        # "Apple Distribution: Name (TEAMID)"
+INSTALLER_IDENTITY="${INSTALLER_IDENTITY:-}"    # "3rd Party Mac Developer Installer: Name (TEAMID)"
 PROVISIONING_PROFILE="${PROVISIONING_PROFILE:-}"
+TEAM_ID="${TEAM_ID:-}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -36,15 +40,18 @@ if [ -z "$SIGNING_IDENTITY" ]; then
     exit 1
 fi
 
+if [ -z "$INSTALLER_IDENTITY" ]; then
+    echo -e "${RED}❌ INSTALLER_IDENTITY is required.${NC}"
+    echo -e "${YELLOW}The App Store .pkg must be signed with the INSTALLER certificate"
+    echo -e "(portal name \"Mac Installer Distribution\"), not the app certificate:${NC}"
+    echo '  INSTALLER_IDENTITY="3rd Party Mac Developer Installer: Your Name (TEAM_ID)" ./build-appstore.sh'
+    exit 1
+fi
+
 if [ -z "$PROVISIONING_PROFILE" ]; then
     echo -e "${RED}❌ PROVISIONING_PROFILE is required.${NC}"
     echo -e "${YELLOW}Set it to the path of your .provisionprofile file:${NC}"
     echo '  PROVISIONING_PROFILE=~/Downloads/NibNab_AppStore.provisionprofile ./build-appstore.sh'
-    exit 1
-fi
-
-if [ ! -f "$ENTITLEMENTS_PATH" ]; then
-    echo -e "${RED}❌ Missing entitlements file: ${ENTITLEMENTS_PATH}${NC}"
     exit 1
 fi
 
@@ -53,113 +60,61 @@ if [ ! -f "$PROVISIONING_PROFILE" ]; then
     exit 1
 fi
 
-# --- Clean & Build ---
-
-echo -e "${YELLOW}🔨 Building Swift code...${NC}"
-
-# Clean previous build
-rm -rf "$BUILD_DIR"
-
-# Create bundle structure
-mkdir -p "$APP_BUNDLE/Contents/MacOS"
-mkdir -p "$APP_BUNDLE/Contents/Resources"
-
-# Create Info.plist
-cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleExecutable</key>
-    <string>${APP_NAME}</string>
-    <key>CFBundleIdentifier</key>
-    <string>${BUNDLE_ID}</string>
-    <key>CFBundleName</key>
-    <string>${APP_NAME}</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>${VERSION}</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>13.0</string>
-    <key>LSApplicationCategoryType</key>
-    <string>public.app-category.productivity</string>
-    <key>LSUIElement</key>
-    <true/>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSSupportsAutomaticTermination</key>
-    <false/>
-    <key>NSSupportsSuddenTermination</key>
-    <false/>
-    <key>NSAccessibilityUsageDescription</key>
-    <string>NibNab needs accessibility access to auto-capture selected text. You can still use NibNab with just Cmd+C if you deny this permission.</string>
-    <key>UTExportedTypeDeclarations</key>
-    <array>
-        <dict>
-            <key>UTTypeIdentifier</key>
-            <string>com.pibulus.nibnab.clip</string>
-            <key>UTTypeDescription</key>
-            <string>NibNab Clip</string>
-            <key>UTTypeConformsTo</key>
-            <array>
-                <string>public.data</string>
-                <string>public.json</string>
-            </array>
-            <key>UTTypeTagSpecification</key>
-            <dict>
-                <key>public.filename-extension</key>
-                <array>
-                    <string>nibclip</string>
-                </array>
-            </dict>
-        </dict>
-    </array>
-    <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
-    <key>NSHumanReadableCopyright</key>
-    <string>Copyright © 2024 Pibulus. All rights reserved.</string>
-</dict>
-</plist>
-EOF
-
-# Compile
-if swiftc -O -parse-as-library \
-    -target arm64-apple-macos13.0 \
-    -framework Cocoa \
-    -framework SwiftUI \
-    -o "$APP_BUNDLE/Contents/MacOS/${APP_NAME}" \
-    Sources/*.swift; then
-
-    echo -e "${GREEN}✅ Compilation successful${NC}"
-else
-    echo -e "${RED}❌ Build failed!${NC}"
+if [ ! -f "$ENTITLEMENTS_PATH" ]; then
+    echo -e "${RED}❌ Missing entitlements file: ${ENTITLEMENTS_PATH}${NC}"
     exit 1
 fi
 
-chmod +x "$APP_BUNDLE/Contents/MacOS/${APP_NAME}"
+# Derive TEAM_ID from the "(TEAMID)" suffix of the signing identity if not given.
+if [ -z "$TEAM_ID" ]; then
+    TEAM_ID=$(echo "$SIGNING_IDENTITY" | sed -n 's/.*(\([A-Z0-9]*\))$/\1/p')
+fi
+if [ -z "$TEAM_ID" ]; then
+    echo -e "${RED}❌ Couldn't derive TEAM_ID from SIGNING_IDENTITY — set TEAM_ID explicitly.${NC}"
+    exit 1
+fi
 
-# Copy app icon if it exists
-if [ -f "AppIcon.icns" ]; then
-    cp "AppIcon.icns" "$APP_BUNDLE/Contents/Resources/"
-    echo "App icon bundled."
-else
+if [ ! -f "AppIcon.icns" ]; then
     echo -e "${RED}❌ AppIcon.icns is required for App Store submission${NC}"
     exit 1
 fi
+
+# --- Build the bundle (compile + Info.plist + icon) via build.sh ---
+
+echo -e "${YELLOW}🔨 Building app bundle...${NC}"
+ENTITLEMENTS_PATH="$ENTITLEMENTS_PATH" ./build.sh
 
 # --- Embed provisioning profile ---
 
 echo -e "${YELLOW}📋 Embedding provisioning profile...${NC}"
 cp "$PROVISIONING_PROFILE" "$APP_BUNDLE/Contents/embedded.provisionprofile"
 
-# --- Sign ---
+# --- Sign with App Store entitlements + required identifiers ---
+
+# App Store validation requires the application-identifier and
+# team-identifier entitlements (Xcode injects these automatically;
+# hand-rolled builds must add them).
+MERGED_ENTITLEMENTS="$BUILD_DIR/NibNab-appstore.entitlements"
+cat > "$MERGED_ENTITLEMENTS" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.application-identifier</key>
+	<string>${TEAM_ID}.${BUNDLE_ID}</string>
+	<key>com.apple.developer.team-identifier</key>
+	<string>${TEAM_ID}</string>
+</dict>
+</plist>
+EOF
 
 echo -e "${YELLOW}🔐 Signing with Apple Distribution certificate...${NC}"
-if codesign --force --options runtime \
-    --entitlements "$ENTITLEMENTS_PATH" \
+if codesign --force \
+    --entitlements "$MERGED_ENTITLEMENTS" \
     --sign "$SIGNING_IDENTITY" \
     "$APP_BUNDLE"; then
 
@@ -173,7 +128,7 @@ fi
 echo -e "${YELLOW}🔍 Verifying signature...${NC}"
 codesign --verify --verbose "$APP_BUNDLE"
 
-# --- Create PKG ---
+# --- Create PKG (must be the installer cert, not the app cert) ---
 
 PKG_PATH="release/${APP_NAME}-${VERSION}-appstore.pkg"
 mkdir -p release
@@ -181,7 +136,7 @@ rm -f "$PKG_PATH"
 
 echo -e "${YELLOW}📦 Creating installer package...${NC}"
 if productbuild --component "$APP_BUNDLE" /Applications \
-    --sign "$SIGNING_IDENTITY" \
+    --sign "$INSTALLER_IDENTITY" \
     "$PKG_PATH"; then
 
     echo -e "${GREEN}✅ PKG created at ${PKG_PATH}${NC}"
@@ -191,10 +146,13 @@ else
 fi
 
 echo ""
-echo -e "${GREEN}🏪 App Store build complete!${NC}"
+echo -e "${GREEN}🏪 App Store build complete! (v${VERSION}, build ${BUILD_NUMBER})${NC}"
 echo ""
 echo -e "${CYAN}Next steps:${NC}"
-echo -e "  1. Validate: ${YELLOW}xcrun altool --validate-app -f ${PKG_PATH} -t macos${NC}"
-echo -e "  2. Upload:   ${YELLOW}xcrun altool --upload-app -f ${PKG_PATH} -t macos${NC}"
-echo -e "     or use ${YELLOW}Transporter${NC} app"
+echo -e "  1. Open ${YELLOW}Transporter.app${NC} (Mac App Store, free) and drag in ${YELLOW}${PKG_PATH}${NC}"
+echo -e "     — it validates and uploads to App Store Connect."
+echo -e "     (xcrun altool was retired by Apple in Nov 2023 — don't use it.)"
+echo -e "  2. In App Store Connect, attach the build to the 1.0 version and submit."
+echo -e "  ${YELLOW}Remember:${NC} every upload needs a higher BUILD_NUMBER:"
+echo -e "     BUILD_NUMBER=2 SIGNING_IDENTITY=... INSTALLER_IDENTITY=... ./build-appstore.sh"
 echo ""
