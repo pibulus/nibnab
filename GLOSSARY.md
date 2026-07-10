@@ -59,7 +59,7 @@ Quick reference for NibNab's modular Swift architecture.
 `Sources/Models.swift` - Codable, Transferable, Identifiable
 
 **ClipboardSupport** - Text-selection auto-capture (accessibility API)
-`Sources/ClipboardSupport.swift` - EventMonitor (popover dismissal), AutoCopyMonitor (debounced selection capture, permission polling)
+`Sources/ClipboardSupport.swift` - EventMonitor (popover dismissal), AutoCopyMonitor (debounced selection capture, permission polling, skips NibNab's own UI), SandboxInfo (sandbox detection — selection capture is disabled entirely in sandboxed/App Store builds)
 
 ## Color System
 
@@ -88,7 +88,7 @@ User assigns meaning (project, type, priority, etc.)
 
 **Global Shortcuts:**
 - Cmd+Ctrl+N — Toggle popover
-- Cmd+Ctrl+M — Toggle auto-copy (text selection capture)
+- Cmd+Ctrl+M — Toggle all capturing (clipboard + selections; "Capture Text Selections" in the right-click menu controls selections separately)
 - Cmd+Ctrl+1 — Switch to Yellow
 - Cmd+Ctrl+2 — Switch to Orange
 - Cmd+Ctrl+3 — Switch to Pink

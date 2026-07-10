@@ -27,8 +27,10 @@ NibNab captures text in two ways:
 ### Method 2: Text Selection (Requires accessibility)
 - Select text anywhere
 - Hold for a moment
-- NibNab auto-saves it
+- NibNab auto-saves it (and copies it to your clipboard)
 - No need to Cmd+C
+- Toggle it off anytime: right-click menubar → "Capture Text Selections"
+- *Direct-download (DMG) version only — the Mac App Store build is Cmd+C capture only (Apple's sandbox doesn't allow selection reading)*
 
 **Both methods save to your currently active color.**
 

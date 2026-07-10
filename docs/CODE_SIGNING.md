@@ -158,44 +158,35 @@ spctl --assess --verbose build/NibNab.app
 2. My Apps → + → New App
 3. Fill in app details, bundle ID: `com.pibulus.nibnab`
 
-### 2. Build for App Store
+### 2. Build, Sign, and Package (one command)
+
+`build-appstore.sh` does the whole thing — builds with the sandboxed
+`NibNab.entitlements`, embeds the provisioning profile, injects the
+`com.apple.application-identifier` / `team-identifier` entitlements that App
+Store validation requires, signs with your Apple Distribution cert, and
+creates a `.pkg` signed with the **installer** cert:
 
 ```bash
-# Use Mac App Distribution certificate
-codesign --force --deep \
-  --sign "Mac App Distribution: Your Name (TEAM_ID)" \
-  --entitlements entitlements.plist \
-  build/NibNab.app
+SIGNING_IDENTITY="Apple Distribution: Your Name (TEAM_ID)" \
+INSTALLER_IDENTITY="3rd Party Mac Developer Installer: Your Name (TEAM_ID)" \
+PROVISIONING_PROFILE=~/Downloads/NibNab_AppStore.provisionprofile \
+./build-appstore.sh
 ```
 
-### 3. Create Entitlements (entitlements.plist)
+Notes:
+- The `.pkg` **must** be signed with the installer certificate (portal name
+  "Mac Installer Distribution", Keychain name "3rd Party Mac Developer
+  Installer") — signing it with the app certificate fails validation.
+- Bump `BUILD_NUMBER=2` (3, 4, …) for every upload; App Store Connect
+  rejects reused build numbers.
+- The sandboxed App Store build is clipboard-capture only (no selection
+  capture — the Accessibility API is unavailable under the App Sandbox).
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>com.apple.security.app-sandbox</key>
-    <true/>
-    <key>com.apple.security.files.user-selected.read-write</key>
-    <true/>
-    <key>com.apple.security.automation.apple-events</key>
-    <true/>
-</dict>
-</plist>
-```
+### 3. Upload to App Store
 
-### 4. Build PKG Installer
-
-```bash
-productbuild --component build/NibNab.app /Applications \
-  --sign "Mac Installer Distribution: Your Name (TEAM_ID)" \
-  NibNab-1.0.0.pkg
-```
-
-### 5. Upload to App Store
-
-Use Transporter (recommended) to upload the signed `.pkg` to App Store Connect.
+Use Transporter.app (free, Mac App Store) to upload the signed `.pkg` to
+App Store Connect. `xcrun altool` was retired by Apple in November 2023 —
+don't use it.
 
 ## Troubleshooting
 

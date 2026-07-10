@@ -22,6 +22,9 @@ swiftc -parse-as-library -target arm64-apple-macos13.0 -framework Cocoa -framewo
 
 # Clean build
 rm -rf build && ./build.sh
+
+# Storage test harness (28 checks against the real StorageManager)
+./run-tests.sh
 ```
 
 ## Architecture & Code Structure
@@ -47,7 +50,7 @@ The app is split into focused files under `Sources/` (see GLOSSARY.md for the fu
 
 **Markdown Storage**: Each color category saves to a separate markdown file with timestamps and source app metadata. Lines of `---` inside clip text are backslash-escaped on write (they would otherwise split sections and corrupt data on reload).
 
-**Selection Auto-Capture**: With accessibility permission, `AutoCopyMonitor` polls the focused element's selected text, debounces one poll cycle, copies it to the clipboard, and saves it as a clip
+**Selection Auto-Capture**: With accessibility permission, `AutoCopyMonitor` polls the focused element's selected text, debounces one poll cycle, copies it to the clipboard, and saves it as a clip. It skips selections made inside NibNab's own UI, has a "Capture Text Selections" toggle in the right-click menu (`selectionCaptureEnabled`, UserDefaults key `autoCopyEnabled`), and is disabled entirely in sandboxed builds (`SandboxInfo.isSandboxed`) — the Accessibility API can never be granted under the App Sandbox, so the App Store build is clipboard-capture only.
 
 ## Development Patterns & Conventions
 
@@ -64,7 +67,7 @@ The app is split into focused files under `Sources/` (see GLOSSARY.md for the fu
 - **Dark Theme**: Black/gray backgrounds with high contrast neon accents
 
 ### Data Management
-- **Local Storage**: `<Application Support>/com.pibulus.nibnab/[colorname]/` markdown files. For sandboxed builds (the current entitlements enable app-sandbox) Application Support resolves inside `~/Library/Containers/com.pibulus.nibnab/`; non-sandboxed builds use `~/Library/Application Support/` directly.
+- **Local Storage**: `<Application Support>/com.pibulus.nibnab/[colorname]/` markdown files. The default dev/DMG build is unsandboxed and uses `~/Library/Application Support/` directly (where existing user data lives); only the App Store build (`NibNab.entitlements`) is sandboxed and resolves inside `~/Library/Containers/com.pibulus.nibnab/`.
 - **No Cloud**: Completely offline, no external dependencies
 - **Clip Limits**: Maximum 100 clips per color category (enforced on every write)
 - **Metadata Capture**: Source app name, timestamp, optional URL (URL capture currently disabled — `getCurrentURL()` returns nil)
@@ -83,10 +86,10 @@ The `build.sh` script creates a complete `.app` bundle with:
 - Optimized Swift compilation (`-O` flag)
 - Proper Info.plist with LSUIElement for menubar app behavior
 - Target architecture: arm64-apple-macos13.0
-- Ad-hoc code signing with `NibNab.entitlements` by default; override with `SIGNING_IDENTITY` and `ENTITLEMENTS_PATH` env vars
+- Ad-hoc code signing with `NibNab-dev.entitlements` (unsandboxed) by default; override with `SIGNING_IDENTITY`, `ENTITLEMENTS_PATH`, `VERSION`, and `BUILD_NUMBER` env vars
 - App bundle structure in `build/` directory
 
-`build-dmg.sh` wraps build.sh with the dev entitlements (adds the legacy `~/.nibnab` migration exception) and creates a DMG in `release/`. `build-appstore.sh` builds a signed .pkg for App Store submission (requires SIGNING_IDENTITY + PROVISIONING_PROFILE, hard-requires AppIcon.icns).
+`build-dmg.sh` wraps build.sh with the dev entitlements and creates a DMG in `release/` (optionally signed/notarized via `SIGNING_IDENTITY`/`NOTARY_PROFILE`). `build-appstore.sh` builds via build.sh with the sandboxed `NibNab.entitlements`, injects the App Store identifier entitlements, and creates a signed .pkg (requires SIGNING_IDENTITY, INSTALLER_IDENTITY, and PROVISIONING_PROFILE; hard-requires AppIcon.icns; bump BUILD_NUMBER every upload). See docs/RELEASE_RUNBOOK.md for the full release flow.
 
 ## Documentation
 
@@ -96,7 +99,8 @@ Project documentation is organized in `docs/`:
 - **docs/APP_STORE.md** - App Store submission copy
 - **docs/LANDING_PAGE.md** - Website content (future)
 - **docs/USAGE.md** - Quick usage reference
-- **docs/FABLE-AUDIT.md** - 2026-07-05 launch-readiness audit: what was fixed, what was deliberately left
+- **docs/FABLE-AUDIT.md** - 2026-07-05 launch-readiness audit (+ 2026-07-10 v1.0 push addendum)
+- **docs/RELEASE_RUNBOOK.md** - Exact DMG + App Store release steps (certs, signing, upload)
 
 ## Planned Features (TODOs in code)
 

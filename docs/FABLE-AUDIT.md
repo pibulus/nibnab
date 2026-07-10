@@ -160,3 +160,76 @@ harmless, and removing them would churn the model's Codable shape.
 3. Copy a markdown doc containing `---` lines, quit, relaunch — expect it intact.
 4. First-launch flow in a fresh user account: welcome window opens **and closes** cleanly.
 5. Export both formats to a read-only folder — expect a polite error alert.
+
+---
+---
+
+# FABLE AUDIT ADDENDUM — 2026-07-10 · v1.0 release push
+
+Second pass on the same branch. Every "deliberately left" decision from July 5
+is now resolved, plus a fresh bug hunt (self-review + adversarial subagent).
+All fixes verified: clean build, zero warnings, 28/28 storage checks, smoke launch.
+
+## Decisions resolved
+
+### 1. Sandbox / distribution split — DECIDED & implemented
+Verified against current Apple policy: **the Accessibility API is dead under the
+App Sandbox** — the prompt never appears, the app can't be added manually, and
+`AXIsProcessTrusted` can never return true (plus 2.4.5 rejections for AX use).
+So:
+- **Dev/DMG builds are now unsandboxed** (`NibNab-dev.entitlements` = empty; the
+  new `build.sh` default). Full features, data stays in the plain
+  `~/Library/Application Support/com.pibulus.nibnab/` where the real data lives.
+- **App Store build stays sandboxed** (`NibNab.entitlements`) and is
+  clipboard-capture only: `AutoCopyMonitor` is never created in sandboxed builds
+  (`SandboxInfo.isSandboxed`), so no dead permission prompt. Store copy scrubbed.
+- The `~/.nibnab` temporary exception is gone (unsandboxed builds don't need it;
+  the sandboxed build has no legacy data to migrate).
+
+### 2. Selection capture now has its own toggle
+"Capture Text Selections" in the right-click menu (persists to the existing
+`autoCopyEnabled` key). Hidden in sandboxed builds. ⌘⌃M stays the master switch.
+
+### 3. VERSION / CFBundleVersion consolidated
+Both are env overrides on build.sh (`VERSION`, `BUILD_NUMBER`); build-appstore.sh
+no longer duplicates the Info.plist heredoc — it builds through build.sh. About
+window reads the version from the bundle instead of hardcoding it.
+
+## New bugs found & fixed
+
+1. **Drag-to-color onto a full (100-clip) color silently deleted the moved clip**
+   (`AppState.moveClip` appended then prefix-trimmed). Now inserts in timestamp
+   order and never trims the moved clip.
+2. **Selection capture fired on NibNab's own UI** — selecting text in the edit
+   modal/search field re-captured it and clobbered the clipboard. Now skips
+   focused elements owned by our own PID.
+3. **Modals could save/delete against the wrong color** if a ⌘⌃1-5 hotkey fired
+   while open (silent edit loss). Modals now pin the color they were opened in.
+4. **Launch-at-Login toggle could lie** — `try?` swallowed registration failures
+   (guaranteed for builds run from `build/`). Failures now snap the toggle back
+   to the real `SMAppService` status.
+5. **Global hotkey registration failures were silent** — ⌘⌃1-5 clash with window
+   managers; failures are now logged (also collapsed 80 lines of copy-paste into
+   a table + loop, and hotkeys/handler are unregistered on quit).
+6. **build-appstore.sh signed the .pkg with the app cert** — App Store requires
+   the Mac Installer Distribution cert (`INSTALLER_IDENTITY`, now enforced), and
+   the binary now gets the `application-identifier`/`team-identifier`
+   entitlements validation requires. `xcrun altool` advice (retired 2023)
+   replaced with Transporter.
+7. **Test-harness safety**: `StorageManager(baseURLOverride:)` no longer runs the
+   `~/.nibnab` migration (which deletes the legacy dir) when pointed at a test dir.
+
+## New infrastructure
+
+- `Tests/StorageTests.swift` + `./run-tests.sh` — the storage harness is now
+  committed: 28 checks (round-trips, divider escaping ×2 cycles, both legacy
+  formats, hostile clip text, ordering stability, cap, delete persistence, URLs).
+- `docs/RELEASE_RUNBOOK.md` — certs → build → notarize/upload, both channels.
+- `ITSAppUsesNonExemptEncryption=false` in Info.plist; copyright bumped to 2026.
+
+## Still open (small, non-blocking)
+
+- Real Developer ID / App Store certs + provisioning profile (Pablo, portal work).
+- App Store screenshots of the sandboxed build.
+- Support email placeholder in APP_STORE.md.
+- arm64-only remains a choice (App Store allows Apple-Silicon-only apps).

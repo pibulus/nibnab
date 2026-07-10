@@ -53,6 +53,7 @@ Pick your active color, copy text, it's saved forever (or until you delete it).
 ### ✅ Settings (Right-click menubar)
 - Launch at login
 - Sound effects toggle
+- Capture text selections toggle (selection capture copies to your clipboard too — turn it off if that bugs you)
 - Color switching
 - About & quit
 
@@ -117,7 +118,7 @@ com.pibulus.nibnab/
     └── highlighter green_clips.md
 ```
 
-That's `~/Library/Application Support/com.pibulus.nibnab/` for non-sandboxed builds, or `~/Library/Containers/com.pibulus.nibnab/Data/Library/Application Support/com.pibulus.nibnab/` when built with the sandbox entitlements (the current default).
+That's `~/Library/Application Support/com.pibulus.nibnab/` for the default (unsandboxed) build. The Mac App Store build is sandboxed, stores under `~/Library/Containers/com.pibulus.nibnab/Data/Library/Application Support/com.pibulus.nibnab/`, and captures via Cmd+C only — macOS doesn't let sandboxed apps read text selections from other apps.
 
 No database. No complexity. You own your data.
 

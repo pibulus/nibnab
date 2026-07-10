@@ -1,5 +1,10 @@
 # Mac App Store Submission Copy
 
+> **Important:** this copy describes the **sandboxed App Store build**, which is
+> clipboard-capture (Cmd+C) only. Selection auto-capture needs the Accessibility
+> API, which sandboxed apps can never be granted — that feature ships only in the
+> direct-download DMG. Never mention selection capture in App Store materials.
+
 ## App Name
 **NibNab**
 
@@ -17,7 +22,7 @@ NibNab is a menubar clipboard manager that captures everything you copy and orga
 
 **HOW IT WORKS**
 
-1. Copy anything (Cmd+C or select text)
+1. Copy anything (Cmd+C)
 2. It auto-captures to your active color
 3. View, export, or delete anytime
 
@@ -26,8 +31,8 @@ That's it. No interruptions. No "should I save this?" decisions. Just copy and i
 **SMART CAPTURE**
 
 • Monitors Cmd+C clipboard changes
-• Auto-captures text selections (with accessibility permission)
 • Saves to your active color automatically
+• Never captures passwords (respects concealed-content markers from password managers)
 • Menubar icon shows current color with visual feedback
 
 **FIVE COLORS, YOUR RULES**
@@ -121,9 +126,8 @@ Built by one person who believes good tools should:
 **GETTING STARTED**
 
 1. Install NibNab
-2. Grant accessibility permission (optional, for auto-capture)
-3. Start copying stuff
-4. Use the menubar icon or Cmd+Ctrl+N to view clips
+2. Start copying stuff
+3. Use the menubar icon or Cmd+Ctrl+N to view clips
 
 That's it. No tutorial, no onboarding, no account creation. Just open it and it works.
 
@@ -140,7 +144,7 @@ Part of the anti-scale movement. Building tools with personality, utility, and s
 NibNab v1.0 brings color-coded clipboard management to your menubar:
 
 NEW FEATURES:
-• Automatic clipboard capture (Cmd+C and text selection)
+• Automatic clipboard capture (Cmd+C)
 • Five-color organization system (Yellow, Orange, Pink, Purple, Green)
 • Dual export options (Markdown with metadata, Plain Text)
 • Copy and delete actions from both list and detail views
@@ -203,7 +207,7 @@ https://github.com/pibulus/nibnab
 https://github.com/pibulus/nibnab
 
 ## Copyright
-© 2025 Pablo Alvarado
+© 2026 Pablo Alvarado
 
 ## Screenshots Copy
 
@@ -217,7 +221,7 @@ https://github.com/pibulus/nibnab
 
 ### Screenshot 3: Auto Capture
 **Title:** Capture Without Thinking
-**Description:** Cmd+C or select text—NibNab auto-saves to your active color. The menubar shows which color is active.
+**Description:** Cmd+C and NibNab auto-saves to your active color. The menubar shows which color is active.
 
 ### Screenshot 4: Settings Menu
 **Title:** Settings Where They Belong
@@ -233,12 +237,10 @@ https://github.com/pibulus/nibnab
 1. Launch NibNab from menubar
 2. Copy text with Cmd+C (will auto-capture)
 3. Click menubar icon to view clips
-4. Optional: Grant accessibility for text selection auto-capture
-5. Right-click menubar icon to access settings
+4. Right-click menubar icon to access settings
 
 **Special Permissions:**
-• Accessibility (optional) - For auto-capturing selected text
-• App can function fully without this permission using Cmd+C capture
+• None — no special permissions required
 
 **Privacy:**
 • All data stored locally in the app's local Application Support folder

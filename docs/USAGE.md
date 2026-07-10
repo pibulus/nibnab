@@ -43,11 +43,11 @@ This will:
 - **Monitor** - Pause/resume clipboard watching
 - **Auto-launch** - Start NibNab on login
 
-*Note: Auto-copy is now always enabled (that's the whole point!)*
+*Note: Selection capture has its own toggle — right-click menubar → "Capture Text Selections". It's only available in the direct-download (DMG) build; the Mac App Store build captures via Cmd+C only.*
 
-## 🔐 Accessibility Permission (One-Time)
+## 🔐 Accessibility Permission (One-Time, DMG build only)
 
-For auto-copy to work, NibNab needs to detect text selection:
+For selection capture to work, NibNab needs to detect text selection:
 
 1. First time you launch → macOS shows system dialog
 2. Click **"Open System Settings"** button (takes you right there!)
