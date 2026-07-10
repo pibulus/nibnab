@@ -394,12 +394,16 @@ struct ContentOverlaysView: View {
     @Binding var selectedClip: Clip?
     @Binding var showAddClipModal: Bool
     @Binding var editingClip: Clip?
+    // The color the open modal belongs to, captured when it was opened —
+    // a ⌘⌃1-5 hotkey can change viewedColor while a modal is up, and
+    // saving/deleting against the new color would hit the wrong file.
+    let modalColorName: String
 
     var body: some View {
         Group {
             if let clip = selectedClip {
                 overlayBackground {
-                    ClipDetailView(clip: clip) {
+                    ClipDetailView(clip: clip, colorName: modalColorName) {
                         withAnimation {
                             selectedClip = nil
                         }
@@ -439,7 +443,7 @@ struct ContentOverlaysView: View {
                             }
                         },
                         onSave: { newText in
-                            appState.updateClip(clip, newText: newText, in: appState.viewedColor.name)
+                            appState.updateClip(clip, newText: newText, in: modalColorName)
                             withAnimation {
                                 editingClip = nil
                             }
@@ -486,6 +490,7 @@ struct ContentView: View {
     @State private var showAddClipModal = false
     @State private var showExportDialog = false
     @State private var editingClip: Clip?
+    @State private var modalColorName = ""
     @FocusState private var labelFocused: Bool
 
     enum SortOrder {
@@ -549,7 +554,8 @@ struct ContentView: View {
             ContentOverlaysView(
                 selectedClip: $selectedClip,
                 showAddClipModal: $showAddClipModal,
-                editingClip: $editingClip
+                editingClip: $editingClip,
+                modalColorName: modalColorName
             )
             .environmentObject(appState)
             toastOverlay
@@ -584,15 +590,11 @@ struct ContentView: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 8) {
                 if !sortedClips.isEmpty {
-                    ForEach(Array(sortedClips.enumerated()), id: \.element.id) { index, clip in
+                    ForEach(sortedClips) { clip in
                         ClipView(clip: clip)
                             .onTapGesture {
+                                modalColorName = appState.viewedColor.name
                                 selectedClip = clip
-                            }
-                            .dropDestination(for: Clip.self) { droppedClips, _ in
-                                guard let droppedClip = droppedClips.first else { return false }
-                                appState.reorderClip(droppedClip, in: appState.viewedColor.name, to: index)
-                                return true
                             }
                             .contextMenu {
                                 Button(action: {
@@ -602,6 +604,7 @@ struct ContentView: View {
                                 }
 
                                 Button(action: {
+                                    modalColorName = appState.viewedColor.name
                                     editingClip = clip
                                 }) {
                                     Label("Edit", systemImage: "pencil")
@@ -627,19 +630,25 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
+    private var isSearchingWithNoMatches: Bool {
+        !searchText.isEmpty && !(appState.clips[appState.viewedColor.name] ?? []).isEmpty
+    }
+
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "doc.on.clipboard")
+            Image(systemName: isSearchingWithNoMatches ? "magnifyingglass" : "doc.on.clipboard")
                 .font(.system(size: 64, weight: .light))
                 .foregroundColor(Color.white.opacity(0.3))
 
             VStack(spacing: 8) {
-                Text("Nothing nabbed yet")
+                Text(isSearchingWithNoMatches ? "No matches" : "Nothing nabbed yet")
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundColor(Color.white.opacity(0.8))
-                Text("Copy something good")
+                Text(isSearchingWithNoMatches ? "Nothing here matches \"\(searchText)\"" : "Copy something good")
                     .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundColor(Color.white.opacity(0.5))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
         }
         .frame(maxWidth: .infinity)
@@ -722,35 +731,6 @@ struct ColorDropTarget: View {
                 isHovered = hovering
             }
         }
-    }
-}
-
-// MARK: - Color Tab Component
-struct ColorTab: View {
-    let color: NibColor
-    let isSelected: Bool
-    let isHovered: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Circle()
-                .fill(Color(color.nsColor))
-                .frame(width: 32, height: 32)
-                .overlay(
-                    Circle()
-                        .stroke(Color.white, lineWidth: isSelected ? 4 : (isHovered ? 2 : 0))
-                )
-                .overlay(
-                    // Selected indicator - inner ring
-                    Circle()
-                        .stroke(Color.black.opacity(0.2), lineWidth: isSelected ? 2 : 0)
-                        .frame(width: 24, height: 24)
-                )
-                .scaleEffect(isHovered ? 1.15 : (isSelected ? 1.1 : 1.0))
-                .shadow(color: isSelected ? Color.black.opacity(0.3) : (isHovered ? Color.black.opacity(0.1) : Color.clear), radius: isSelected ? 4 : 2, x: 0, y: 2)
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -1104,6 +1084,7 @@ struct AddClipModal: View {
 struct ClipDetailView: View {
     private static let detailSize = CGSize(width: 560, height: 420)
     let clip: Clip
+    let colorName: String
     let onDismiss: () -> Void
     @EnvironmentObject var appState: AppState
     @State private var copyHovered = false
@@ -1111,8 +1092,9 @@ struct ClipDetailView: View {
     @State private var editedText: String
     @State private var originalText: String
 
-    init(clip: Clip, onDismiss: @escaping () -> Void) {
+    init(clip: Clip, colorName: String, onDismiss: @escaping () -> Void) {
         self.clip = clip
+        self.colorName = colorName
         self.onDismiss = onDismiss
         _editedText = State(initialValue: clip.text)
         _originalText = State(initialValue: clip.text)
@@ -1200,7 +1182,7 @@ struct ClipDetailView: View {
                 Button(action: {
                     onDismiss()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        appState.deleteClip(clip, from: appState.viewedColor.name)
+                        appState.deleteClip(clip, from: colorName)
                     }
                 }) {
                     Image(systemName: "trash")
@@ -1247,7 +1229,7 @@ struct ClipDetailView: View {
 
     private func saveChangesIfNeeded() {
         guard canSave else { return }
-        appState.updateClip(clip, newText: editedText, in: appState.viewedColor.name)
+        appState.updateClip(clip, newText: editedText, in: colorName)
         originalText = editedText
     }
 }
@@ -1255,6 +1237,11 @@ struct ClipDetailView: View {
 // MARK: - About View
 struct AboutView: View {
     @State private var hoveredShortcut: Int? = nil
+
+    private var versionText: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        return "Version \(version)"
+    }
 
     var body: some View {
         ScrollView {
@@ -1271,7 +1258,7 @@ struct AboutView: View {
                             .font(.system(size: 32, weight: .black, design: .rounded))
                             .foregroundColor(.primary)
 
-                        Text("Version 1.0.0")
+                        Text(versionText)
                             .font(.system(size: 13, weight: .medium, design: .monospaced))
                             .foregroundColor(.secondary)
                     }

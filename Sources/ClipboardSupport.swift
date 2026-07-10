@@ -1,6 +1,14 @@
 import Cocoa
 import ApplicationServices
 
+// The App Store build runs sandboxed, where the Accessibility API is dead on
+// arrival: the permission prompt never appears, the app can't be added in
+// System Settings, and AXIsProcessTrusted can never become true. Selection
+// capture is disabled entirely in sandboxed builds — clipboard capture only.
+enum SandboxInfo {
+    static let isSandboxed = ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] != nil
+}
+
 class EventMonitor {
     private var monitor: Any?
     private let mask: NSEvent.EventTypeMask
@@ -36,6 +44,11 @@ extension AXUIElement {
         rawValue(for: kAXSelectedTextAttribute) as? String
     }
 
+    var ownerPID: pid_t? {
+        var pid: pid_t = 0
+        return AXUIElementGetPid(self, &pid) == .success ? pid : nil
+    }
+
     private static var systemWide = AXUIElementCreateSystemWide()
 
     private func element(for attribute: String) -> AXUIElement? {
@@ -54,7 +67,8 @@ extension AXUIElement {
 class AutoCopyMonitor {
     private var timer: Timer?
     private var permissionPollTimer: Timer?
-    private var lastSelectedText: String?
+    private var lastCapturedSelection: String?
+    private var pendingSelection: String?
     private let selectionHandler: (String) -> Void
 
     init(onTextSelected: @escaping (String) -> Void) {
@@ -90,15 +104,30 @@ class AutoCopyMonitor {
         timer = nil
         permissionPollTimer?.invalidate()
         permissionPollTimer = nil
-        lastSelectedText = nil
+        lastCapturedSelection = nil
+        pendingSelection = nil
     }
 
     private func checkForSelectedText() {
-        guard let selectedText = AXUIElement.focusedElement?.selectedText,
-              !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              selectedText != lastSelectedText else { return }
+        guard let focusedElement = AXUIElement.focusedElement else { return }
 
-        lastSelectedText = selectedText
+        // Never capture selections made inside NibNab's own UI (edit modals,
+        // search field) — that would re-save clips and clobber the clipboard.
+        if focusedElement.ownerPID == ProcessInfo.processInfo.processIdentifier { return }
+
+        guard let selectedText = focusedElement.selectedText,
+              !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              selectedText != lastCapturedSelection else { return }
+
+        // Debounce: only capture once the selection has held steady for a
+        // full poll cycle, so drag-selecting doesn't spray partial clips.
+        guard selectedText == pendingSelection else {
+            pendingSelection = selectedText
+            return
+        }
+
+        pendingSelection = nil
+        lastCapturedSelection = selectedText
 
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()

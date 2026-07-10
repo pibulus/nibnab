@@ -11,13 +11,21 @@ final class StorageManager {
     private let logger: Logger
     private lazy var formatter: DateFormatter = {
         let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter
+    }()
+    // Files written before seconds precision was added use this format.
+    private lazy var legacyFormatter: DateFormatter = {
+        let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         return formatter
     }()
 
-    init(fileManager: FileManager = .default) {
+    init(fileManager: FileManager = .default, baseURLOverride: URL? = nil) {
         self.fileManager = fileManager
         let bundleID = Bundle.main.bundleIdentifier ?? "com.pibulus.nibnab"
         self.logger = Logger(subsystem: bundleID, category: "Storage")
@@ -25,7 +33,7 @@ final class StorageManager {
         let supportDirectory = self.fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? self.fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support", isDirectory: true)
         let appDirectory = supportDirectory.appendingPathComponent(bundleID, isDirectory: true)
-        self.baseURL = appDirectory
+        self.baseURL = baseURLOverride ?? appDirectory
 
         do {
             try self.fileManager.createDirectory(at: self.baseURL, withIntermediateDirectories: true)
@@ -33,7 +41,11 @@ final class StorageManager {
             self.logger.error("Failed to create storage root at \(self.baseURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
 
-        migrateLegacyStorage()
+        // Only migrate ~/.nibnab into the real storage root — never into a
+        // test/override location (migration deletes the legacy dir on success).
+        if baseURLOverride == nil {
+            migrateLegacyStorage()
+        }
         createColorDirectories()
     }
 
@@ -92,7 +104,16 @@ final class StorageManager {
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
         let clips = sections.compactMap(parseClip(from:))
-        return clips.sorted { $0.timestamp > $1.timestamp }
+        // Stable sort: newest first, file order preserved for equal timestamps
+        // so same-second clips don't shuffle between launches.
+        return clips.enumerated()
+            .sorted { lhs, rhs in
+                if lhs.element.timestamp != rhs.element.timestamp {
+                    return lhs.element.timestamp > rhs.element.timestamp
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
     }
 
     // MARK: - Helpers
@@ -132,6 +153,7 @@ final class StorageManager {
         guard !appName.isEmpty else { return nil }
 
         var contentStartIndex = headerIndex + 1
+        var sawTimestampKey = false
 
         while contentStartIndex < lines.count {
             let metadataLine = lines[contentStartIndex].trimmingCharacters(in: .whitespaces)
@@ -145,23 +167,29 @@ final class StorageManager {
                 clipID = UUID(uuidString: String(metadataLine.dropFirst(4)))
             } else if metadataLine.hasPrefix("timestamp: ") {
                 let timestampValue = String(metadataLine.dropFirst("timestamp: ".count))
-                if let parsedDate = formatter.date(from: timestampValue) {
+                if let parsedDate = parseTimestamp(timestampValue) {
                     timestamp = parsedDate
+                    sawTimestampKey = true
                 }
-            } else {
+            } else if clipID == nil && !sawTimestampKey {
+                // Legacy sections (pre-`id:`) wrote a bare timestamp line.
+                // Only try this before any keyed metadata, so a clip whose
+                // text begins with a date-like line isn't swallowed.
                 let cleanedTimestamp = metadataLine.replacingOccurrences(of: " Bangkok", with: "")
-                if let parsedDate = formatter.date(from: cleanedTimestamp) {
+                if let parsedDate = parseTimestamp(cleanedTimestamp) {
                     timestamp = parsedDate
                 } else {
                     break
                 }
+            } else {
+                break
             }
 
             contentStartIndex += 1
         }
 
         if contentStartIndex < lines.count {
-            let textLines = Array(lines[contentStartIndex...])
+            let textLines = lines[contentStartIndex...].map(unescapeDividerLine(_:))
             text = textLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
@@ -192,8 +220,32 @@ final class StorageManager {
         markdown += "\n"
         markdown += "id: \(clip.id.uuidString)\n"
         markdown += "timestamp: \(formatter.string(from: clip.timestamp))\n\n"
-        markdown += "\(clip.text)\n"
+        markdown += "\(escapeDividerLines(in: clip.text))\n"
         return markdown
+    }
+
+    private func parseTimestamp(_ value: String) -> Date? {
+        formatter.date(from: value) ?? legacyFormatter.date(from: value)
+    }
+
+    // Sections are delimited by lines containing exactly "---", so clip text
+    // containing such lines would shatter into broken sections on reload and
+    // silently lose data. Escape them with a leading backslash on write and
+    // strip it on read; pre-escaped lines gain an extra backslash so the
+    // round trip is lossless.
+    private func isDividerLike(_ line: String) -> Bool {
+        line.drop(while: { $0 == "\\" }) == "---"
+    }
+
+    private func escapeDividerLines(in text: String) -> String {
+        text.components(separatedBy: "\n")
+            .map { isDividerLike($0) ? "\\" + $0 : $0 }
+            .joined(separator: "\n")
+    }
+
+    private func unescapeDividerLine(_ line: String) -> String {
+        guard isDividerLike(line), line.hasPrefix("\\") else { return line }
+        return String(line.dropFirst())
     }
 
     private func legacyID(appName: String, url: String?, timestamp: Date, text: String) -> UUID {

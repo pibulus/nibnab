@@ -9,11 +9,15 @@ set -euo pipefail
 
 APP_NAME="NibNab"
 BUNDLE_ID="com.pibulus.nibnab"
-VERSION="1.0.0"
+VERSION="${VERSION:-1.0.0}"
+BUILD_NUMBER="${BUILD_NUMBER:-1}"   # bump for every App Store upload
 BUILD_DIR="build"
 APP_BUNDLE="$BUILD_DIR/${APP_NAME}.app"
 SIGNING_IDENTITY="${SIGNING_IDENTITY:--}"
-ENTITLEMENTS_PATH="NibNab.entitlements"
+# Default is the unsandboxed dev/DMG set (full features, plain
+# ~/Library/Application Support storage). build-appstore.sh overrides this
+# with the sandboxed App Store set.
+ENTITLEMENTS_PATH="${ENTITLEMENTS_PATH:-NibNab-dev.entitlements}"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -50,7 +54,9 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
     <key>CFBundleShortVersionString</key>
     <string>${VERSION}</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>${BUILD_NUMBER}</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>
@@ -89,7 +95,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright © 2024 Pibulus. All rights reserved.</string>
+    <string>Copyright © 2026 Pablo Alvarado. All rights reserved.</string>
 </dict>
 </plist>
 EOF

@@ -39,30 +39,27 @@ Quick reference for NibNab's modular Swift architecture.
 **WelcomeView** - First-launch onboarding
 `Sources/UI.swift` - Feature cards
 
-**ColorPickerView** - Floating window for color selection on new clips
-`Sources/UI.swift` - Appears on clipboard change, 3s timeout
-
 **AboutView** - About window content
-`Sources/UI.swift` - Credits and links
+`Sources/UI.swift` - Credits and keyboard shortcuts
+
+**ToastView / StatusToastView** - In-popover and near-menubar notifications
+`Sources/UI.swift` - Color-accented pill messages
 
 ## State Management
 
 **AppState** - ObservableObject managing all clipboard data and settings
 `Sources/AppState.swift` - @Published clips dictionary, monitoring state, sounds, labels
 
-**LocationTracker** - Watches NSWorkspace frontmost app changes
-`Sources/AppState.swift` - Tracks current active app for clipboard context
-
 ## Data & Storage
 
-**StorageManager** - Markdown file persistence (full rewrite per clip)
-`Sources/StorageManager.swift` - Saves to ~/Library/Application Support/com.pibulus.nibnab/
+**StorageManager** - Markdown file persistence (full rewrite per change, atomic writes)
+`Sources/StorageManager.swift` - Saves to `<Application Support>/com.pibulus.nibnab/` (inside the app container for sandboxed builds). Escapes `---` lines in clip text so sections can't shatter on reload.
 
 **Clip** - Data model with id, text, timestamp, url, appName, screenshotPath
 `Sources/Models.swift` - Codable, Transferable, Identifiable
 
-**ClipboardSupport** - Cmd+D text selection capture (accessibility API)
-`Sources/ClipboardSupport.swift` - AutoCopyMonitor, permission handling
+**ClipboardSupport** - Text-selection auto-capture (accessibility API)
+`Sources/ClipboardSupport.swift` - EventMonitor (popover dismissal), AutoCopyMonitor (debounced selection capture, permission polling, skips NibNab's own UI), SandboxInfo (sandbox detection — selection capture is disabled entirely in sandboxed/App Store builds)
 
 ## Color System
 
@@ -91,7 +88,7 @@ User assigns meaning (project, type, priority, etc.)
 
 **Global Shortcuts:**
 - Cmd+Ctrl+N — Toggle popover
-- Cmd+Ctrl+M — Toggle auto-copy (text selection capture)
+- Cmd+Ctrl+M — Toggle all capturing (clipboard + selections; "Capture Text Selections" in the right-click menu controls selections separately)
 - Cmd+Ctrl+1 — Switch to Yellow
 - Cmd+Ctrl+2 — Switch to Orange
 - Cmd+Ctrl+3 — Switch to Pink

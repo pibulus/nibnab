@@ -25,9 +25,9 @@ NC='\033[0m'
 echo -e "${YELLOW}📦 Building DMG for ${APP_NAME}...${NC}"
 
 if [ -n "$SIGNING_IDENTITY" ]; then
-    SIGNING_IDENTITY="$SIGNING_IDENTITY" ./build.sh
+    SIGNING_IDENTITY="$SIGNING_IDENTITY" ENTITLEMENTS_PATH="$ENTITLEMENTS_PATH" ./build.sh
 else
-    ./build.sh
+    ENTITLEMENTS_PATH="$ENTITLEMENTS_PATH" ./build.sh
 fi
 
 if [ ! -d "$APP_BUNDLE" ]; then
