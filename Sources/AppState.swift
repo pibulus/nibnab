@@ -12,7 +12,9 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(activeColor.name, forKey: "activeColorName")
             delegate?.updateMenubarIcon()
             playSound("Pop")
-            if toastGate.shouldAllow(.color) {
+            // Inside the popover the whole UI recolors — that IS the feedback.
+            // Only announce color switches when the popover is closed.
+            if toastGate.shouldAllow(.color), delegate?.popover.isShown != true {
                 showToast(activeColor.name.replacingOccurrences(of: "Highlighter ", with: ""), color: activeColor)
             }
         }

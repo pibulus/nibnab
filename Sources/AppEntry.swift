@@ -127,6 +127,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             statusToastWindow?.orderOut(nil)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.becomeKey()
+            // The popover auto-focuses the search field after SwiftUI's onAppear
+            // has already run, leaving a blinking cursor — clear it once the
+            // window has settled.
+            DispatchQueue.main.async { [weak self] in
+                self?.popover.contentViewController?.view.window?.makeFirstResponder(nil)
+            }
             eventMonitor?.start()
         }
     }

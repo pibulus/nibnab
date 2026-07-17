@@ -88,6 +88,7 @@ struct ContentHeaderView: View {
     @Binding var showAddClipModal: Bool
     @Binding var showExportDialog: Bool
     @Binding var showClearConfirm: Bool
+    @Binding var showHelp: Bool
     let hasExportableClips: Bool
     let horizontalPadding: CGFloat
 
@@ -270,6 +271,14 @@ struct ContentHeaderView: View {
             HeaderIconButton(systemName: "trash", action: {
                 showClearConfirm = true
             }, help: "Clear all clips")
+
+            Divider()
+                .frame(height: 18)
+                .opacity(0.3)
+
+            HeaderIconButton(systemName: "questionmark", action: {
+                showHelp = true
+            }, help: "How NibNab works")
         }
     }
 }
@@ -394,6 +403,7 @@ struct ContentOverlaysView: View {
     @Binding var selectedClip: Clip?
     @Binding var showAddClipModal: Bool
     @Binding var editingClip: Clip?
+    @Binding var showHelp: Bool
     // The color the open modal belongs to, captured when it was opened —
     // a ⌘⌃1-5 hotkey can change viewedColor while a modal is up, and
     // saving/deleting against the new color would hit the wrong file.
@@ -454,6 +464,18 @@ struct ContentOverlaysView: View {
                 }
             }
 
+            if showHelp {
+                overlayBackground {
+                    HelpModal {
+                        withAnimation {
+                            showHelp = false
+                        }
+                    }
+                    .environmentObject(appState)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+            }
+
             // Welcome modal shown in separate window, not in popover
         }
     }
@@ -467,6 +489,7 @@ struct ContentOverlaysView: View {
                         showAddClipModal = false
                         editingClip = nil
                         selectedClip = nil
+                        showHelp = false
                     }
                 }
 
@@ -489,6 +512,7 @@ struct ContentView: View {
     @State private var labelHovered = false
     @State private var showAddClipModal = false
     @State private var showExportDialog = false
+    @State private var showHelp = false
     @State private var editingClip: Clip?
     @State private var modalColorName = ""
     @FocusState private var labelFocused: Bool
@@ -531,6 +555,7 @@ struct ContentView: View {
                     showAddClipModal: $showAddClipModal,
                     showExportDialog: $showExportDialog,
                     showClearConfirm: $showClearConfirm,
+                    showHelp: $showHelp,
                     hasExportableClips: hasExportableClips,
                     horizontalPadding: Self.horizontalPadding - 10
                 )
@@ -555,6 +580,7 @@ struct ContentView: View {
                 selectedClip: $selectedClip,
                 showAddClipModal: $showAddClipModal,
                 editingClip: $editingClip,
+                showHelp: $showHelp,
                 modalColorName: modalColorName
             )
             .environmentObject(appState)
@@ -662,7 +688,7 @@ struct ContentView: View {
             VStack {
                 Spacer()
                 ToastView(message: message, color: color)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 72) // clear the footer color dots
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.75), value: appState.toastMessage)
@@ -1076,6 +1102,98 @@ struct AddClipModal: View {
         .onExitCommand {
             // Allow Escape key to close without saving
             onDismiss()
+        }
+    }
+}
+
+// MARK: - Help Modal
+struct HelpModal: View {
+    let onDismiss: () -> Void
+    @EnvironmentObject var appState: AppState
+
+    private let shortcuts: [(keys: String, action: String)] = [
+        ("⌘⌃N", "Show / hide NibNab"),
+        ("⌘⌃1–5", "Switch active color"),
+        ("⌘⌃M", "Pause / resume capturing"),
+        ("Esc", "Close this window")
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("How NibNab works")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+
+                Spacer()
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .help("Close (Esc)")
+            }
+            .padding()
+            .background(Color.black.opacity(0.9))
+
+            // Content
+            VStack(alignment: .leading, spacing: 18) {
+                helpStep(number: "1", text: "Flip the switch and NibNab quietly nabs everything you copy.")
+                helpStep(number: "2", text: "Clips land in the active color — click the dots below to flip between collections.")
+                helpStep(number: "3", text: "Drag a clip onto a dot to re-file it. Click a clip to read, edit, or copy it.")
+
+                Divider()
+                    .overlay(Color.white.opacity(0.15))
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("KEYBOARD SHORTCUTS")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.45))
+
+                    ForEach(shortcuts, id: \.keys) { shortcut in
+                        HStack(spacing: 10) {
+                            Text(shortcut.keys)
+                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                .foregroundColor(Color(appState.activeColor.nsColor))
+                                .frame(width: 64, alignment: .leading)
+                            Text(shortcut.action)
+                                .font(.system(size: 12, design: .rounded))
+                                .foregroundColor(.white.opacity(0.85))
+                        }
+                    }
+                }
+
+                Text("Right-click the menubar pen for capture settings, sounds, and more.")
+                    .font(.system(size: 11, design: .rounded))
+                    .foregroundColor(.white.opacity(0.5))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            .background(Color.black.opacity(0.7))
+        }
+        .frame(width: 440)
+        .fixedSize(horizontal: false, vertical: true)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.5), radius: 20)
+        .onExitCommand {
+            onDismiss()
+        }
+    }
+
+    private func helpStep(number: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(number)
+                .font(.system(size: 12, weight: .black, design: .rounded))
+                .foregroundColor(.black)
+                .frame(width: 20, height: 20)
+                .background(Circle().fill(Color(appState.activeColor.nsColor)))
+            Text(text)
+                .font(.system(size: 12.5, design: .rounded))
+                .foregroundColor(.white.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
