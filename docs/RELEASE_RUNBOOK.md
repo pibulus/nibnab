@@ -29,7 +29,7 @@ Check what's installed: `security find-identity -v -p codesigning`
 rm -rf build && ./build.sh   # clean build, zero warnings expected
 ```
 
-Manual QA (5 minutes, from docs/FABLE-AUDIT.md):
+Manual QA (5 minutes):
 1. Grant Accessibility, drag-select text slowly in Safari → exactly one clip.
 2. Copy a password from your password manager → **no** clip.
 3. Copy a markdown doc containing `---` lines, quit, relaunch → intact.

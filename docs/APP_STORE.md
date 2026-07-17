@@ -259,4 +259,4 @@ App starts empty. Copy text to populate clips. Sample markdown files can be foun
 ## Contact for App Review
 Pablo Alvarado
 GitHub: @pibulus
-Email: [Your email for App Store contact]
+Email: pibulus@gmail.com

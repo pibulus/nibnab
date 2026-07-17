@@ -84,6 +84,10 @@ fi
 echo -e "${YELLOW}🔨 Building app bundle...${NC}"
 ENTITLEMENTS_PATH="$ENTITLEMENTS_PATH" ./build.sh
 
+# The sandboxed build never uses the Accessibility API, so the usage string
+# build.sh writes for dev builds doesn't belong in this plist.
+/usr/libexec/PlistBuddy -c "Delete :NSAccessibilityUsageDescription" "$APP_BUNDLE/Contents/Info.plist"
+
 # --- Embed provisioning profile ---
 
 echo -e "${YELLOW}📋 Embedding provisioning profile...${NC}"
