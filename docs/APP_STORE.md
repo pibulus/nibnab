@@ -201,10 +201,10 @@ All clipboard content is stored locally on your Mac in:
 • User has full control and ownership
 
 ## Support URL
-https://github.com/pibulus/nibnab
+https://nibnab.app
 
 ## Marketing URL (Optional)
-https://github.com/pibulus/nibnab
+https://nibnab.app
 
 ## Copyright
 © 2026 Pablo Alvarado
