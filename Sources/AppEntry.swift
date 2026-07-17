@@ -234,28 +234,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         let size = NSSize(width: 26, height: 24)
-        let compositeImage = NSImage(size: size)
+        let dotColor = appState.activeColor.nsColor
 
-        compositeImage.lockFocus()
+        // Drawn via handler so it re-renders per appearance: labelColor makes
+        // the glyph black on a light menubar and white on a dark one, while
+        // the status dot keeps its real color (which is why isTemplate stays false).
+        let compositeImage = NSImage(size: size, flipped: false) { _ in
+            let iconRect = NSRect(x: 4, y: 4, width: 18, height: 18)
+            NSColor.labelColor.setFill()
+            iconRect.fill()
+            symbol.draw(in: iconRect, from: .zero, operation: .destinationIn, fraction: 1.0, respectFlipped: true, hints: nil)
 
-        // Draw highlighter icon with a bright tint using destination masking
-        let iconRect = NSRect(x: 4, y: 4, width: 18, height: 18)
-        NSColor.white.setFill()
-        iconRect.fill()
-        symbol.draw(in: iconRect, from: .zero, operation: .destinationIn, fraction: 1.0, respectFlipped: true, hints: nil)
+            let dotRect = NSRect(x: size.width - 10, y: 4, width: 8, height: 8)
+            let dotPath = NSBezierPath(ovalIn: dotRect)
+            dotColor.setFill()
+            dotPath.fill()
 
-        // Draw colored status dot
-        let dotRect = NSRect(x: size.width - 10, y: 4, width: 8, height: 8)
-        let dotPath = NSBezierPath(ovalIn: dotRect)
-        appState.activeColor.nsColor.setFill()
-        dotPath.fill()
-
-        // Subtle outline for contrast on light/dark backgrounds
-        NSColor.white.withAlphaComponent(0.9).setStroke()
-        dotPath.lineWidth = 0.8
-        dotPath.stroke()
-
-        compositeImage.unlockFocus()
+            // Subtle outline so the dot reads on both menubar appearances
+            NSColor.labelColor.withAlphaComponent(0.4).setStroke()
+            dotPath.lineWidth = 0.8
+            dotPath.stroke()
+            return true
+        }
         compositeImage.isTemplate = false
 
         button.image = compositeImage
