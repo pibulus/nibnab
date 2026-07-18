@@ -783,6 +783,8 @@ struct ClipView: View {
     let clip: Clip
     @EnvironmentObject var appState: AppState
     @State private var isHovered = false
+    @State private var copyHovered = false
+    @State private var deleteHovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -797,7 +799,7 @@ struct ClipView: View {
                 Text(timeAgo(from: clip.timestamp))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundColor(Color.white.opacity(0.4))
-                    .padding(.trailing, isHovered ? 50 : 0)
+                    .padding(.trailing, isHovered ? 56 : 0)
             }
 
             Text(clip.text.prefix(150) + (clip.text.count > 150 ? "..." : ""))
@@ -826,28 +828,48 @@ struct ClipView: View {
         .overlay(
             Group {
                 if isHovered {
-                    HStack(spacing: 6) {
-                        // Copy button
+                    HStack(spacing: 4) {
                         Button(action: {
                             appState.copyToPasteboard(clip.text)
                         }) {
                             Image(systemName: "doc.on.doc")
-                                .font(.system(size: 14))
-                                .foregroundColor(.white.opacity(0.6))
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.85))
+                                .frame(width: 26, height: 26)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white.opacity(copyHovered ? 0.2 : 0.1))
+                                )
                         }
                         .buttonStyle(.plain)
+                        .scaleEffect(copyHovered ? 1.15 : 1.0)
+                        .onHover { hovering in
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+                                copyHovered = hovering
+                            }
+                        }
 
-                        // Delete button
                         Button(action: {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                 appState.deleteClip(clip, from: appState.viewedColor.name)
                             }
                         }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 14))
-                                .foregroundColor(.white.opacity(0.6))
+                            Image(systemName: "trash")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.85))
+                                .frame(width: 26, height: 26)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white.opacity(deleteHovered ? 0.2 : 0.1))
+                                )
                         }
                         .buttonStyle(.plain)
+                        .scaleEffect(deleteHovered ? 1.15 : 1.0)
+                        .onHover { hovering in
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+                                deleteHovered = hovering
+                            }
+                        }
                     }
                     .padding(6)
                 }
@@ -922,6 +944,11 @@ struct EditClipModal: View {
             }
             .padding()
             .background(Color.black.opacity(0.9))
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .frame(height: 1)
+            }
 
             // Content
             TextEditor(text: $clipText)
@@ -984,6 +1011,11 @@ struct EditClipModal: View {
             }
             .padding()
             .background(Color.black.opacity(0.9))
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .frame(height: 1)
+            }
         }
         .frame(width: 430, height: 350)
         .cornerRadius(12)
@@ -1053,6 +1085,11 @@ struct AddClipModal: View {
             }
             .padding()
             .background(Color.black.opacity(0.9))
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .frame(height: 1)
+            }
 
             // Content
             TextEditor(text: $clipText)
@@ -1118,10 +1155,19 @@ struct AddClipModal: View {
             }
             .padding()
             .background(Color.black.opacity(0.9))
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .frame(height: 1)
+            }
         }
         .frame(width: 430, height: 350)
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.5), radius: 20)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(appState.activeColor.nsColor).opacity(0.5), lineWidth: 1.5)
+        )
         .onExitCommand {
             // Allow Escape key to close without saving
             onDismiss()
@@ -1133,6 +1179,7 @@ struct AddClipModal: View {
 struct HelpModal: View {
     let onDismiss: () -> Void
     @EnvironmentObject var appState: AppState
+    @State private var hoveredStep: Int? = nil
 
     private let shortcuts: [(keys: String, action: String)] = [
         ("⌘⌃N", "Show / hide NibNab"),
@@ -1161,12 +1208,17 @@ struct HelpModal: View {
             }
             .padding()
             .background(Color.black.opacity(0.9))
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .frame(height: 1)
+            }
 
             // Content
             VStack(alignment: .leading, spacing: 18) {
-                helpStep(number: "1", text: "Flip the switch and NibNab quietly nabs everything you copy.")
-                helpStep(number: "2", text: "Clips land in the active color — click the dots below to flip between collections.")
-                helpStep(number: "3", text: "Drag a clip onto a dot to re-file it. Click a clip to read, edit, or copy it.")
+                helpStep(number: "1", index: 0, text: "Flip the switch and NibNab quietly nabs everything you copy.")
+                helpStep(number: "2", index: 1, text: "Clips land in the active color — click the dots below to flip between collections.")
+                helpStep(number: "3", index: 2, text: "Drag a clip onto a dot to re-file it. Click a clip to read, edit, or copy it.")
 
                 Divider()
                     .overlay(Color.white.opacity(0.15))
@@ -1201,22 +1253,34 @@ struct HelpModal: View {
         .fixedSize(horizontal: false, vertical: true)
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.5), radius: 20)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(appState.activeColor.nsColor).opacity(0.5), lineWidth: 1.5)
+        )
         .onExitCommand {
             onDismiss()
         }
     }
 
-    private func helpStep(number: String, text: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+    private func helpStep(number: String, index: Int, text: String) -> some View {
+        let isHovered = hoveredStep == index
+        return HStack(alignment: .top, spacing: 12) {
             Text(number)
                 .font(.system(size: 12, weight: .black, design: .rounded))
                 .foregroundColor(.black)
                 .frame(width: 20, height: 20)
                 .background(Circle().fill(Color(appState.activeColor.nsColor)))
+                .scaleEffect(isHovered ? 1.18 : 1.0)
+                .shadow(color: Color(appState.activeColor.nsColor).opacity(isHovered ? 0.6 : 0), radius: 8)
             Text(text)
                 .font(.system(size: 12.5, design: .rounded))
                 .foregroundColor(.white.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
+        }
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+                hoveredStep = hovering ? index : nil
+            }
         }
     }
 }
@@ -1278,6 +1342,11 @@ struct ClipDetailView: View {
             }
             .padding()
             .background(Color.black.opacity(0.9))
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .frame(height: 1)
+            }
 
             // Content
             ZStack {
@@ -1350,6 +1419,11 @@ struct ClipDetailView: View {
             }
             .padding()
             .background(Color.black.opacity(0.9))
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .frame(height: 1)
+            }
         }
         .frame(width: Self.detailSize.width, height: Self.detailSize.height)
         .cornerRadius(12)
