@@ -505,7 +505,7 @@ struct ContentOverlaysView: View {
 
 // MARK: - Main Content View
 struct ContentView: View {
-    private static let popoverSize = CGSize(width: 600, height: 540)
+    private static let popoverSize = CGSize(width: 520, height: 480)
     private static let horizontalPadding: CGFloat = 28
     @EnvironmentObject var appState: AppState
     @State private var selectedClip: Clip?
@@ -985,7 +985,7 @@ struct EditClipModal: View {
             .padding()
             .background(Color.black.opacity(0.9))
         }
-        .frame(width: 500, height: 400)
+        .frame(width: 430, height: 350)
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.5), radius: 20)
         .overlay(
@@ -1119,7 +1119,7 @@ struct AddClipModal: View {
             .padding()
             .background(Color.black.opacity(0.9))
         }
-        .frame(width: 500, height: 400)
+        .frame(width: 430, height: 350)
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.5), radius: 20)
         .onExitCommand {
@@ -1223,7 +1223,7 @@ struct HelpModal: View {
 
 // MARK: - Clip Detail View
 struct ClipDetailView: View {
-    private static let detailSize = CGSize(width: 560, height: 420)
+    private static let detailSize = CGSize(width: 460, height: 380)
     let clip: Clip
     let colorName: String
     let onDismiss: () -> Void
