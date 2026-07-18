@@ -213,8 +213,9 @@ class AppState: ObservableObject {
         }
         clips[color.name]?.insert(clip, at: 0)
 
-        if clips[color.name]!.count > Self.maxClipsPerColor {
-            clips[color.name] = Array(clips[color.name]!.prefix(Self.maxClipsPerColor))
+        if var colorClips = clips[color.name], colorClips.count > Self.maxClipsPerColor {
+            colorClips = Array(colorClips.prefix(Self.maxClipsPerColor))
+            clips[color.name] = colorClips
         }
 
         if let colorClips = clips[color.name] {

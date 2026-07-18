@@ -54,7 +54,7 @@ extension AXUIElement {
     private func element(for attribute: String) -> AXUIElement? {
         guard let rawValue = rawValue(for: attribute),
               CFGetTypeID(rawValue) == AXUIElementGetTypeID() else { return nil }
-        return unsafeBitCast(rawValue, to: AXUIElement.self)
+        return (rawValue as! AXUIElement)
     }
 
     private func rawValue(for attribute: String) -> AnyObject? {

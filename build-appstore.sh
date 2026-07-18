@@ -86,7 +86,7 @@ ENTITLEMENTS_PATH="$ENTITLEMENTS_PATH" ./build.sh
 
 # The sandboxed build never uses the Accessibility API, so the usage string
 # build.sh writes for dev builds doesn't belong in this plist.
-/usr/libexec/PlistBuddy -c "Delete :NSAccessibilityUsageDescription" "$APP_BUNDLE/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Delete :NSAccessibilityUsageDescription" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
 
 # --- Embed provisioning profile ---
 

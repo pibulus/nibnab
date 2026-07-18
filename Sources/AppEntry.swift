@@ -356,6 +356,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self?.welcomeWindow?.close()
         })
         .environmentObject(appState)
+        .preferredColorScheme(.dark)
 
         welcomeWindow = makeAuxiliaryWindow(
             title: "Welcome to NibNab",
@@ -457,7 +458,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if status != noErr {
                 // Another app (window managers love ⌘⌃ digits) owns this
                 // combo — the shortcut silently won't fire, so leave a trace.
+#if DEBUG
                 NSLog("NibNab: couldn't register global hotkey %@ (OSStatus %d)", binding.label, status)
+#endif
             }
         }
 
