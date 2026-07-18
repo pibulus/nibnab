@@ -524,6 +524,7 @@ struct ContentView: View {
     @State private var showHelp = false
     @State private var editingClip: Clip?
     @State private var modalColorName = ""
+    @State private var dropTargetedClipID: UUID? = nil
     @FocusState private var labelFocused: Bool
 
     enum SortOrder {
@@ -628,7 +629,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 8) {
                 if !sortedClips.isEmpty {
                     ForEach(sortedClips) { clip in
-                        ClipView(clip: clip)
+                        ClipView(clip: clip, isDropTargeted: dropTargetedClipID == clip.id)
                             .dropDestination(for: Clip.self) { droppedClips, location in
                                 guard let dropped = droppedClips.first,
                                       dropped.id != clip.id else { return false }
@@ -653,7 +654,12 @@ struct ContentView: View {
                                         }
                                     }
                                 }
+                                dropTargetedClipID = nil
                                 return true
+                            } isTargeted: { targeted in
+                                withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                                    dropTargetedClipID = targeted ? clip.id : nil
+                                }
                             }
                             .onTapGesture {
                                 modalColorName = appState.viewedColor.name
@@ -819,6 +825,7 @@ struct ColorDropTarget: View {
 // MARK: - Clip View Component
 struct ClipView: View {
     let clip: Clip
+    let isDropTargeted: Bool
     @EnvironmentObject var appState: AppState
     @State private var isHovered = false
     @State private var copyHovered = false
@@ -851,7 +858,9 @@ struct ClipView: View {
             RoundedRectangle(cornerRadius: 10)
                 .fill(
                     LinearGradient(
-                        colors: isHovered ?
+                        colors: isDropTargeted ?
+                            [Color(appState.viewedColor.nsColor).opacity(0.25), Color(appState.viewedColor.nsColor).opacity(0.15)] :
+                            isHovered ?
                             [Color.white.opacity(0.18), Color.white.opacity(0.12)] :
                             [Color.white.opacity(0.10), Color.white.opacity(0.06)],
                         startPoint: .topLeading,
@@ -861,8 +870,9 @@ struct ClipView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color(appState.viewedColor.nsColor).opacity(isHovered ? 0.55 : 0.2), lineWidth: 1.5)
+                .stroke(Color(appState.viewedColor.nsColor).opacity(isDropTargeted ? 0.8 : (isHovered ? 0.55 : 0.2)), lineWidth: isDropTargeted ? 2 : 1.5)
         )
+        .scaleEffect(isDropTargeted ? 1.02 : 1.0)
         .overlay(
             Group {
                 if isHovered {
