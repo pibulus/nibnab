@@ -295,6 +295,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         menu.addItem(aboutItem)
 
+        let welcomeItem = NSMenuItem(
+            title: "Show Welcome...",
+            action: #selector(showWelcomeFromMenu),
+            keyEquivalent: ""
+        )
+        menu.addItem(welcomeItem)
+
         menu.addItem(NSMenuItem.separator())
 
         let quitItem = NSMenuItem(
@@ -307,6 +314,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
         statusItem.menu = nil
+    }
+
+    @objc func showWelcomeFromMenu() {
+        showWelcomeWindow()
     }
 
     @objc func selectColor(_ sender: NSMenuItem) {

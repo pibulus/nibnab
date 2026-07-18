@@ -829,7 +829,7 @@ struct ClipView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.white.opacity(isHovered ? 0.22 : 0.10), lineWidth: 1)
+                .stroke(Color(appState.viewedColor.nsColor).opacity(isHovered ? 0.55 : 0.2), lineWidth: 1.5)
         )
         .overlay(
             Group {
