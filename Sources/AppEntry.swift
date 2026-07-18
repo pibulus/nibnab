@@ -354,6 +354,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let welcomeView = WelcomeView(onDismiss: { [weak self] in
             self?.welcomeWindow?.close()
+            UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
+            self?.pulseMenuBarIcon()
         })
         .environmentObject(appState)
         .preferredColorScheme(.dark)

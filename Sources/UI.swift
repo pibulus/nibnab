@@ -667,15 +667,21 @@ struct ContentView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: isSearchingWithNoMatches ? "magnifyingglass" : "doc.on.clipboard")
+            Image(systemName: isSearchingWithNoMatches ? "magnifyingglass"
+                : !appState.isMonitoring ? "pause.circle"
+                : "doc.on.clipboard")
                 .font(.system(size: 64, weight: .light))
                 .foregroundColor(Color.white.opacity(0.3))
 
             VStack(spacing: 8) {
-                Text(isSearchingWithNoMatches ? "No matches" : "Nothing nabbed yet")
+                Text(isSearchingWithNoMatches ? "No matches"
+                    : !appState.isMonitoring ? "Capture is paused"
+                    : "Nothing nabbed yet")
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundColor(Color.white.opacity(0.8))
-                Text(isSearchingWithNoMatches ? "Nothing here matches \"\(searchText)\"" : "Copy something good")
+                Text(isSearchingWithNoMatches ? "Nothing here matches \"\(searchText)\""
+                    : !appState.isMonitoring ? "Flip the switch to start nabbing"
+                    : "Copy something good")
                     .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundColor(Color.white.opacity(0.5))
                     .lineLimit(1)

@@ -67,7 +67,6 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(colorLabels, forKey: "colorLabels")
         }
     }
-    @Published var showWelcome: Bool = false
     @Published var toastMessage: String? = nil
     @Published var toastColor: NibColor? = nil
 
@@ -120,7 +119,6 @@ class AppState: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self.delegate?.showWelcomeWindow()
             }
-            UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
         }
     }
 
@@ -221,7 +219,8 @@ class AppState: ObservableObject {
         if let colorClips = clips[color.name] {
             storageManager.rewriteClips(colorClips, for: color.name)
         }
-        playSound("Purr")
+        let isFirstInColor = clips[color.name]?.count == 1
+        playSound(isFirstInColor ? "Glass" : "Purr")
     }
 
     func playSound(_ name: String) {
