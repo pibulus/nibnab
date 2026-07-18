@@ -302,6 +302,30 @@ class AppState: ObservableObject {
         clips[colorName] = colorClips
     }
 
+    func mergeClip(_ source: Clip, into target: Clip, in colorName: String) {
+        guard var colorClips = clips[colorName],
+              let targetIndex = colorClips.firstIndex(of: target) else { return }
+
+        let mergedText = target.text + "\n" + source.text
+        let merged = Clip(
+            text: mergedText,
+            timestamp: Date(),
+            url: target.url ?? source.url,
+            appName: target.appName,
+            order: target.order,
+            id: target.id
+        )
+        colorClips[targetIndex] = merged
+        colorClips.removeAll { $0.id == source.id }
+
+        for i in colorClips.indices {
+            colorClips[i].order = i
+        }
+        clips[colorName] = colorClips
+        storageManager.rewriteClips(colorClips, for: colorName)
+        playSound("Bottle")
+    }
+
     func copyToPasteboard(_ text: String) {
         suppressNextClipboardCapture = true
         lastCapturedText = text

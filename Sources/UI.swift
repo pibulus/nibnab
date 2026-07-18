@@ -634,13 +634,23 @@ struct ContentView: View {
                                       dropped.id != clip.id else { return false }
                                 let colorName = appState.viewedColor.name
                                 let targetIndex = sortedClips.firstIndex(of: clip) ?? 0
-                                let insertIndex = location.y > 30 ? targetIndex + 1 : targetIndex
+                                let isMergeZone = location.y > 18 && location.y < 42
+                                let insertIndex = location.y > 42 ? targetIndex + 1 : targetIndex
+
                                 if let sourceColor = appState.clips.first(where: { $0.value.contains(dropped) })?.key {
                                     if sourceColor == colorName {
-                                        appState.reorderClip(dropped, in: colorName, to: insertIndex)
+                                        if isMergeZone {
+                                            appState.mergeClip(dropped, into: clip, in: colorName)
+                                        } else {
+                                            appState.reorderClip(dropped, in: colorName, to: insertIndex)
+                                        }
                                     } else {
                                         appState.moveClip(dropped, from: sourceColor, to: colorName)
-                                        appState.reorderClip(dropped, in: colorName, to: insertIndex)
+                                        if isMergeZone {
+                                            appState.mergeClip(dropped, into: clip, in: colorName)
+                                        } else {
+                                            appState.reorderClip(dropped, in: colorName, to: insertIndex)
+                                        }
                                     }
                                 }
                                 return true
