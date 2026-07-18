@@ -197,6 +197,10 @@ struct ContentHeaderView: View {
                     Label("Oldest First", systemImage: sortOrder == .oldestFirst ? "checkmark" : "")
                 }
                 Divider()
+                Button(action: { sortOrder = .manual }) {
+                    Label("Manual (drag to reorder)", systemImage: sortOrder == .manual ? "checkmark" : "")
+                }
+                Divider()
                 Button(action: { sortOrder = .byAppName }) {
                     Label("By App Name", systemImage: sortOrder == .byAppName ? "checkmark" : "")
                 }
@@ -523,7 +527,7 @@ struct ContentView: View {
     @FocusState private var labelFocused: Bool
 
     enum SortOrder {
-        case newestFirst, oldestFirst, byAppName, byLength
+        case newestFirst, oldestFirst, byAppName, byLength, manual
     }
 
     var sortedClips: [Clip] {
@@ -543,6 +547,8 @@ struct ContentView: View {
             return filteredClips.sorted { $0.appName < $1.appName }
         case .byLength:
             return filteredClips.sorted { $0.text.count > $1.text.count }
+        case .manual:
+            return filteredClips.sorted { $0.order < $1.order }
         }
     }
 
@@ -623,6 +629,22 @@ struct ContentView: View {
                 if !sortedClips.isEmpty {
                     ForEach(sortedClips) { clip in
                         ClipView(clip: clip)
+                            .dropDestination(for: Clip.self) { droppedClips, location in
+                                guard let dropped = droppedClips.first,
+                                      dropped.id != clip.id else { return false }
+                                let colorName = appState.viewedColor.name
+                                let targetIndex = sortedClips.firstIndex(of: clip) ?? 0
+                                let insertIndex = location.y > 30 ? targetIndex + 1 : targetIndex
+                                if let sourceColor = appState.clips.first(where: { $0.value.contains(dropped) })?.key {
+                                    if sourceColor == colorName {
+                                        appState.reorderClip(dropped, in: colorName, to: insertIndex)
+                                    } else {
+                                        appState.moveClip(dropped, from: sourceColor, to: colorName)
+                                        appState.reorderClip(dropped, in: colorName, to: insertIndex)
+                                    }
+                                }
+                                return true
+                            }
                             .onTapGesture {
                                 modalColorName = appState.viewedColor.name
                                 selectedClip = clip

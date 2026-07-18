@@ -126,6 +126,7 @@ final class StorageManager {
         var url: String? = nil
         var clipID: UUID? = nil
         var timestamp = Date()
+        var order = 0
         var text = ""
         var headerIndex = 0
 
@@ -171,6 +172,10 @@ final class StorageManager {
                     timestamp = parsedDate
                     sawTimestampKey = true
                 }
+            } else if metadataLine.hasPrefix("order: ") {
+                if let parsedOrder = Int(String(metadataLine.dropFirst("order: ".count))) {
+                    order = parsedOrder
+                }
             } else if clipID == nil && !sawTimestampKey {
                 // Legacy sections (pre-`id:`) wrote a bare timestamp line.
                 // Only try this before any keyed metadata, so a clip whose
@@ -207,6 +212,7 @@ final class StorageManager {
             timestamp: timestamp,
             url: url,
             appName: appName,
+            order: order,
             id: resolvedID
         )
     }
@@ -219,7 +225,9 @@ final class StorageManager {
         }
         markdown += "\n"
         markdown += "id: \(clip.id.uuidString)\n"
-        markdown += "timestamp: \(formatter.string(from: clip.timestamp))\n\n"
+        markdown += "timestamp: \(formatter.string(from: clip.timestamp))\n"
+        markdown += "order: \(clip.order)\n"
+        markdown += "\n"
         markdown += "\(escapeDividerLines(in: clip.text))\n"
         return markdown
     }

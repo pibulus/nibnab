@@ -216,8 +216,11 @@ class AppState: ObservableObject {
             clips[color.name] = colorClips
         }
 
-        if let colorClips = clips[color.name] {
-            storageManager.rewriteClips(colorClips, for: color.name)
+        if clips[color.name] != nil {
+            reindexOrders(for: color.name)
+            if let colorClips = clips[color.name] {
+                storageManager.rewriteClips(colorClips, for: color.name)
+            }
         }
         let isFirstInColor = clips[color.name]?.count == 1
         playSound(isFirstInColor ? "Glass" : "Purr")
@@ -274,6 +277,29 @@ class AppState: ObservableObject {
         storageManager.rewriteClips(clips[sourceColor] ?? [], for: sourceColor)
         storageManager.rewriteClips(targetClips, for: targetColor)
         playSound("Pop")
+    }
+
+    func reorderClip(_ clip: Clip, in colorName: String, to targetIndex: Int) {
+        guard var colorClips = clips[colorName] else { return }
+        guard let sourceIndex = colorClips.firstIndex(of: clip) else { return }
+
+        let movedClip = colorClips.remove(at: sourceIndex)
+        let clampedTarget = min(targetIndex, colorClips.count)
+        colorClips.insert(movedClip, at: clampedTarget)
+
+        for i in colorClips.indices {
+            colorClips[i].order = i
+        }
+        clips[colorName] = colorClips
+        storageManager.rewriteClips(colorClips, for: colorName)
+    }
+
+    private func reindexOrders(for colorName: String) {
+        guard var colorClips = clips[colorName] else { return }
+        for i in colorClips.indices {
+            colorClips[i].order = i
+        }
+        clips[colorName] = colorClips
     }
 
     func copyToPasteboard(_ text: String) {

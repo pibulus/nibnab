@@ -9,14 +9,16 @@ struct Clip: Identifiable, Codable, Equatable, Hashable, Sendable {
     let timestamp: Date
     let url: String?
     let appName: String
+    var order: Int = 0
     var screenshotPath: String?
 
-    init(text: String, timestamp: Date, url: String?, appName: String, screenshotPath: String? = nil, id: UUID? = nil) {
+    init(text: String, timestamp: Date, url: String?, appName: String, screenshotPath: String? = nil, order: Int = 0, id: UUID? = nil) {
         self.id = id ?? UUID()
         self.text = text
         self.timestamp = timestamp
         self.url = url
         self.appName = appName
+        self.order = order
         self.screenshotPath = screenshotPath
     }
 }
