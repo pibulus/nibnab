@@ -25,8 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var localKeyMonitor: Any?
     private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 7)
     private var hotKeyHandlerRef: EventHandlerRef?
-    private var statusToastWindow: NSPanel?
-    private var statusToastWorkItem: DispatchWorkItem?
+
     private var welcomeWindow: NSWindow?
     private var aboutWindow: NSWindow?
 
@@ -96,7 +95,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.appState.suppressNextClipboardCapture = true
                 let sourceApp = self.appState.getCurrentAppName()
                 self.appState.saveClip(selectedText, to: self.appState.activeColor, from: sourceApp)
-                self.pulseMenubarIcon()
+                self.pulseMenuBarIcon()
             }
         }
 
@@ -124,7 +123,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func showPopover() {
         if let button = statusItem.button {
-            statusToastWindow?.orderOut(nil)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.becomeKey()
             // The popover auto-focuses the search field after SwiftUI's onAppear
@@ -142,92 +140,39 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         eventMonitor?.stop()
     }
 
-    func showStatusToast(message: String, color: NibColor) {
-        statusToastWorkItem?.cancel()
-
-        let toastView = StatusToastView(message: message, color: color)
-        let hostingController = NSHostingController(rootView: toastView)
-
-        if statusToastWindow == nil {
-            let panel = NSPanel(
-                contentRect: NSRect(x: 0, y: 0, width: 200, height: 56),
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            panel.level = .statusBar
-            panel.isOpaque = false
-            panel.backgroundColor = .clear
-            panel.hasShadow = true
-            panel.ignoresMouseEvents = true
-            panel.collectionBehavior = [.transient, .ignoresCycle, .canJoinAllSpaces]
-            panel.isReleasedWhenClosed = false
-            statusToastWindow = panel
-        }
-
-        statusToastWindow?.contentViewController = hostingController
-        hostingController.view.layoutSubtreeIfNeeded()
-
-        let fittingSize = hostingController.view.fittingSize
-        let targetSize = NSSize(width: fittingSize.width, height: fittingSize.height)
-        hostingController.preferredContentSize = targetSize
-        statusToastWindow?.setContentSize(targetSize)
-
-        if let button = statusItem.button,
-           let window = button.window {
-            var buttonRect = button.bounds
-            buttonRect = button.convert(buttonRect, to: nil)
-            let screenRect = window.convertToScreen(buttonRect)
-            let x = screenRect.midX - (targetSize.width / 2)
-            let y = screenRect.minY - targetSize.height - 12
-            statusToastWindow?.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: targetSize), display: true)
-        } else if let screenFrame = NSScreen.main?.visibleFrame {
-            let x = screenFrame.maxX - targetSize.width - 20
-            let y = screenFrame.maxY - targetSize.height - 40
-            statusToastWindow?.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: targetSize), display: true)
-        }
-
-        statusToastWindow?.orderFrontRegardless()
-
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.statusToastWindow?.orderOut(nil)
-        }
-        statusToastWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8, execute: workItem)
-    }
-
-    func pulseMenubarIcon() {
+    func pulseMenuBarIcon(color: NibColor? = nil) {
         guard let button = statusItem.button else { return }
+        let pulseColor = color ?? appState.activeColor
 
-        // Enable layer-backing if not already enabled
-        if button.layer == nil {
-            button.wantsLayer = true
-        }
-
+        if button.layer == nil { button.wantsLayer = true }
         guard let buttonLayer = button.layer else { return }
 
-        // Create animation layer
-        let animationLayer = CALayer()
-        animationLayer.frame = buttonLayer.bounds
-        animationLayer.cornerRadius = min(buttonLayer.bounds.width, buttonLayer.bounds.height) / 2
-        animationLayer.backgroundColor = appState.activeColor.nsColor.cgColor
-        animationLayer.opacity = 0.0
+        let scaleAnim = CABasicAnimation(keyPath: "transform.scale")
+        scaleAnim.fromValue = 1.0
+        scaleAnim.toValue = 1.25
+        scaleAnim.duration = 0.12
+        scaleAnim.autoreverses = true
+        buttonLayer.add(scaleAnim, forKey: "iconPop")
 
-        // Add as sublayer (don't replace the root layer!)
-        buttonLayer.addSublayer(animationLayer)
+        let flashLayer = CALayer()
+        flashLayer.frame = buttonLayer.bounds
+        flashLayer.cornerRadius = buttonLayer.bounds.height / 2
+        flashLayer.backgroundColor = pulseColor.nsColor.cgColor
+        flashLayer.opacity = 0.0
+        buttonLayer.addSublayer(flashLayer)
 
-        let fadeIn = CABasicAnimation(keyPath: "opacity")
-        fadeIn.fromValue = 0.0
-        fadeIn.toValue = 0.4
-        fadeIn.duration = 0.15
-        fadeIn.autoreverses = true
-        animationLayer.add(fadeIn, forKey: "pulse")
+        let flashAnim = CAKeyframeAnimation(keyPath: "opacity")
+        flashAnim.values = [0.0, 0.65, 0.0, 0.4, 0.0]
+        flashAnim.keyTimes = [0.0, 0.15, 0.3, 0.45, 1.0]
+        flashAnim.duration = 0.5
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak button] in
-            animationLayer.removeFromSuperlayer()
-            // Ensure button updates its display after animation
-            button?.needsDisplay = true
+        CATransaction.begin()
+        CATransaction.setCompletionBlock {
+            flashLayer.removeFromSuperlayer()
+            button.needsDisplay = true
         }
+        flashLayer.add(flashAnim, forKey: "flash")
+        CATransaction.commit()
     }
 
     func updateMenubarIcon() {

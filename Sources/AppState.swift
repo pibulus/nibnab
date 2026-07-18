@@ -78,6 +78,7 @@ class AppState: ObservableObject {
     var suppressNextClipboardCapture = false
     private var toastGate = ToastGate()
     private let storageManager = StorageManager()
+    private var popSound: NSSound?
 
     @Published var selectionCaptureEnabled: Bool {
         didSet {
@@ -177,7 +178,7 @@ class AppState: ObservableObject {
                             self.lastCapturedText = text
                             let sourceApp = self.getCurrentAppName()
                             self.saveClip(text, to: self.activeColor, from: sourceApp)
-                            self.delegate?.pulseMenubarIcon()
+                            self.delegate?.pulseMenuBarIcon()
                         }
                     }
                 }
@@ -224,8 +225,13 @@ class AppState: ObservableObject {
 
     func playSound(_ name: String) {
         guard soundEffectsEnabled else { return }
-        // NSSound.play() is already asynchronous — no need to hop queues.
-        NSSound(named: name)?.play()
+        if name == "Pop" {
+            if popSound == nil { popSound = NSSound(named: "Pop") }
+            popSound?.stop()
+            popSound?.play()
+        } else {
+            NSSound(named: name)?.play()
+        }
     }
 
     private func getCurrentURL() -> String? {
@@ -396,13 +402,10 @@ class AppState: ObservableObject {
                 self?.toastMessage = nil
                 self?.toastColor = nil
             }
-        } else if let delegate {
+        } else {
             toastMessage = nil
             toastColor = nil
-            delegate.showStatusToast(message: message, color: color)
-        } else {
-            toastMessage = message
-            toastColor = color
+            delegate?.pulseMenuBarIcon(color: color)
         }
     }
 }

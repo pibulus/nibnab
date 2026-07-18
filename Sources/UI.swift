@@ -414,12 +414,12 @@ struct ContentOverlaysView: View {
             if let clip = selectedClip {
                 overlayBackground {
                     ClipDetailView(clip: clip, colorName: modalColorName) {
-                        withAnimation {
+                        appState.playSound("Pop")
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                             selectedClip = nil
                         }
                     }
                     .environmentObject(appState)
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
             }
 
@@ -427,19 +427,20 @@ struct ContentOverlaysView: View {
                 overlayBackground {
                     AddClipModal(
                         onDismiss: {
-                            withAnimation {
+                            appState.playSound("Pop")
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                                 showAddClipModal = false
                             }
                         },
                         onSave: { text in
                             appState.saveClip(text, to: appState.activeColor, from: "Manual Entry")
-                            withAnimation {
+                            appState.playSound("Pop")
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                                 showAddClipModal = false
                             }
                         }
                     )
                     .environmentObject(appState)
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
             }
 
@@ -448,31 +449,32 @@ struct ContentOverlaysView: View {
                     EditClipModal(
                         clip: clip,
                         onDismiss: {
-                            withAnimation {
+                            appState.playSound("Pop")
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                                 editingClip = nil
                             }
                         },
                         onSave: { newText in
                             appState.updateClip(clip, newText: newText, in: modalColorName)
-                            withAnimation {
+                            appState.playSound("Pop")
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                                 editingClip = nil
                             }
                         }
                     )
                     .environmentObject(appState)
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
             }
 
             if showHelp {
                 overlayBackground {
                     HelpModal {
-                        withAnimation {
+                        appState.playSound("Pop")
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                             showHelp = false
                         }
                     }
                     .environmentObject(appState)
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
             }
 
@@ -485,15 +487,18 @@ struct ContentOverlaysView: View {
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    withAnimation {
+                    appState.playSound("Pop")
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
                         showAddClipModal = false
                         editingClip = nil
                         selectedClip = nil
                         showHelp = false
                     }
                 }
+                .transition(.opacity)
 
             content()
+                .transition(.scale(scale: 0.92).combined(with: .opacity))
         }
     }
 }
@@ -712,33 +717,46 @@ struct ColorDropTarget: View {
 
     @State private var isTargeted = false
     @State private var isHovered = false
+    @State private var isPressed = false
 
     var body: some View {
-        Button(action: onTap) {
-            // Larger invisible drop target area
+        Button(action: {
+            withAnimation(.spring(response: 0.15, dampingFraction: 0.4)) {
+                isPressed = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.5)) {
+                    isPressed = false
+                }
+            }
+            onTap()
+        }) {
             ZStack {
-                // Invisible larger hit area for drops
+                Circle()
+                    .fill(Color(color.nsColor))
+                    .frame(width: 28, height: 28)
+                    .blur(radius: 8)
+                    .opacity(isHovered || isActive ? 0.4 : 0)
+
                 Circle()
                     .fill(Color.clear)
                     .frame(width: 32, height: 32)
 
-                // Visible color circle
                 Circle()
                     .fill(Color(color.nsColor))
                     .frame(width: 20, height: 20)
+                    .shadow(color: Color(color.nsColor).opacity(isHovered || isActive ? 0.7 : 0.35), radius: 6, y: 2)
                     .overlay(
                         Circle()
                             .stroke(Color.white, lineWidth: isActive ? 3 : 0)
                     )
                     .overlay(
-                        // Visual feedback when being dragged over
                         Circle()
                             .stroke(Color.white.opacity(0.8), lineWidth: isTargeted ? 2 : 0)
                             .scaleEffect(isTargeted ? 1.3 : 1.0)
                     )
-                    .scaleEffect(isTargeted ? 1.12 : (isHovered ? 1.08 : 1.0))
             }
-            .scaleEffect(isTargeted ? 1.12 : (isHovered ? 1.06 : 1.0))
+            .scaleEffect(isPressed ? 0.85 : (isTargeted ? 1.15 : (isHovered ? 1.18 : 1.0)))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(color.name.replacingOccurrences(of: "Highlighter ", with: "") + (isActive ? ", active" : ""))
@@ -748,12 +766,12 @@ struct ColorDropTarget: View {
             onDrop(clips)
             return true
         } isTargeted: { targeted in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
                 isTargeted = targeted
             }
         }
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.65)) {
                 isHovered = hovering
             }
         }
@@ -887,7 +905,7 @@ struct EditClipModal: View {
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
 
-                    Text("\(clip.appName) • \(formatDate(clip.timestamp))")
+                    Text("\(clip.appName) \(formatDate(clip.timestamp))")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(Color.white.opacity(0.5))
                 }
@@ -912,9 +930,6 @@ struct EditClipModal: View {
                 .scrollContentBackground(.hidden)
                 .background(Color.black.opacity(0.7))
                 .focused($textFocused)
-                .onAppear {
-                    textFocused = true
-                }
 
             // Footer with actions
             HStack(spacing: 12) {
@@ -973,6 +988,14 @@ struct EditClipModal: View {
         .frame(width: 500, height: 400)
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.5), radius: 20)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(appState.activeColor.nsColor).opacity(0.5), lineWidth: 1.5)
+        )
+        .onAppear {
+            textFocused = true
+            appState.playSound("Pop")
+        }
         .onExitCommand {
             // Allow Escape key to close without saving
             onDismiss()
@@ -1331,6 +1354,13 @@ struct ClipDetailView: View {
         .frame(width: Self.detailSize.width, height: Self.detailSize.height)
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.5), radius: 20)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(appState.activeColor.nsColor).opacity(0.5), lineWidth: 1.5)
+        )
+        .onAppear {
+            appState.playSound("Pop")
+        }
         .onDisappear {
             saveChangesIfNeeded()
         }
@@ -1746,15 +1776,5 @@ struct ToastView: View {
                 )
         )
         .shadow(color: Color(color.nsColor).opacity(0.3), radius: 12, x: 0, y: 4)
-    }
-}
-
-struct StatusToastView: View {
-    let message: String
-    let color: NibColor
-
-    var body: some View {
-        ToastView(message: message, color: color)
-            .fixedSize()
     }
 }
