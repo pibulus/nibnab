@@ -74,7 +74,7 @@ struct HeaderIconButton: View {
         .disabled(isDisabled)
         .help(help ?? "")
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                 isHovered = hovering && !isDisabled
             }
         }
@@ -149,7 +149,7 @@ struct ContentHeaderView: View {
             }
             .frame(height: 34)
             .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
                     toggleHovered = hovering
                 }
             }
@@ -217,7 +217,7 @@ struct ContentHeaderView: View {
             .menuIndicator(.hidden)
             .help("Sort clips")
             .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.15)) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                     sortHovered = hovering
                 }
             }
@@ -381,7 +381,7 @@ struct ContentFooterView: View {
                 }
                 .buttonStyle(.plain)
                 .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                         labelHovered = hovering
                     }
                 }
@@ -814,8 +814,8 @@ struct ClipView: View {
                 .fill(
                     LinearGradient(
                         colors: isHovered ?
-                            [Color.white.opacity(0.15), Color.white.opacity(0.1)] :
-                            [Color.white.opacity(0.08), Color.white.opacity(0.05)],
+                            [Color.white.opacity(0.18), Color.white.opacity(0.12)] :
+                            [Color.white.opacity(0.10), Color.white.opacity(0.06)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -823,7 +823,7 @@ struct ClipView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.white.opacity(isHovered ? 0.2 : 0.08), lineWidth: 1)
+                .stroke(Color.white.opacity(isHovered ? 0.22 : 0.10), lineWidth: 1)
         )
         .overlay(
             Group {
@@ -885,7 +885,7 @@ struct ClipView: View {
                 .cornerRadius(8)
         }
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                 isHovered = hovering
             }
         }
@@ -972,7 +972,7 @@ struct EditClipModal: View {
                 .buttonStyle(.plain)
                 .scaleEffect(cancelHovered ? 1.05 : 1.0)
                 .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                         cancelHovered = hovering
                     }
                 }
@@ -998,7 +998,7 @@ struct EditClipModal: View {
                 .disabled(clipText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .scaleEffect(saveHovered ? 1.05 : 1.0)
                 .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                         saveHovered = hovering
                     }
                 }
@@ -1116,7 +1116,7 @@ struct AddClipModal: View {
                 .buttonStyle(.plain)
                 .scaleEffect(cancelHovered ? 1.05 : 1.0)
                 .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                         cancelHovered = hovering
                     }
                 }
@@ -1142,7 +1142,7 @@ struct AddClipModal: View {
                 .disabled(clipText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .scaleEffect(saveHovered ? 1.05 : 1.0)
                 .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                         saveHovered = hovering
                     }
                 }
@@ -1384,7 +1384,7 @@ struct ClipDetailView: View {
                 .scaleEffect(copyHovered ? 1.05 : 1.0)
                 .help("Copy to clipboard")
                 .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                         copyHovered = hovering
                     }
                 }
@@ -1406,7 +1406,7 @@ struct ClipDetailView: View {
                 .scaleEffect(deleteHovered ? 1.05 : 1.0)
                 .help("Delete clip")
                 .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                         deleteHovered = hovering
                     }
                 }
@@ -1514,7 +1514,7 @@ struct AboutView: View {
                             isHovered: hoveredShortcut == 0
                         )
                         .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.15)) {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                                 hoveredShortcut = hovering ? 0 : nil
                             }
                         }
@@ -1527,7 +1527,7 @@ struct AboutView: View {
                             isHovered: hoveredShortcut == 1
                         )
                         .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.15)) {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                                 hoveredShortcut = hovering ? 1 : nil
                             }
                         }
@@ -1544,7 +1544,7 @@ struct AboutView: View {
                             isHovered: hoveredShortcut == 2
                         )
                         .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.15)) {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                                 hoveredShortcut = hovering ? 2 : nil
                             }
                         }
@@ -1557,7 +1557,7 @@ struct AboutView: View {
                             isHovered: hoveredShortcut == 3
                         )
                         .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.15)) {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                                 hoveredShortcut = hovering ? 3 : nil
                             }
                         }
@@ -1570,7 +1570,7 @@ struct AboutView: View {
                             isHovered: hoveredShortcut == 4
                         )
                         .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.15)) {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                                 hoveredShortcut = hovering ? 4 : nil
                             }
                         }
@@ -1583,7 +1583,7 @@ struct AboutView: View {
                             isHovered: hoveredShortcut == 5
                         )
                         .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.15)) {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                                 hoveredShortcut = hovering ? 5 : nil
                             }
                         }
@@ -1596,7 +1596,7 @@ struct AboutView: View {
                             isHovered: hoveredShortcut == 6
                         )
                         .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.15)) {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                                 hoveredShortcut = hovering ? 6 : nil
                             }
                         }
@@ -1762,7 +1762,7 @@ struct WelcomeView: View {
             .padding(.horizontal, 32)
             .padding(.bottom, 32)
             .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.15)) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                     gotItHovered = hovering
                 }
             }
