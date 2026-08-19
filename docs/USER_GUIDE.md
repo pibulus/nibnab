@@ -195,6 +195,18 @@ one you're looking at — you never have to remember which colour something went
 into. Each result shows a coloured dot for the collection it lives in, and the
 counter reads "N found". Clear the search to go back to the current collection.
 
+## Moving Clips Between Colors
+
+Two ways, same result:
+
+- **Drag** a clip onto any color dot in the footer — the fast path
+- **Right-click** a clip → **Move to** → pick a color — discoverable, and
+  reachable without a mouse
+
+Within a color, drag a clip up or down to reorder it (set sorting to
+**Manual** first), or drop one onto the middle of another to merge the two
+into a single clip.
+
 ## Collection Actions
 
 The **⋯** button in the header acts on the collection you're viewing:
