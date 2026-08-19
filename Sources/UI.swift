@@ -1,6 +1,13 @@
 import SwiftUI
 import Cocoa
 
+extension Color {
+    /// Warm near-black, fully opaque. Modal cards used to be 90% black, so the
+    /// clip list showed through them and read as a rendering fault. Anything
+    /// stacked over the list gets this.
+    static let nibSurface = Color(red: 0.086, green: 0.075, blue: 0.071)
+}
+
 private enum DateFormatters {
     static let short: DateFormatter = {
         let f = DateFormatter()
@@ -527,7 +534,7 @@ struct ContentOverlaysView: View {
 
     private func overlayBackground<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         ZStack {
-            Color.black.opacity(0.5)
+            Color.black.opacity(0.72)
                 .ignoresSafeArea()
                 .onTapGesture {
                     appState.play(.close)
@@ -756,6 +763,18 @@ struct ContentView: View {
                                     editingClip = clip
                                 }) {
                                     Label("Edit", systemImage: "pencil")
+                                }
+
+                                // Dragging onto a footer dot is the fast path, but
+                                // it's a 20px target and invisible to the keyboard.
+                                Menu {
+                                    ForEach(NibColor.all.filter { $0.name != row.color.name }, id: \.name) { target in
+                                        Button(appState.labelForColor(target.name)) {
+                                            appState.moveClip(clip, from: row.color.name, to: target.name)
+                                        }
+                                    }
+                                } label: {
+                                    Label("Move to", systemImage: "arrow.left.arrow.right")
                                 }
 
                                 Button(action: {
@@ -1199,7 +1218,7 @@ struct EditClipModal: View {
                 .help("Close (Esc)")
             }
             .padding()
-            .background(Color.black.opacity(0.9))
+            .background(Color.nibSurface)
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(Color(appState.activeColor.nsColor).opacity(0.4))
@@ -1266,7 +1285,7 @@ struct EditClipModal: View {
                     .foregroundColor(.white.opacity(0.4))
             }
             .padding()
-            .background(Color.black.opacity(0.9))
+            .background(Color.nibSurface)
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(Color(appState.activeColor.nsColor).opacity(0.4))
@@ -1340,7 +1359,7 @@ struct AddClipModal: View {
                 .help("Close (Esc)")
             }
             .padding()
-            .background(Color.black.opacity(0.9))
+            .background(Color.nibSurface)
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(Color(appState.activeColor.nsColor).opacity(0.4))
@@ -1410,7 +1429,7 @@ struct AddClipModal: View {
                     .foregroundColor(.white.opacity(0.4))
             }
             .padding()
-            .background(Color.black.opacity(0.9))
+            .background(Color.nibSurface)
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(Color(appState.activeColor.nsColor).opacity(0.4))
@@ -1463,7 +1482,7 @@ struct HelpModal: View {
                 .help("Close (Esc)")
             }
             .padding()
-            .background(Color.black.opacity(0.9))
+            .background(Color.nibSurface)
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(Color(appState.activeColor.nsColor).opacity(0.4))
@@ -1597,7 +1616,7 @@ struct ClipDetailView: View {
                 .help("Close (Esc)")
             }
             .padding()
-            .background(Color.black.opacity(0.9))
+            .background(Color.nibSurface)
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(Color(appState.activeColor.nsColor).opacity(0.4))
@@ -1674,7 +1693,7 @@ struct ClipDetailView: View {
                     .foregroundColor(.white.opacity(0.4))
             }
             .padding()
-            .background(Color.black.opacity(0.9))
+            .background(Color.nibSurface)
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(Color(appState.activeColor.nsColor).opacity(0.4))

@@ -33,7 +33,11 @@ final class StorageManager {
         let supportDirectory = self.fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? self.fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support", isDirectory: true)
         let appDirectory = supportDirectory.appendingPathComponent(bundleID, isDirectory: true)
-        self.baseURL = baseURLOverride ?? appDirectory
+        // NIBNAB_STORAGE_DIR points a dev build at scratch clips, so testing
+        // never runs against the real collection.
+        let envOverride = ProcessInfo.processInfo.environment["NIBNAB_STORAGE_DIR"]
+            .map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath, isDirectory: true) }
+        self.baseURL = baseURLOverride ?? envOverride ?? appDirectory
 
         do {
             try self.fileManager.createDirectory(at: self.baseURL, withIntermediateDirectories: true)
@@ -43,7 +47,7 @@ final class StorageManager {
 
         // Only migrate ~/.nibnab into the real storage root — never into a
         // test/override location (migration deletes the legacy dir on success).
-        if baseURLOverride == nil {
+        if baseURLOverride == nil && envOverride == nil {
             migrateLegacyStorage()
         }
         createColorDirectories()
