@@ -53,80 +53,90 @@ struct WeightlessNote {
 struct WeightlessCue {
     var cooldown: TimeInterval = 0
     var detuneCents: Float = 0
+    /// Re-pitch to a random degree of the scale on every play. For the cues
+    /// heard dozens of times a day, so they never wear a groove.
+    var randomRoot: Bool = false
     let variants: [[WeightlessNote]]
 }
 
-// MARK: - Voices (timbre)
+// MARK: - NibNab's palette
+// The engine above is the port; these voices and cues are NibNab's own
+// personality, which is exactly what the JS library invites you to bring.
+// Warm comes from the closed filter, not from pitching everything down —
+// low-and-heavy reads as sad. Intervals rise and are always major or perfect.
 
 enum Weightless {
     static let voices: [String: WeightlessVoice] = [
-        "tap": WeightlessVoice(
-            wave: .triangle, lowpass: 2800, attack: 0.006,
-            partials: [WeightlessPartial(ratio: 2.01, gain: 0.2, wave: .sine)]
+        // Round and quick. The 18ms attack still swells rather than taps, and
+        // the half-ratio partial adds body without weight.
+        "warm": WeightlessVoice(
+            wave: .sine, lowpass: 1300, attack: 0.018, q: 0.5, bendCents: 8,
+            partials: [WeightlessPartial(ratio: 0.5, gain: 0.06, wave: .sine)]
         ),
-        "bloom": WeightlessVoice(
-            wave: .sine, lowpass: 3800, attack: 0.01,
-            partials: [WeightlessPartial(ratio: 1.5, gain: 0.12, wave: .triangle)]
-        ),
-        "knock": WeightlessVoice(
-            wave: .sine, lowpass: 1400, attack: 0.005, bendCents: -60
-        ),
-        "sparkle": WeightlessVoice(
-            wave: .sine, lowpass: 4300, attack: 0.004,
-            partials: [WeightlessPartial(ratio: 2, gain: 0.15, wave: .sine)]
-        ),
-        "warn": WeightlessVoice(
-            wave: .sine, lowpass: 1200, attack: 0.007, bendCents: -45
+        // Darker and a touch slower, for anything that falls.
+        "warmLow": WeightlessVoice(
+            wave: .sine, lowpass: 800, attack: 0.022, q: 0.5, bendCents: -10,
+            partials: [WeightlessPartial(ratio: 0.5, gain: 0.10, wave: .sine)]
         )
     ]
 
     // MARK: - Cues (gesture)
 
     static let cues: [String: WeightlessCue] = [
-        "select": WeightlessCue(cooldown: 0.045, detuneCents: 7, variants: [
-            [WeightlessNote(frequency: 620, duration: 0.046, gain: 0.022, voice: "tap")],
-            [WeightlessNote(frequency: 700, duration: 0.040, gain: 0.019, voice: "bloom")]
+        // Copy / open / colour switch. One short round tick. Colour switching
+        // passes its own transpose, so this is the note the five colours play.
+        "select": WeightlessCue(cooldown: 0.045, detuneCents: 6, variants: [
+            [WeightlessNote(frequency: 587.33, duration: 0.085, gain: 0.026, voice: "warm")]
         ]),
-        "success": WeightlessCue(cooldown: 0.200, detuneCents: 10, variants: [
-            [
-                WeightlessNote(frequency: 523.25, duration: 0.07, gain: 0.030, voice: "tap"),
-                WeightlessNote(frequency: 659.25, offset: 0.06, duration: 0.08, gain: 0.025, voice: "bloom"),
-                WeightlessNote(frequency: 783.99, offset: 0.12, duration: 0.14, gain: 0.020, voice: "sparkle")
+
+        // Capture — heard more than anything else in the app, so it moves:
+        // two shapes, and a random degree of the pentatonic every single play.
+        "notify": WeightlessCue(cooldown: 0.120, detuneCents: 7, randomRoot: true, variants: [
+            [   // rising fifth
+                WeightlessNote(frequency: 466.16, duration: 0.09, gain: 0.030, voice: "warm"),
+                WeightlessNote(frequency: 699.24, offset: 0.040, duration: 0.13, gain: 0.024, voice: "warm")
+            ],
+            [   // rising fourth
+                WeightlessNote(frequency: 466.16, duration: 0.09, gain: 0.030, voice: "warm"),
+                WeightlessNote(frequency: 622.25, offset: 0.040, duration: 0.13, gain: 0.024, voice: "warm")
             ]
         ]),
-        "error": WeightlessCue(cooldown: 0.150, variants: [
-            [
-                WeightlessNote(frequency: 220, duration: 0.12, gain: 0.030, voice: "warn"),
-                WeightlessNote(frequency: 180, offset: 0.08, duration: 0.15, gain: 0.025, voice: "warn")
-            ]
-        ]),
-        "hover": WeightlessCue(cooldown: 0.060, detuneCents: 4, variants: [
-            [WeightlessNote(frequency: 950, duration: 0.03, gain: 0.004, voice: "sparkle")]
-        ]),
+
         "toggleOn": WeightlessCue(cooldown: 0.080, detuneCents: 5, variants: [
             [
-                WeightlessNote(frequency: 440, duration: 0.045, gain: 0.022, voice: "tap"),
-                WeightlessNote(frequency: 587.33, offset: 0.05, duration: 0.06, gain: 0.020, voice: "bloom")
+                WeightlessNote(frequency: 466.16, duration: 0.075, gain: 0.026, voice: "warm"),
+                WeightlessNote(frequency: 622.25, offset: 0.038, duration: 0.11, gain: 0.022, voice: "warm")
             ]
         ]),
+
         "toggleOff": WeightlessCue(cooldown: 0.080, detuneCents: 5, variants: [
             [
-                WeightlessNote(frequency: 587.33, duration: 0.045, gain: 0.022, voice: "tap"),
-                WeightlessNote(frequency: 392.00, offset: 0.05, duration: 0.06, gain: 0.018, voice: "knock")
+                WeightlessNote(frequency: 622.25, duration: 0.075, gain: 0.026, voice: "warm"),
+                WeightlessNote(frequency: 466.16, offset: 0.038, duration: 0.12, gain: 0.022, voice: "warmLow")
             ]
         ]),
-        "notify": WeightlessCue(cooldown: 0.300, detuneCents: 6, variants: [
+
+        // First clip in a colour: root, fifth, octave.
+        "success": WeightlessCue(cooldown: 0.200, detuneCents: 8, randomRoot: true, variants: [
             [
-                WeightlessNote(frequency: 880, duration: 0.08, gain: 0.022, voice: "sparkle"),
-                WeightlessNote(frequency: 1174.66, offset: 0.09, duration: 0.12, gain: 0.018, voice: "bloom")
+                WeightlessNote(frequency: 466.16, duration: 0.08, gain: 0.028, voice: "warm"),
+                WeightlessNote(frequency: 699.24, offset: 0.060, duration: 0.10, gain: 0.024, voice: "warm"),
+                WeightlessNote(frequency: 932.33, offset: 0.120, duration: 0.16, gain: 0.020, voice: "warm")
+            ]
+        ]),
+
+        // Soft and falling. A warning shouldn't be a punishment.
+        "error": WeightlessCue(cooldown: 0.150, variants: [
+            [
+                WeightlessNote(frequency: 349.23, duration: 0.11, gain: 0.028, voice: "warmLow"),
+                WeightlessNote(frequency: 261.63, offset: 0.060, duration: 0.16, gain: 0.024, voice: "warmLow")
             ]
         ])
     ]
 
-    /// Harmonic pentatonic — the scale the JS engine uses to stay musical.
-    /// NibNab picks one degree per colour so switching sounds like a phrase.
-    static let scale: [Float] = [392.00, 440.00, 523.25, 587.33, 659.25,
-                                 783.99, 880.00, 1046.50, 1174.66, 1318.51]
+    /// The scale as ratios inside one octave. Picking one at random moves a
+    /// cue somewhere new without it ever landing on a sour note.
+    static let transposes: [Float] = [1.0, 1.122, 1.335, 1.498, 1.682]
 
     static let sampleRate: Float = 44_100
     static let minGain: Float = 0.0001
@@ -181,11 +191,16 @@ enum WeightlessSynth {
     /// `jitter` returns a value in -1...1; pass a constant 0 for a repeatable render.
     static func render(
         cue: WeightlessCue,
-        frequencyOverride: Float? = nil,
+        voices: [String: WeightlessVoice] = Weightless.voices,
+        transpose: Float = 1,
         jitter: () -> Float = { Float.random(in: -1...1) }
     ) -> (left: [Float], right: [Float]) {
         let sr = Weightless.sampleRate
-        let variant = cue.variants.randomElement() ?? []
+        // Variant choice runs through the jitter source too, so a fixed jitter
+        // gives a byte-identical render — otherwise nothing is reproducible.
+        guard !cue.variants.isEmpty else { return ([], []) }
+        let pick = Int((jitter() + 1) / 2 * Float(cue.variants.count))
+        let variant = cue.variants[min(max(pick, 0), cue.variants.count - 1)]
         guard !variant.isEmpty else { return ([], []) }
 
         // Each note gets its own timing jitter, so work them out up front to
@@ -202,10 +217,10 @@ enum WeightlessSynth {
         var right = [Float](repeating: 0, count: frameCount)
 
         for (note, offset) in zip(variant, offsets) {
-            let voice = Weightless.voices[note.voice] ?? Weightless.voices["tap"]!
+            guard let voice = voices[note.voice] else { continue }
 
             let detune = centsToRatio(jitter() * cue.detuneCents)
-            let baseFreq = (frequencyOverride ?? note.frequency) * detune
+            let baseFreq = note.frequency * transpose * detune
             let gain = max(Weightless.minGain, note.gain * (1 + jitter() * 0.1))
 
             let startFrame = Int(offset * sr)
@@ -299,7 +314,7 @@ final class WeightlessPlayer {
         return true
     }
 
-    func play(cue name: String, frequency: Float? = nil) {
+    func play(cue name: String, transpose: Float = 1) {
         guard let cue = Weightless.cues[name] else { return }
 
         // Rapid-fire captures shouldn't machine-gun.
@@ -309,7 +324,10 @@ final class WeightlessPlayer {
         }
         lastPlayed[name] = Date()
 
-        let (left, right) = WeightlessSynth.render(cue: cue, frequencyOverride: frequency)
+        let root = cue.randomRoot && transpose == 1
+            ? (Weightless.transposes.randomElement() ?? 1)
+            : transpose
+        let (left, right) = WeightlessSynth.render(cue: cue, transpose: root)
         guard !left.isEmpty, ensureRunning() else { return }
 
         guard let buffer = AVAudioPCMBuffer(pcmFormat: format,

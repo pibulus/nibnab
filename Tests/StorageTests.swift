@@ -265,8 +265,8 @@ enum StorageTests {
         expect(peak > 0.05, "cue is audible, not silence (peak \(String(format: "%.3f", peak)))")
         expect(peak < 0.99, "cue is not clipped flat against the rail")
 
-        // notify is two notes: the second starts at 0.09s and runs 0.12s.
-        let expectedFrames = Int((0.09 + 0.12 + 0.02) * Weightless.sampleRate)
+        // notify is two notes: the second starts at 0.04s and runs 0.13s.
+        let expectedFrames = Int((0.04 + 0.13 + 0.02) * Weightless.sampleRate)
         expect(abs(a.left.count - expectedFrames) < 64, "buffer length matches the cue's span")
         expect(a.left.count == a.right.count, "channels are the same length")
 
@@ -274,16 +274,27 @@ enum StorageTests {
         expect(abs(a.left[0]) < 0.01, "starts from silence — no click on attack")
 
         // Every named cue must render; a typo'd voice name would fall back or crash.
-        for name in ["select", "success", "error", "hover", "toggleOn", "toggleOff", "notify"] {
+        for name in ["select", "success", "error", "toggleOn", "toggleOff", "notify"] {
             let rendered = WeightlessSynth.render(cue: Weightless.cues[name]!, jitter: { 0 })
             let cuePeak = rendered.left.map { abs($0) }.max() ?? 0
             expect(cuePeak > 0.01 && rendered.left.allSatisfy { $0.isFinite }, "cue \(name) renders audibly")
         }
 
-        // A frequency override must actually move the pitch.
-        let low = WeightlessSynth.render(cue: Weightless.cues["select"]!, frequencyOverride: 300, jitter: { 0 })
-        let high = WeightlessSynth.render(cue: Weightless.cues["select"]!, frequencyOverride: 1200, jitter: { 0 })
-        expect(low.left != high.left, "frequency override changes the waveform")
+        // Transposing must move the pitch while keeping the melody's shape,
+        // which is why it multiplies each note instead of replacing them all.
+        let low = WeightlessSynth.render(cue: Weightless.cues["notify"]!, transpose: 1.0, jitter: { 0 })
+        let high = WeightlessSynth.render(cue: Weightless.cues["notify"]!, transpose: 1.5, jitter: { 0 })
+        expect(low.left != high.left, "transpose changes the waveform")
+        expect(low.left.count == high.left.count, "transpose keeps the cue's timing")
+
+        // Every interval in the palette must rise by a major/perfect step —
+        // a minor third is the one that reads as sad, and it crept in once.
+        for (name, cue) in Weightless.cues where name != "error" && name != "toggleOff" {
+            for variant in cue.variants where variant.count > 1 {
+                let ratio = variant[1].frequency / variant[0].frequency
+                expect(ratio > 1.24, "\(name) rises by a major interval, not a minor third")
+            }
+        }
     }
 
     static func urlRoundTrip() {

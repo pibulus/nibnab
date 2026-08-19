@@ -31,7 +31,7 @@ class AppState: ObservableObject {
             delegate?.updateMenubarIcon()
             // One scale degree per colour — cycling them plays a little run.
             let degree = NibColor.all.firstIndex { $0.name == activeColor.name } ?? 0
-            play(.switchColor, frequency: Weightless.scale[degree + 2])
+            play(.switchColor, transpose: Weightless.transposes[degree])
             // Inside the popover the whole UI recolors — that IS the feedback.
             // Only announce color switches when the popover is closed.
             if toastGate.shouldAllow(.color), delegate?.popover.isShown != true {
@@ -263,9 +263,9 @@ class AppState: ObservableObject {
         play(isFirstInColor ? .celebrate : .capture)
     }
 
-    func play(_ sound: NibSound, frequency: Float? = nil) {
+    func play(_ sound: NibSound, transpose: Float = 1) {
         guard soundEffectsEnabled else { return }
-        WeightlessPlayer.shared.play(cue: sound.cue, frequency: frequency)
+        WeightlessPlayer.shared.play(cue: sound.cue, transpose: transpose)
     }
 
     func getCurrentAppName() -> String {
