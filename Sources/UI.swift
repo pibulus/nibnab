@@ -1713,6 +1713,22 @@ struct ClipDetailView: View {
 }
 
 // MARK: - About View
+struct AboutLink: View {
+    let label: String
+    let url: String
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Link(label, destination: URL(string: url)!)
+            .foregroundColor(isHovered ? Color(NibColor.pink.nsColor) : .secondary)
+            .underline(isHovered)
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.15)) { isHovered = hovering }
+            }
+    }
+}
+
 struct AboutView: View {
     @State private var hoveredShortcut: Int? = nil
 
@@ -1862,11 +1878,37 @@ struct AboutView: View {
 
                 Divider()
 
+                // Where things actually live — the promise worth stating plainly
+                VStack(spacing: 8) {
+                    Text("Every clip is a plain markdown file on your Mac.")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.primary)
+
+                    Text("No account, no cloud, no sync. Nothing leaves your machine — open the files in any editor, or move on whenever you like.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 40)
+                .padding(.vertical, 22)
+
+                Divider()
+
                 // Footer
-                VStack(spacing: 12) {
-                    Text("Made with care for the bits worth keeping")
+                VStack(spacing: 10) {
+                    Text("Made by Pablo in Melbourne, on love and coffee.")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.secondary)
+
+                    HStack(spacing: 6) {
+                        AboutLink(label: "madebypablo.app", url: "https://madebypablo.app")
+                        Text("·").foregroundColor(.secondary.opacity(0.5))
+                        AboutLink(label: "☕ Coffee jar", url: "https://ko-fi.com/madebypablo")
+                        Text("·").foregroundColor(.secondary.opacity(0.5))
+                        AboutLink(label: "GitHub", url: "https://github.com/pibulus")
+                    }
+                    .font(.system(size: 12))
 
                     HStack(spacing: 8) {
                         ForEach(NibColor.all, id: \.name) { color in
@@ -1875,6 +1917,7 @@ struct AboutView: View {
                                 .frame(width: 8, height: 8)
                         }
                     }
+                    .padding(.top, 4)
                 }
                 .padding(.vertical, 24)
             }
