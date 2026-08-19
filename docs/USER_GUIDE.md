@@ -184,6 +184,32 @@ With the window open, the clip list is fully keyboard-driven:
 | **Return** | Copy the selected clip and close the window |
 | **Space** | Open the selected clip's detail view |
 | **Delete** | Delete the selected clip |
+| **⌘Z** | Undo the last delete, merge, or clear |
+
+## Finding Things Again
+
+Typing in the search box searches **every collection at once**, not just the
+one you're looking at — you never have to remember which colour something went
+into. Each result shows a coloured dot for the collection it lives in, and the
+counter reads "N found". Clear the search to go back to the current collection.
+
+## Collection Actions
+
+The **⋯** button in the header acts on the collection you're viewing:
+
+- **Export as Markdown / Plain Text** — the whole collection as one file
+- **Merge All Into One Clip** — folds every clip into a single pasteable block, oldest first
+- **Export & Clear** — saves the file, then empties the collection (a cancelled save keeps your clips)
+- **Clear All** — empties the collection
+
+Anything destructive can be taken back: a toast appears with an **Undo** button,
+and **⌘Z** works for as long as you haven't captured anything new.
+
+## Collection Limits
+
+Each colour holds 100 clips. When one is full the counter turns orange and reads
+**100 / 100 full** — the next capture drops the oldest clip. Export, merge, or
+clear before that happens if you want to keep them.
 
 ## Where Your Data Lives
 

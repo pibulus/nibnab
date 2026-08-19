@@ -100,7 +100,9 @@ That's it. No signup, no account, no BS.
 - **Ctrl+Cmd+1…5** - Switch active color (yellow, orange, pink, purple, green)
 - **Cmd+C** - Auto-captures to active color
 
-With the window open: **↑/↓** to move through clips, **Return** to copy & close, **Space** for detail, **Delete** to remove.
+With the window open: **↑/↓** to move through clips, **Return** to copy & close, **Space** for detail, **Delete** to remove, **⌘Z** to undo.
+
+Search looks across **all five collections**, so you never have to remember which colour something went into. Each colour holds 100 clips and tells you when it's full.
 - **Right-click menubar** - Settings & color picker
 
 ## Storage

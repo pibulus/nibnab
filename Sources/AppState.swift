@@ -19,9 +19,8 @@ enum NibSound: String {
 
 @MainActor
 class AppState: ObservableObject {
-    private static let maxClipsPerColor = 100
+    static let maxClipsPerColor = 100
 
-    @Published var viewedColor: NibColor = NibColor.yellow
     @Published var activeColor: NibColor {
         didSet {
             UserDefaults.standard.set(activeColor.name, forKey: "activeColorName")
@@ -83,11 +82,17 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(colorLabels, forKey: "colorLabels")
         }
     }
+    /// One level of undo, deep enough for "oh no" and no deeper. Anything that
+    /// destroys clips snapshots the colour first.
+    @Published private(set) var canUndo = false
+    private var undoSnapshot: (colorName: String, clips: [Clip], what: String)?
+
     // Bumped every time the popover closes — the UI watches it to tear down any
     // open modal, so reopening never resurfaces a clip from another color.
     @Published var popoverClosedCount = 0
 
     @Published var toastMessage: String? = nil
+    @Published var toastUndoable = false
     @Published var toastColor: NibColor? = nil
 
     weak var delegate: AppDelegate?
@@ -121,7 +126,6 @@ class AppState: ObservableObject {
         soundEffectsEnabled = UserDefaults.standard.object(forKey: "soundEffectsEnabled") as? Bool ?? true
         isMonitoring = UserDefaults.standard.object(forKey: "isMonitoring") as? Bool ?? true
         selectionCaptureEnabled = UserDefaults.standard.object(forKey: "autoCopyEnabled") as? Bool ?? true
-        viewedColor = initialColor
 
         if let savedLabels = UserDefaults.standard.dictionary(forKey: "colorLabels") as? [String: String] {
             colorLabels = savedLabels
@@ -140,6 +144,11 @@ class AppState: ObservableObject {
                 self.delegate?.showWelcomeWindow()
             }
         }
+    }
+
+    /// True when the next capture will silently evict the oldest clip.
+    func isColorFull(_ colorName: String) -> Bool {
+        (clips[colorName]?.count ?? 0) >= Self.maxClipsPerColor
     }
 
     func labelForColor(_ colorName: String) -> String {
@@ -222,13 +231,14 @@ class AppState: ObservableObject {
         let clip = Clip(
             text: text,
             timestamp: Date(),
-            url: getCurrentURL(),
+            url: nil, // browser URL capture needs per-browser scripting entitlements
             appName: sourceApp
         )
 
         if clips[color.name] == nil {
             clips[color.name] = []
         }
+        invalidateUndo()
         clips[color.name]?.insert(clip, at: 0)
 
         if var colorClips = clips[color.name], colorClips.count > Self.maxClipsPerColor {
@@ -264,29 +274,50 @@ class AppState: ObservableObject {
         cached?.play()
     }
 
-    private func getCurrentURL() -> String? {
-        // Browser URL extraction requires scripting-targets entitlement per browser bundle ID.
-        // Deferred until specific browser support is added.
-        return nil
-    }
-
     func getCurrentAppName() -> String {
         return NSWorkspace.shared.frontmostApplication?.localizedName ?? "Unknown"
     }
 
+    private func snapshotForUndo(_ colorName: String, what: String) {
+        undoSnapshot = (colorName, clips[colorName] ?? [], what)
+        canUndo = true
+    }
+
+    private func invalidateUndo() {
+        undoSnapshot = nil
+        canUndo = false
+        toastUndoable = false
+    }
+
+    func undoLast() {
+        guard let snapshot = undoSnapshot else { return }
+        clips[snapshot.colorName] = snapshot.clips
+        storageManager.rewriteClips(snapshot.clips, for: snapshot.colorName)
+        undoSnapshot = nil
+        canUndo = false
+        play(.open)
+        showToast("Undid \(snapshot.what)", color: activeColor)
+    }
+
     func deleteClip(_ clip: Clip, from colorName: String) {
+        snapshotForUndo(colorName, what: "delete")
         clips[colorName]?.removeAll { $0.id == clip.id }
         storageManager.rewriteClips(clips[colorName] ?? [], for: colorName)
         play(.delete)
+        showToast("Clip deleted", color: activeColor, undoable: true)
     }
 
     func clearAllClips(for colorName: String) {
+        snapshotForUndo(colorName, what: "clear all")
+        let clearedCount = undoSnapshot?.clips.count ?? 0
         clips[colorName] = []
         storageManager.deleteAllClips(for: colorName)
         play(.delete)
+        showToast("Cleared \(clearedCount) clips", color: activeColor, undoable: true)
     }
 
     func moveClip(_ clip: Clip, from sourceColor: String, to targetColor: String) {
+        invalidateUndo()
         clips[sourceColor]?.removeAll { $0.id == clip.id }
 
         var targetClips = clips[targetColor] ?? []
@@ -307,6 +338,7 @@ class AppState: ObservableObject {
     }
 
     func reorderClip(_ clip: Clip, in colorName: String, to targetIndex: Int) {
+        invalidateUndo()
         guard var colorClips = clips[colorName] else { return }
         guard let sourceIndex = colorClips.firstIndex(of: clip) else { return }
 
@@ -335,10 +367,12 @@ class AppState: ObservableObject {
         guard let colorClips = clips[colorName], colorClips.count > 1,
               let merged = colorClips.mergedIntoOne() else { return }
 
+        snapshotForUndo(colorName, what: "merge all")
+
         clips[colorName] = [merged]
         storageManager.rewriteClips([merged], for: colorName)
         play(.capture)
-        showToast("Merged \(colorClips.count) clips", color: activeColor)
+        showToast("Merged \(colorClips.count) clips", color: activeColor, undoable: true)
     }
 
     /// Export, then clear — but only if the file actually got written. A
@@ -356,6 +390,7 @@ class AppState: ObservableObject {
     }
 
     func mergeClip(_ source: Clip, into target: Clip, in colorName: String) {
+        snapshotForUndo(colorName, what: "merge")
         guard var colorClips = clips[colorName],
               let targetIndex = colorClips.firstIndex(of: target) else { return }
 
@@ -377,6 +412,7 @@ class AppState: ObservableObject {
         clips[colorName] = colorClips
         storageManager.rewriteClips(colorClips, for: colorName)
         play(.capture)
+        showToast("Clips merged", color: activeColor, undoable: true)
     }
 
     func copyToPasteboard(_ text: String) {
@@ -389,21 +425,12 @@ class AppState: ObservableObject {
     }
 
     func switchToColor(_ color: NibColor, announce: Bool = true) {
-        let alreadyActive = activeColor.name == color.name
-        guard !alreadyActive || viewedColor.name != color.name else {
-            return
+        guard activeColor.name != color.name else { return }
+        if !announce {
+            toastGate.suppressNext(.color)
         }
-
-        viewedColor = color
-
-        // Only reassign activeColor when it actually changes — its didSet
-        // fires the toast, sound, and menubar redraw.
-        if !alreadyActive {
-            if !announce {
-                toastGate.suppressNext(.color)
-            }
-            activeColor = color
-        }
+        // activeColor's didSet fires the toast, sound, and menubar redraw.
+        activeColor = color
     }
 
     func setMonitoring(_ enabled: Bool, suppressToast: Bool) {
@@ -424,13 +451,14 @@ class AppState: ObservableObject {
         let trimmedText = newText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else { return }
         guard let index = clips[colorName]?.firstIndex(where: { $0.id == clip.id }) else { return }
+        invalidateUndo()
 
         clips[colorName]?[index] = Clip(
             text: trimmedText,
             timestamp: clip.timestamp,
             url: clip.url,
             appName: clip.appName,
-            screenshotPath: clip.screenshotPath,
+            order: clip.order,
             id: clip.id
         )
 
@@ -496,7 +524,8 @@ class AppState: ObservableObject {
         }
     }
 
-    func showToast(_ message: String, color: NibColor) {
+    func showToast(_ message: String, color: NibColor, undoable: Bool = false) {
+        toastUndoable = undoable
         if delegate?.popover.isShown == true {
             toastMessage = message
             toastColor = color
@@ -506,6 +535,7 @@ class AppState: ObservableObject {
                 guard self?.toastMessage == message else { return }
                 self?.toastMessage = nil
                 self?.toastColor = nil
+                self?.toastUndoable = false
             }
         } else {
             toastMessage = nil

@@ -273,23 +273,23 @@ struct ContentHeaderView: View {
                 isDisabled: clipCount == 0
             ) {
                 Button("Export as Markdown") {
-                    appState.exportClipsAsMarkdown(for: appState.viewedColor.name)
+                    appState.exportClipsAsMarkdown(for: appState.activeColor.name)
                 }
                 Button("Export as Plain Text") {
-                    appState.exportClipsAsPlainText(for: appState.viewedColor.name)
+                    appState.exportClipsAsPlainText(for: appState.activeColor.name)
                 }
 
                 Divider()
 
                 Button("Merge All Into One Clip") {
-                    appState.mergeAllClips(in: appState.viewedColor.name)
+                    appState.mergeAllClips(in: appState.activeColor.name)
                 }
                 .disabled(clipCount < 2)
 
                 Divider()
 
                 Button("Export & Clear\u{2026}") {
-                    appState.exportAndClear(for: appState.viewedColor.name)
+                    appState.exportAndClear(for: appState.activeColor.name)
                 }
                 Button("Clear All\u{2026}", role: .destructive) {
                     showClearConfirm = true
@@ -311,6 +311,7 @@ struct ContentFooterView: View {
     var labelFocused: FocusState<Bool>.Binding
     let horizontalPadding: CGFloat
     let viewedClipCount: Int
+    let resultCount: Int?
     let handleColorDrop: ([Clip], NibColor) -> Void
 
     var body: some View {
@@ -318,9 +319,7 @@ struct ContentFooterView: View {
             HStack {
                 footerLabel
                 Spacer()
-                Text("\(viewedClipCount) clips")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(appState.activeColor.nsColor))
+                clipCounter
             }
 
             HStack(spacing: 8) {
@@ -348,6 +347,33 @@ struct ContentFooterView: View {
                 endPoint: .bottom
             )
         )
+    }
+
+    // WIN 3: a full collection silently evicted its oldest clip on the next
+    // capture. In an app about keeping things, say so.
+    private var isFull: Bool { viewedClipCount >= AppState.maxClipsPerColor }
+
+    @ViewBuilder
+    private var clipCounter: some View {
+        if let resultCount {
+            Text("\(resultCount) found")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Color(appState.activeColor.nsColor))
+                .help("Searching every collection")
+        } else if isFull {
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 9, weight: .bold))
+                Text("\(viewedClipCount) / \(AppState.maxClipsPerColor) full")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundColor(Color(NibColor.orange.nsColor))
+            .help("This collection is full — the next capture drops the oldest clip. Export, merge, or clear to keep them.")
+        } else {
+            Text("\(viewedClipCount) clips")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Color(appState.activeColor.nsColor))
+        }
     }
 
     private var footerLabel: some View {
@@ -392,11 +418,9 @@ struct ContentFooterView: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(Color(appState.activeColor.nsColor))
 
-                        if labelHovered {
-                            Image(systemName: "pencil")
-                                .font(.system(size: 8))
-                                .foregroundColor(Color(appState.activeColor.nsColor).opacity(0.6))
-                        }
+                        Image(systemName: "pencil")
+                            .font(.system(size: 8))
+                            .foregroundColor(Color(appState.activeColor.nsColor).opacity(labelHovered ? 0.9 : 0.4))
                     }
                 }
                 .buttonStyle(.plain)
@@ -425,7 +449,7 @@ struct ContentOverlaysView: View {
     @Binding var editingClip: Clip?
     @Binding var showHelp: Bool
     // The color the open modal belongs to, captured when it was opened —
-    // a ⌃⌘1-5 hotkey can change viewedColor while a modal is up, and
+    // a ⌃⌘1-5 hotkey can change the active colour while a modal is up, and
     // saving/deleting against the new color would hit the wrong file.
     let modalColorName: String
 
@@ -547,25 +571,44 @@ struct ContentView: View {
         case newestFirst, oldestFirst, byAppName, byLength, manual
     }
 
-    var sortedClips: [Clip] {
-        guard let clips = appState.clips[appState.viewedColor.name] else { return [] }
+    /// A clip plus the collection it actually lives in. Search spans every
+    /// colour, so a row can no longer assume it belongs to the viewed one.
+    struct ClipRow: Identifiable {
+        let clip: Clip
+        let color: NibColor
+        var id: UUID { clip.id }
+    }
 
-        let filteredClips = searchText.isEmpty ? clips : clips.filter {
-            $0.text.localizedCaseInsensitiveContains(searchText) ||
-            $0.appName.localizedCaseInsensitiveContains(searchText)
+    /// Searching looks everywhere. Capture is easy; the hard part was ever
+    /// finding the thing again, and "which colour was it?" is not a question
+    /// the user should have to answer.
+    var isSearching: Bool { !searchText.isEmpty }
+
+    var rows: [ClipRow] {
+        let source: [ClipRow]
+        if isSearching {
+            source = NibColor.all.flatMap { color in
+                (appState.clips[color.name] ?? []).map { ClipRow(clip: $0, color: color) }
+            }.filter {
+                $0.clip.text.localizedCaseInsensitiveContains(searchText) ||
+                $0.clip.appName.localizedCaseInsensitiveContains(searchText)
+            }
+        } else {
+            let color = appState.activeColor
+            source = (appState.clips[color.name] ?? []).map { ClipRow(clip: $0, color: color) }
         }
 
         switch sortOrder {
         case .newestFirst:
-            return filteredClips.sorted { $0.timestamp > $1.timestamp }
+            return source.sorted { $0.clip.timestamp > $1.clip.timestamp }
         case .oldestFirst:
-            return filteredClips.sorted { $0.timestamp < $1.timestamp }
+            return source.sorted { $0.clip.timestamp < $1.clip.timestamp }
         case .byAppName:
-            return filteredClips.sorted { $0.appName < $1.appName }
+            return source.sorted { $0.clip.appName < $1.clip.appName }
         case .byLength:
-            return filteredClips.sorted { $0.text.count > $1.text.count }
+            return source.sorted { $0.clip.text.count > $1.clip.text.count }
         case .manual:
-            return filteredClips.sorted { $0.order < $1.order }
+            return source.sorted { $0.clip.order < $1.clip.order }
         }
     }
 
@@ -578,7 +621,7 @@ struct ContentView: View {
                     showAddClipModal: $showAddClipModal,
                     showClearConfirm: $showClearConfirm,
                     showHelp: $showHelp,
-                    clipCount: appState.clips[appState.viewedColor.name]?.count ?? 0,
+                    clipCount: appState.clips[appState.activeColor.name]?.count ?? 0,
                     horizontalPadding: Self.horizontalPadding - 10
                 )
                 .environmentObject(appState)
@@ -591,7 +634,8 @@ struct ContentView: View {
                     labelHovered: $labelHovered,
                     labelFocused: $labelFocused,
                     horizontalPadding: Self.horizontalPadding - 10,
-                    viewedClipCount: appState.clips[appState.viewedColor.name]?.count ?? 0,
+                    viewedClipCount: appState.clips[appState.activeColor.name]?.count ?? 0,
+                    resultCount: isSearching ? rows.count : nil,
                     handleColorDrop: { clips, color in
                         handleColorDrop(clips: clips, targetColor: color)
                     }
@@ -611,7 +655,7 @@ struct ContentView: View {
         .frame(width: Self.popoverSize.width, height: Self.popoverSize.height)
         .onAppear { startKeyMonitor() }
         .onDisappear { stopKeyMonitor() }
-        .onChange(of: appState.viewedColor.name) { _ in focusedClipID = nil }
+        .onChange(of: appState.activeColor.name) { _ in focusedClipID = nil }
         .onChange(of: appState.popoverClosedCount) { _ in
             selectedClip = nil
             editingClip = nil
@@ -637,11 +681,11 @@ struct ContentView: View {
         .alert("Clear All Clips?", isPresented: $showClearConfirm) {
             Button("Cancel", role: .cancel) { }
             Button("Clear All", role: .destructive) {
-                appState.clearAllClips(for: appState.viewedColor.name)
+                appState.clearAllClips(for: appState.activeColor.name)
             }
         } message: {
-            let shortName = appState.viewedColor.name.replacingOccurrences(of: "Highlighter ", with: "")
-            let count = appState.clips[appState.viewedColor.name]?.count ?? 0
+            let shortName = appState.activeColor.name.replacingOccurrences(of: "Highlighter ", with: "")
+            let count = appState.clips[appState.activeColor.name]?.count ?? 0
             Text("This will permanently delete all \(count) \(shortName) clips.")
         }
     }
@@ -650,19 +694,26 @@ struct ContentView: View {
         ScrollViewReader { proxy in
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 8) {
-                if !sortedClips.isEmpty {
-                    ForEach(sortedClips) { clip in
+                if !rows.isEmpty {
+                    ForEach(rows) { row in
+                        let clip = row.clip
                         ClipView(
                             clip: clip,
+                            color: row.color,
+                            showColorPip: isSearching,
                             isDropTargeted: dropTargetedClipID == clip.id,
                             isKeyFocused: focusedClipID == clip.id
                         )
                             .id(clip.id)
+                            // Reordering and merging are meaningless against a
+                            // filtered, cross-colour list — the indices don't
+                            // line up with what's on disk.
                             .dropDestination(for: Clip.self) { droppedClips, location in
+                                guard !isSearching else { return false }
                                 guard let dropped = droppedClips.first,
                                       dropped.id != clip.id else { return false }
-                                let colorName = appState.viewedColor.name
-                                let targetIndex = sortedClips.firstIndex(of: clip) ?? 0
+                                let colorName = row.color.name
+                                let targetIndex = rows.firstIndex(where: { $0.id == clip.id }) ?? 0
                                 let isMergeZone = location.y > 18 && location.y < 42
                                 let insertIndex = location.y > 42 ? targetIndex + 1 : targetIndex
 
@@ -686,11 +737,11 @@ struct ContentView: View {
                                 return true
                             } isTargeted: { targeted in
                                 withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
-                                    dropTargetedClipID = targeted ? clip.id : nil
+                                    dropTargetedClipID = (targeted && !isSearching) ? clip.id : nil
                                 }
                             }
                             .onTapGesture {
-                                modalColorName = appState.viewedColor.name
+                                modalColorName = row.color.name
                                 selectedClip = clip
                             }
                             .contextMenu {
@@ -701,7 +752,7 @@ struct ContentView: View {
                                 }
 
                                 Button(action: {
-                                    modalColorName = appState.viewedColor.name
+                                    modalColorName = row.color.name
                                     editingClip = clip
                                 }) {
                                     Label("Edit", systemImage: "pencil")
@@ -709,7 +760,7 @@ struct ContentView: View {
 
                                 Button(action: {
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                        appState.deleteClip(clip, from: appState.viewedColor.name)
+                                        appState.deleteClip(clip, from: row.color.name)
                                     }
                                 }) {
                                     Label("Delete", systemImage: "trash")
@@ -753,30 +804,39 @@ struct ContentView: View {
         guard appState.delegate?.popover.isShown == true else { return event }
         guard selectedClip == nil, editingClip == nil,
               !showAddClipModal, !showHelp, !editingLabel else { return event }
-        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return event }
         if NSApp.keyWindow?.firstResponder is NSTextView { return event }
 
-        let clips = sortedClips
-        guard !clips.isEmpty else { return event }
-        let index = focusedClipID.flatMap { id in clips.firstIndex(where: { $0.id == id }) }
+        // ⌘Z is the one chord the list claims.
+        if event.modifierFlags.contains(.command),
+           !event.modifierFlags.contains(.shift),
+           event.keyCode == 6 /* Z */ {
+            guard appState.canUndo else { return event }
+            appState.undoLast()
+            return nil
+        }
+        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return event }
+
+        let visible = rows
+        guard !visible.isEmpty else { return event }
+        let index = focusedClipID.flatMap { id in visible.firstIndex(where: { $0.id == id }) }
 
         switch event.keyCode {
         case 126: // up
-            focusedClipID = clips[index.map { max(0, $0 - 1) } ?? clips.count - 1].id
+            focusedClipID = visible[index.map { max(0, $0 - 1) } ?? visible.count - 1].id
         case 125: // down
-            focusedClipID = clips[index.map { min(clips.count - 1, $0 + 1) } ?? 0].id
+            focusedClipID = visible[index.map { min(visible.count - 1, $0 + 1) } ?? 0].id
         case 36: // return — copy and dismiss
             guard let i = index else { return event }
-            appState.copyToPasteboard(clips[i].text)
+            appState.copyToPasteboard(visible[i].clip.text)
             appState.delegate?.closePopover()
         case 49: // space — detail
             guard let i = index else { return event }
-            modalColorName = appState.viewedColor.name
-            selectedClip = clips[i]
+            modalColorName = visible[i].color.name
+            selectedClip = visible[i].clip
         case 51: // delete
             guard let i = index else { return event }
-            let survivor = clips.count > 1 ? clips[i == clips.count - 1 ? i - 1 : i + 1].id : nil
-            appState.deleteClip(clips[i], from: appState.viewedColor.name)
+            let survivor = visible.count > 1 ? visible[i == visible.count - 1 ? i - 1 : i + 1].id : nil
+            appState.deleteClip(visible[i].clip, from: visible[i].color.name)
             focusedClipID = survivor
         default:
             return event
@@ -785,12 +845,10 @@ struct ContentView: View {
     }
 
     private var shortColorName: String {
-        appState.viewedColor.name.replacingOccurrences(of: "Highlighter ", with: "")
+        appState.activeColor.name.replacingOccurrences(of: "Highlighter ", with: "")
     }
 
-    private var isSearchingWithNoMatches: Bool {
-        !searchText.isEmpty && !(appState.clips[appState.viewedColor.name] ?? []).isEmpty
-    }
+    private var isSearchingWithNoMatches: Bool { isSearching }
 
     private var emptyState: some View {
         VStack(spacing: 16) {
@@ -803,12 +861,12 @@ struct ContentView: View {
             VStack(spacing: 8) {
                 Text(isSearchingWithNoMatches ? "No matches"
                     : !appState.isMonitoring ? "Capture is paused"
-                    : "Nothing nabbed yet")
+                    : "\(shortColorName) is empty")
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundColor(Color.white.opacity(0.8))
-                Text(isSearchingWithNoMatches ? "Nothing here matches \"\(searchText)\""
+                Text(isSearchingWithNoMatches ? "Nothing in any collection matches \"\(searchText)\""
                     : !appState.isMonitoring ? "Flip the switch up top, then copy anything — it lands here."
-                    : "Copy anything (⌘C) and it lands in \(shortColorName). Switch collections with ⌃⌘1–5.")
+                    : "Copy anything (⌘C) and it lands in \(shortColorName) — good for \(appState.activeColor.suggestion). Rename it by clicking the name below.")
                     .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundColor(Color.white.opacity(0.5))
                     .multilineTextAlignment(.center)
@@ -826,7 +884,13 @@ struct ContentView: View {
         if let message = appState.toastMessage, let color = appState.toastColor {
             VStack {
                 Spacer()
-                ToastView(message: message, color: color)
+                ToastView(
+                    message: message,
+                    color: color,
+                    onUndo: (appState.toastUndoable && appState.canUndo)
+                        ? { appState.undoLast() }
+                        : nil
+                )
                     .padding(.bottom, 72) // clear the footer color dots
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -915,6 +979,10 @@ struct ColorDropTarget: View {
 // MARK: - Clip View Component
 struct ClipView: View {
     let clip: Clip
+    /// The collection this clip actually lives in — during a cross-colour
+    /// search that is not necessarily the one being viewed.
+    let color: NibColor
+    var showColorPip: Bool = false
     let isDropTargeted: Bool
     var isKeyFocused: Bool = false
     @EnvironmentObject var appState: AppState
@@ -924,7 +992,16 @@ struct ClipView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            HStack(spacing: 6) {
+                if showColorPip {
+                    Circle()
+                        .fill(Color(color.nsColor))
+                        .frame(width: 7, height: 7)
+                        .shadow(color: Color(color.nsColor).opacity(0.7), radius: 3)
+                        .help(appState.labelForColor(color.name))
+                        .accessibilityLabel("in \(appState.labelForColor(color.name))")
+                }
+
                 Text(clip.appName)
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundColor(Color(red: 0.659, green: 0.855, blue: 0.863))
@@ -950,7 +1027,7 @@ struct ClipView: View {
                 .fill(
                     LinearGradient(
                         colors: isDropTargeted ?
-                            [Color(appState.viewedColor.nsColor).opacity(0.25), Color(appState.viewedColor.nsColor).opacity(0.15)] :
+                            [Color(color.nsColor).opacity(0.25), Color(color.nsColor).opacity(0.15)] :
                             isHovered ?
                             [Color.white.opacity(0.18), Color.white.opacity(0.12)] :
                             [Color.white.opacity(0.10), Color.white.opacity(0.06)],
@@ -961,10 +1038,34 @@ struct ClipView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color(appState.viewedColor.nsColor).opacity(isDropTargeted || isKeyFocused ? 0.9 : (isHovered ? 0.55 : 0.2)), lineWidth: isDropTargeted || isKeyFocused ? 2 : 1.5)
+                .stroke(Color(color.nsColor).opacity(isDropTargeted || isKeyFocused ? 0.9 : (isHovered ? 0.55 : 0.2)), lineWidth: isDropTargeted || isKeyFocused ? 2 : 1.5)
         )
-        .shadow(color: Color(appState.viewedColor.nsColor).opacity(isKeyFocused ? 0.5 : 0), radius: 8)
+        .shadow(color: Color(color.nsColor).opacity(isKeyFocused ? 0.5 : 0), radius: 8)
         .scaleEffect(isDropTargeted ? 1.02 : 1.0)
+        // The merge zone used to be an invisible 24px band. Dropping there
+        // destroys two clips to make one, so while a drag is over this card
+        // the band names itself and the edges show where an insert would go.
+        .overlay(
+            Group {
+                if isDropTargeted {
+                    VStack(spacing: 0) {
+                        insertHint
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.triangle.merge")
+                                .font(.system(size: 10, weight: .bold))
+                            Text("merge")
+                                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        }
+                        .foregroundColor(Color.black.opacity(0.8))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 24)
+                        .background(Color(color.nsColor).opacity(0.85))
+                        insertHint
+                    }
+                    .allowsHitTesting(false)
+                }
+            }
+        )
         .overlay(
             Group {
                 if isHovered {
@@ -993,7 +1094,7 @@ struct ClipView: View {
 
                         Button(action: {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                appState.deleteClip(clip, from: appState.viewedColor.name)
+                                appState.deleteClip(clip, from: color.name)
                             }
                         }) {
                             Image(systemName: "trash")
@@ -1025,13 +1126,24 @@ struct ClipView: View {
             Text(clip.text.prefix(50))
                 .font(.system(size: 12))
                 .padding(8)
-                .background(Color(appState.viewedColor.nsColor).opacity(0.3))
+                .background(Color(color.nsColor).opacity(0.3))
                 .cornerRadius(8)
         }
         .onHover { hovering in
             withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                 isHovered = hovering
             }
+        }
+    }
+
+    private var insertHint: some View {
+        VStack {
+            Spacer(minLength: 0)
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color(color.nsColor))
+                .frame(height: 3)
+                .shadow(color: Color(color.nsColor).opacity(0.8), radius: 4)
+            Spacer(minLength: 0)
         }
     }
 
@@ -1090,7 +1202,7 @@ struct EditClipModal: View {
             .background(Color.black.opacity(0.9))
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .fill(Color(appState.activeColor.nsColor).opacity(0.4))
                     .frame(height: 1)
             }
 
@@ -1157,7 +1269,7 @@ struct EditClipModal: View {
             .background(Color.black.opacity(0.9))
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .fill(Color(appState.activeColor.nsColor).opacity(0.4))
                     .frame(height: 1)
             }
         }
@@ -1231,7 +1343,7 @@ struct AddClipModal: View {
             .background(Color.black.opacity(0.9))
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .fill(Color(appState.activeColor.nsColor).opacity(0.4))
                     .frame(height: 1)
             }
 
@@ -1301,7 +1413,7 @@ struct AddClipModal: View {
             .background(Color.black.opacity(0.9))
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .fill(Color(appState.activeColor.nsColor).opacity(0.4))
                     .frame(height: 1)
             }
         }
@@ -1354,7 +1466,7 @@ struct HelpModal: View {
             .background(Color.black.opacity(0.9))
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .fill(Color(appState.activeColor.nsColor).opacity(0.4))
                     .frame(height: 1)
             }
 
@@ -1488,7 +1600,7 @@ struct ClipDetailView: View {
             .background(Color.black.opacity(0.9))
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .fill(Color(appState.activeColor.nsColor).opacity(0.4))
                     .frame(height: 1)
             }
 
@@ -1498,7 +1610,7 @@ struct ClipDetailView: View {
                     .fill(Color.black.opacity(0.7))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(appState.viewedColor.nsColor).opacity(0.5), lineWidth: 1)
+                            .stroke(Color(appState.activeColor.nsColor).opacity(0.5), lineWidth: 1)
                     )
 
                 TextEditor(text: $editedText)
@@ -1565,7 +1677,7 @@ struct ClipDetailView: View {
             .background(Color.black.opacity(0.9))
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color(appState.viewedColor.nsColor).opacity(0.4))
+                    .fill(Color(appState.activeColor.nsColor).opacity(0.4))
                     .frame(height: 1)
             }
         }
@@ -1961,6 +2073,9 @@ struct FeatureRow: View {
 struct ToastView: View {
     let message: String
     let color: NibColor
+    var onUndo: (() -> Void)? = nil
+
+    @State private var undoHovered = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -1972,6 +2087,26 @@ struct ToastView: View {
             Text(message)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundColor(.white)
+
+            if let onUndo {
+                Button(action: onUndo) {
+                    Text("Undo")
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .foregroundColor(.black.opacity(0.85))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule().fill(Color(color.nsColor).opacity(undoHovered ? 1.0 : 0.85))
+                        )
+                }
+                .buttonStyle(NibPressStyle(scale: 0.9))
+                .help("Undo (⌘Z)")
+                .onHover { hovering in
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
+                        undoHovered = hovering
+                    }
+                }
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
