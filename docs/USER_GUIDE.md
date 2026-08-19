@@ -195,6 +195,37 @@ one you're looking at — you never have to remember which colour something went
 into. Each result shows a coloured dot for the collection it lives in, and the
 counter reads "N found". Clear the search to go back to the current collection.
 
+## Tags
+
+Type a `#tag` anywhere in a clip (right-click → **Edit**) and it becomes a link.
+Click it, or search it, and every clip carrying that tag comes up — across all
+five colors at once.
+
+Tags do what colors can't: a clip lives in exactly one color, chosen before you
+copy, but it can carry any number of tags added afterwards. So tags are how you
+connect things across collections, and how you file something you already
+captured.
+
+Then act on what you found — while a search is active, the **⋯** menu operates
+on the **results**, not the collection:
+
+- Search `#recipe`, then **Export as Markdown** → just those clips, in one file
+- Search `#todo`, then **Merge Results Into One Clip** → one pasteable block,
+  gathered from wherever they were
+
+Clearing stays scoped to the collection on purpose, so a destructive action
+never quietly changes meaning because there's text in the search box.
+
+NibNab only counts a `#tag` if it starts with a letter and follows a space, so
+hex colors (`#FFEB3B`), issue numbers (`#42`) and markdown headings (`# Title`)
+in captured code don't light up as tags.
+
+## Copying Files
+
+Copy a file in Finder and NibNab captures its **path** — handy for screenshots
+you've saved to the Desktop. Images copied straight to the clipboard aren't
+captured: NibNab keeps text you can grep, not a media library.
+
 ## Moving Clips Between Colors
 
 Two ways, same result:

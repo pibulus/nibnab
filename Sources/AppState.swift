@@ -91,7 +91,7 @@ class AppState: ObservableObject {
     /// One level of undo, deep enough for "oh no" and no deeper. Anything that
     /// destroys clips snapshots the colour first.
     @Published private(set) var canUndo = false
-    private var undoSnapshot: (colorName: String, clips: [Clip], what: String)?
+    private var undoSnapshot: (colors: [String: [Clip]], what: String)?
 
     // Bumped every time the popover closes — the UI watches it to tear down any
     // open modal, so reopening never resurfaces a clip from another color.
@@ -206,7 +206,11 @@ class AppState: ObservableObject {
                         return
                     }
 
-                    if let text = pasteboard.string(forType: .string),
+                    // A file copied in Finder carries public.file-url and NO
+                    // string, so it used to vanish. Its path is still text.
+                    let captured = pasteboard.string(forType: .string) ?? Self.filePaths(from: pasteboard)
+
+                    if let text = captured,
                        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         if text != self.lastCapturedText {
                             self.lastCapturedText = text
@@ -219,6 +223,15 @@ class AppState: ObservableObject {
             }
         }
         RunLoop.main.add(clipboardTimer!, forMode: .common)
+    }
+
+    /// Paths of any files on the pasteboard, one per line. Images (public.tiff)
+    /// have no file behind them and are deliberately left alone — NibNab keeps
+    /// text you can grep, not a media library.
+    private static func filePaths(from pasteboard: NSPasteboard) -> String? {
+        guard let urls = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL] else { return nil }
+        let paths = urls.filter(\.isFileURL).map(\.path)
+        return paths.isEmpty ? nil : paths.joined(separator: "\n")
     }
 
     func stopClipboardMonitoring() {
@@ -272,8 +285,10 @@ class AppState: ObservableObject {
         return NSWorkspace.shared.frontmostApplication?.localizedName ?? "Unknown"
     }
 
-    private func snapshotForUndo(_ colorName: String, what: String) {
-        undoSnapshot = (colorName, clips[colorName] ?? [], what)
+    private func snapshotForUndo(_ colorNames: [String], what: String) {
+        var snapshot: [String: [Clip]] = [:]
+        for name in colorNames { snapshot[name] = clips[name] ?? [] }
+        undoSnapshot = (snapshot, what)
         canUndo = true
     }
 
@@ -285,8 +300,10 @@ class AppState: ObservableObject {
 
     func undoLast() {
         guard let snapshot = undoSnapshot else { return }
-        clips[snapshot.colorName] = snapshot.clips
-        storageManager.rewriteClips(snapshot.clips, for: snapshot.colorName)
+        for (name, list) in snapshot.colors {
+            clips[name] = list
+            storageManager.rewriteClips(list, for: name)
+        }
         undoSnapshot = nil
         canUndo = false
         play(.open)
@@ -294,7 +311,7 @@ class AppState: ObservableObject {
     }
 
     func deleteClip(_ clip: Clip, from colorName: String) {
-        snapshotForUndo(colorName, what: "delete")
+        snapshotForUndo([colorName], what: "delete")
         clips[colorName]?.removeAll { $0.id == clip.id }
         storageManager.rewriteClips(clips[colorName] ?? [], for: colorName)
         play(.delete)
@@ -302,8 +319,8 @@ class AppState: ObservableObject {
     }
 
     func clearAllClips(for colorName: String) {
-        snapshotForUndo(colorName, what: "clear all")
-        let clearedCount = undoSnapshot?.clips.count ?? 0
+        snapshotForUndo([colorName], what: "clear all")
+        let clearedCount = undoSnapshot?.colors[colorName]?.count ?? 0
         clips[colorName] = []
         storageManager.deleteAllClips(for: colorName)
         play(.delete)
@@ -361,7 +378,7 @@ class AppState: ObservableObject {
         guard let colorClips = clips[colorName], colorClips.count > 1,
               let merged = colorClips.mergedIntoOne() else { return }
 
-        snapshotForUndo(colorName, what: "merge all")
+        snapshotForUndo([colorName], what: "merge all")
 
         clips[colorName] = [merged]
         storageManager.rewriteClips([merged], for: colorName)
@@ -384,7 +401,7 @@ class AppState: ObservableObject {
     }
 
     func mergeClip(_ source: Clip, into target: Clip, in colorName: String) {
-        snapshotForUndo(colorName, what: "merge")
+        snapshotForUndo([colorName], what: "merge")
         guard var colorClips = clips[colorName],
               let targetIndex = colorClips.firstIndex(of: target) else { return }
 
@@ -476,30 +493,61 @@ class AppState: ObservableObject {
         play(.capture)
     }
 
-    func exportClipsAsMarkdown(for colorName: String) {
-        guard let colorClips = clips[colorName], !colorClips.isEmpty else { return }
+    // Export takes an explicit list so it can serve a whole colour OR a set of
+    // search results — "search a tag, export those" only works if the actions
+    // follow the search rather than the collection.
+    func exportAsMarkdown(_ clipsToExport: [Clip], title: String, stem: String) {
+        guard !clipsToExport.isEmpty else { return }
 
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy h:mm a"
 
-        var markdown = "# NibNab Export - \(colorName)\n"
+        var markdown = "# NibNab Export - \(title)\n"
         markdown += "Exported: \(formatter.string(from: Date()))\n\n"
 
-        for clip in colorClips {
+        for clip in clipsToExport {
             markdown += "---\n"
             markdown += "### \(clip.appName)\n"
             markdown += "*\(formatter.string(from: clip.timestamp))*\n\n"
             markdown += "\(clip.text)\n\n"
         }
 
-        presentExportPanel(defaultName: "\(exportFileStem(for: colorName))-clips.md", content: markdown)
+        presentExportPanel(defaultName: "\(stem)-clips.md", content: markdown)
+    }
+
+    func exportAsPlainText(_ clipsToExport: [Clip], stem: String) {
+        guard !clipsToExport.isEmpty else { return }
+        let plainText = clipsToExport.map(\.text).joined(separator: "\n\n---\n\n")
+        presentExportPanel(defaultName: "\(stem)-clips.txt", content: plainText)
+    }
+
+    func exportClipsAsMarkdown(for colorName: String) {
+        exportAsMarkdown(clips[colorName] ?? [], title: colorName, stem: exportFileStem(for: colorName))
     }
 
     func exportClipsAsPlainText(for colorName: String) {
-        guard let colorClips = clips[colorName], !colorClips.isEmpty else { return }
+        exportAsPlainText(clips[colorName] ?? [], stem: exportFileStem(for: colorName))
+    }
 
-        let plainText = colorClips.map(\.text).joined(separator: "\n\n---\n\n")
-        presentExportPanel(defaultName: "\(exportFileStem(for: colorName))-clips.txt", content: plainText)
+    /// Fold an arbitrary set — typically a tag's search results, which can span
+    /// colours — into one clip in `targetColor`. Every colour it touches is
+    /// snapshotted, so one ⌘Z puts them all back.
+    func mergeClips(_ clipsToMerge: [Clip], into targetColor: String) {
+        guard clipsToMerge.count > 1, let merged = clipsToMerge.mergedIntoOne() else { return }
+
+        let ids = Set(clipsToMerge.map(\.id))
+        let holders = clips.filter { $0.value.contains { ids.contains($0.id) } }.map(\.key)
+        snapshotForUndo(Array(Set(holders + [targetColor])), what: "merge")
+
+        let touched = clips.removeClips(ids: ids).union([targetColor])
+        clips[targetColor, default: []].insert(merged, at: 0)
+
+        for name in touched {
+            reindexOrders(for: name)
+            storageManager.rewriteClips(clips[name] ?? [], for: name)
+        }
+        play(.capture)
+        showToast("Merged \(clipsToMerge.count) clips", color: activeColor, undoable: true)
     }
 
     private func exportFileStem(for colorName: String) -> String {

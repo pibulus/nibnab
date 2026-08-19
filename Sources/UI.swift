@@ -1,6 +1,36 @@
 import SwiftUI
 import Cocoa
 
+enum TagLink {
+    static let scheme = "nibnab-tag"
+
+    /// Clip text with any #tags tinted and turned into links. They ride the
+    /// standard link attribute so Text handles hit-testing for us; an
+    /// OpenURLAction upstream turns a click into a search.
+    static func attributed(_ text: String, tint: Color) -> AttributedString {
+        var attributed = AttributedString(text)
+        // Map by character offset, not by searching for the tag's text — the
+        // same tag can appear twice and range(of:) only ever finds the first.
+        for range in NibTag.matches(in: text) {
+            let start = text.distance(from: text.startIndex, to: range.lowerBound)
+            let length = text.distance(from: range.lowerBound, to: range.upperBound)
+            let characters = attributed.characters
+            guard start >= 0, length > 0,
+                  start + length <= characters.count else { continue }
+            let from = characters.index(characters.startIndex, offsetBy: start)
+            let to = characters.index(from, offsetBy: length)
+
+            attributed[from..<to].foregroundColor = tint
+            attributed[from..<to].font = .system(size: 12, weight: .bold)
+            let tag = String(text[range]).dropFirst().lowercased()
+            if let url = URL(string: "\(scheme)://\(tag)") {
+                attributed[from..<to].link = url
+            }
+        }
+        return attributed
+    }
+}
+
 extension Color {
     /// Warm near-black, fully opaque. Modal cards used to be 90% black, so the
     /// clip list showed through them and read as a rendering fault. Anything
@@ -160,6 +190,10 @@ struct ContentHeaderView: View {
     @Binding var showClearConfirm: Bool
     @Binding var showHelp: Bool
     let clipCount: Int
+    /// The clips currently on screen. While searching these span colours, and
+    /// every collection action follows them instead of the active colour.
+    let visibleClips: [Clip]
+    let searchLabel: String?
     let horizontalPadding: CGFloat
 
     @FocusState private var searchFieldFocused: Bool
@@ -276,29 +310,41 @@ struct ContentHeaderView: View {
 
             HeaderMenuButton(
                 systemName: "ellipsis",
-                help: "Collection actions",
-                isDisabled: clipCount == 0
+                help: searchLabel.map { "Actions for \($0)" } ?? "Collection actions",
+                isDisabled: visibleClips.isEmpty
             ) {
-                Button("Export as Markdown") {
-                    appState.exportClipsAsMarkdown(for: appState.activeColor.name)
-                }
-                Button("Export as Plain Text") {
-                    appState.exportClipsAsPlainText(for: appState.activeColor.name)
+                let scope = searchLabel ?? appState.labelForColor(appState.activeColor.name)
+                let stem = (searchLabel ?? appState.activeColor.name)
+                    .replacingOccurrences(of: "Highlighter ", with: "")
+                    .replacingOccurrences(of: "#", with: "tag-")
+                    .lowercased()
+
+                Section(searchLabel.map { "\(visibleClips.count) matching \($0)" } ?? scope) {
+                    Button("Export as Markdown") {
+                        appState.exportAsMarkdown(visibleClips, title: scope, stem: stem)
+                    }
+                    Button("Export as Plain Text") {
+                        appState.exportAsPlainText(visibleClips, stem: stem)
+                    }
                 }
 
                 Divider()
 
-                Button("Merge All Into One Clip") {
-                    appState.mergeAllClips(in: appState.activeColor.name)
+                Button(searchLabel == nil ? "Merge All Into One Clip"
+                                          : "Merge \(visibleClips.count) Results Into One Clip") {
+                    appState.mergeClips(visibleClips, into: appState.activeColor.name)
                 }
-                .disabled(clipCount < 2)
+                .disabled(visibleClips.count < 2)
 
                 Divider()
 
-                Button("Export & Clear\u{2026}") {
+                // Clearing stays scoped to the collection on purpose — a
+                // destructive action shouldn't quietly change meaning because
+                // there's text in the search box.
+                Button("Export & Clear \(appState.labelForColor(appState.activeColor.name))\u{2026}") {
                     appState.exportAndClear(for: appState.activeColor.name)
                 }
-                Button("Clear All\u{2026}", role: .destructive) {
+                Button("Clear \(appState.labelForColor(appState.activeColor.name))\u{2026}", role: .destructive) {
                     showClearConfirm = true
                 }
             }
@@ -629,6 +675,8 @@ struct ContentView: View {
                     showClearConfirm: $showClearConfirm,
                     showHelp: $showHelp,
                     clipCount: appState.clips[appState.activeColor.name]?.count ?? 0,
+                    visibleClips: rows.map(\.clip),
+                    searchLabel: isSearching ? "\u{201C}\(searchText)\u{201D}" : nil,
                     horizontalPadding: Self.horizontalPadding - 10
                 )
                 .environmentObject(appState)
@@ -660,6 +708,14 @@ struct ContentView: View {
             toastOverlay
         }
         .frame(width: Self.popoverSize.width, height: Self.popoverSize.height)
+        .environment(\.openURL, OpenURLAction { url in
+            guard url.scheme == TagLink.scheme else { return .systemAction }
+            searchText = "#" + (url.host() ?? url.lastPathComponent)
+            selectedClip = nil
+            editingClip = nil
+            appState.play(.copy)
+            return .handled
+        })
         .onAppear { startKeyMonitor() }
         .onDisappear { stopKeyMonitor() }
         .onChange(of: appState.activeColor.name) { _ in focusedClipID = nil }
@@ -1034,10 +1090,14 @@ struct ClipView: View {
                     .padding(.trailing, isHovered ? 56 : 0)
             }
 
-            Text(clip.text.prefix(150) + (clip.text.count > 150 ? "..." : ""))
+            Text(TagLink.attributed(
+                String(clip.text.prefix(150)) + (clip.text.count > 150 ? "..." : ""),
+                tint: Color(color.nsColor)
+            ))
                 .font(.system(size: 12))
                 .lineLimit(3)
                 .foregroundColor(Color.white.opacity(0.9))
+                .tint(Color(color.nsColor))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)

@@ -60,6 +60,8 @@ enum StorageTests {
         capAndDeletePersistence()
         mergeAll()
         weightlessSynth()
+        crossColorRemoval()
+        tagParsing()
         urlRoundTrip()
 
         print(failures == 0
@@ -295,6 +297,64 @@ enum StorageTests {
                 expect(ratio > 1.24, "\(name) rises by a major interval, not a minor third")
             }
         }
+    }
+
+    static func crossColorRemoval() {
+        print("— merging across collections")
+
+        let a = Clip(text: "a", timestamp: utcDate("2026-07-10 10:00:00"), url: nil, appName: "X")
+        let b = Clip(text: "b", timestamp: utcDate("2026-07-10 10:01:00"), url: nil, appName: "X")
+        let c = Clip(text: "c", timestamp: utcDate("2026-07-10 10:02:00"), url: nil, appName: "X")
+
+        var collections: [String: [Clip]] = [
+            "Highlighter Yellow": [a, b],
+            "Highlighter Pink": [c],
+            "Highlighter Green": []
+        ]
+
+        let touched = collections.removeClips(ids: [a.id, c.id])
+        expect(touched == ["Highlighter Yellow", "Highlighter Pink"],
+               "reports exactly the collections it changed")
+        expect(collections["Highlighter Green"] != nil && touched.contains("Highlighter Green") == false,
+               "untouched collections are not rewritten")
+        expect(collections["Highlighter Yellow"]?.map(\.text) == ["b"], "pulls only the named clips")
+        expect(collections["Highlighter Pink"]?.isEmpty == true, "empties a collection when all of it moves")
+
+        // Merging results that span colours keeps the oldest first regardless
+        // of which collection each came from.
+        let merged = [c, a, b].mergedIntoOne()
+        expect(merged?.text == "a\n\nb\n\nc", "cross-colour merge is still oldest-first")
+
+        var noMatch: [String: [Clip]] = ["Highlighter Yellow": [a]]
+        expect(noMatch.removeClips(ids: [b.id]).isEmpty, "removing nothing touches nothing")
+    }
+
+    static func tagParsing() {
+        print("— hashtags")
+
+        expect(NibTag.tags(in: "keep this #idea and #later too") == ["#idea", "#later"],
+               "finds plain tags")
+        expect(NibTag.tags(in: "#start of line") == ["#start"], "finds a tag at the start")
+        expect(NibTag.tags(in: "no tags here").isEmpty, "no false positives in plain prose")
+
+        // The reasons a naive #-scan lights up every code clip.
+        expect(NibTag.tags(in: "color: #FFEB3B;").isEmpty, "hex colours are not tags")
+        expect(NibTag.tags(in: "see issue #42").isEmpty, "issue numbers are not tags")
+        expect(NibTag.tags(in: "#include <stdio.h>") == ["#include"], "a real word after # is a tag")
+        expect(NibTag.tags(in: "id#5 and a#b").isEmpty, "mid-word hashes are not tags")
+        expect(NibTag.tags(in: "# Heading").isEmpty, "markdown headings are not tags")
+        expect(NibTag.tags(in: "#a").isEmpty, "single letters are too short to be tags")
+
+        expect(NibTag.tags(in: "#Idea and #idea") == ["#Idea"], "tags dedupe case-insensitively")
+        expect(NibTag.tags(in: "#multi-part_tag1") == ["#multi-part_tag1"], "dashes, underscores and digits allowed")
+        expect(NibTag.matches(in: "x #tag y").count == 1, "ranges line up with the tags found")
+
+        // Styling maps by offset, so a repeated tag must yield a range each time.
+        let twice = "#idea here and #idea again"
+        expect(NibTag.matches(in: twice).count == 2, "a repeated tag yields one range per occurrence")
+        expect(NibTag.tags(in: twice) == ["#idea"], "...but only lists it once")
+        let ranges = NibTag.matches(in: twice)
+        expect(ranges.map { String(twice[$0]) } == ["#idea", "#idea"], "both occurrences resolve to the tag")
     }
 
     static func urlRoundTrip() {
