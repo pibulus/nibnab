@@ -154,9 +154,11 @@ Third clip...
 
 ### Sound Effects
 - ✅ = Plays subtle sounds
-  - "Pop" when capturing clips
-  - "Tink" when deleting clips
-  - "Pop" when changing colors
+  - A soft two-note lift when a clip lands
+  - A short tick when you copy one
+  - A falling pair when one goes away
+  - Each of the five colors has its own pitch
+- Sounds are synthesised as they play, so no two are quite the same
 - Turn off for silent operation
 
 ### About
@@ -296,7 +298,7 @@ Each color gets its own folder with a markdown file:
 ### Sounds not working
 - Right-click menubar → check "Sound Effects" is ✅
 - macOS volume must be on
-- Some Mac sounds require restart
+- Changed output device (headphones in or out)? Capture one clip to wake the audio engine back up
 
 ### App feels slow
 - Too many clips? Each color maxes at 100

@@ -378,10 +378,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         .environmentObject(appState)
         .preferredColorScheme(.dark)
 
+        // Same as About: the content decides how tall it needs to be.
+        let hosting = NSHostingController(rootView: welcomeView)
+        let fitting = hosting.view.fittingSize
+        let maxHeight = (NSScreen.main?.visibleFrame.height ?? 800) - 40
+        let welcomeSize = NSSize(width: 460, height: min(max(fitting.height, 420), maxHeight))
+        hosting.preferredContentSize = welcomeSize
+
         welcomeWindow = makeAuxiliaryWindow(
             title: "Welcome to NibNab",
-            contentViewController: NSHostingController(rootView: welcomeView),
-            size: NSSize(width: 460, height: 480)
+            contentViewController: hosting,
+            size: welcomeSize
         )
     }
 

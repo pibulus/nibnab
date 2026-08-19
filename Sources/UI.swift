@@ -2021,10 +2021,17 @@ struct WelcomeView: View {
                 )
 
                 FeatureRow(
+                    icon: "magnifyingglass",
+                    color: NibColor.purple,
+                    title: "Find It Later",
+                    description: "Search looks in every color at once, so you never have to remember where a clip went"
+                )
+
+                FeatureRow(
                     icon: "square.and.arrow.down",
                     color: NibColor.orange,
-                    title: "Export Anywhere",
-                    description: "Save your clips as Markdown or plain text whenever you need"
+                    title: "Yours To Keep",
+                    description: "Clips are plain markdown files on your Mac. Export any color as Markdown or text"
                 )
             }
             .padding(.horizontal, 32)
@@ -2066,7 +2073,7 @@ struct WelcomeView: View {
                 }
             }
         }
-        .frame(width: 460, height: 480)
+        .frame(width: 460)
         .background(
             ZStack {
                 Color.black.opacity(0.9)
