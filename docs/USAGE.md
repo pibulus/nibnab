@@ -74,9 +74,13 @@ Use them however you want - they're just colors!
 
 ### Capturing Clips
 1. **Set your active color** (right-click menubar icon)
-2. **Highlight text anywhere** in any app
+2. **Highlight text anywhere** in any app (or use Cmd+C)
 3. **Watch menubar pulse** = clip saved!
 4. Switch colors anytime for different contexts
+
+**Special Captures:**
+- **Files**: Copy a file in Finder (Cmd+C), and NibNab saves its file path.
+- **Hashtags**: Type `#tag` in your clips. The tag will be highlighted and you can click it to search across all colors.
 
 ### Viewing Clips
 - Click menubar icon to open popover

@@ -146,13 +146,15 @@ NibNab v1.0 brings color-coded clipboard management to your menubar:
 NEW FEATURES:
 • Automatic clipboard capture (Cmd+C)
 • Five-color organization system (Yellow, Orange, Pink, Purple, Green)
+• File path capture (copy a file, NibNab remembers its path)
+• Hashtag support (type `#tag` to filter and organize clips dynamically)
 • Dual export options (Markdown with metadata, Plain Text)
 • Copy and delete actions from both list and detail views
 • Mac-native settings menu (right-click menubar)
 • Optional sound effects with toggle
 • Launch at login support
 • Global keyboard shortcut (Ctrl+Cmd+N)
-• Search and sort functionality
+• Search, sort, and bulk-action functionality across all colors
 • Privacy-first local storage (no cloud, no tracking)
 
 DESIGN:

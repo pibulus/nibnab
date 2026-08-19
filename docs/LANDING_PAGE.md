@@ -191,7 +191,7 @@ macOS 13.0+ (Ventura or later)
 ## FAQ Section
 
 ### What does NibNab capture?
-Everything you copy with Cmd+C, plus selected text (with accessibility permission). Only text—no images or files.
+Everything you copy with Cmd+C, plus selected text (with accessibility permission). Text is saved directly. If you copy a file in Finder, it saves the file's path. Images are skipped to save space.
 
 ### Where is my data stored?
 Locally on your Mac in `~/Library/Application Support/com.pibulus.nibnab/` as markdown files. No cloud. No sync. You own it.
@@ -203,7 +203,7 @@ Yes. NibNab never connects to the internet. Ever.
 Whatever you want! Organize by project, content type, priority, or just vibe. The colors have no predefined meaning.
 
 ### How many clips can I save?
-100 clips per color (400 total). When you hit the limit, oldest clips auto-delete. Or delete manually anytime.
+100 clips per color (500 total). When you hit the limit, oldest clips auto-delete. Or delete manually anytime.
 
 ### Can I export my clips?
 Yes! Two formats:
@@ -299,9 +299,10 @@ Hey r/macapps! I built a clipboard manager that might not annoy you.
 
 **What it does:**
 - Captures everything you copy (Cmd+C or text selection)
-- Organizes into 4 color-coded collections
+- Organizes into 5 color-coded collections
+- Supports #hashtags and file paths
 - Export as Markdown or Plain Text
-- Search and sort functionality
+- Search, sort, and bulk actions across all colors
 - Menubar app with global shortcut
 
 **What it doesn't do:**
