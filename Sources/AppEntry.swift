@@ -65,13 +65,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         popover.contentViewController = hostingController
         popover.contentSize = popoverSize
         popover.behavior = .transient
+        // The content is dark by design; without this the arrow and frame render
+        // light in Light Mode and the popover looks glued on wrong.
+        popover.appearance = NSAppearance(named: .darkAqua)
 
         eventMonitor = EventMonitor(mask: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             if let strongSelf = self,
                strongSelf.popover.isShown,
                let button = strongSelf.statusItem.button,
                event?.windowNumber != button.window?.windowNumber {
-                strongSelf.popover.performClose(event)
+                strongSelf.closePopover()
             }
         }
         eventMonitor?.start()
@@ -138,6 +141,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func closePopover() {
         popover.performClose(nil)
         eventMonitor?.stop()
+        appState.popoverClosedCount += 1
     }
 
     func pulseMenuBarIcon(color: NibColor? = nil) {
@@ -216,7 +220,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func showColorMenu() {
         let menu = NSMenu()
 
-        let colorShortcuts = ["⌘⌃1", "⌘⌃2", "⌘⌃3", "⌘⌃4", "⌘⌃5"]
+        let colorShortcuts = ["⌃⌘1", "⌃⌘2", "⌃⌘3", "⌃⌘4", "⌃⌘5"]
 
         for (index, color) in NibColor.all.enumerated() {
             let size = NSSize(width: 16, height: 16)
@@ -270,7 +274,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyEquivalent: ""
         )
         autoCaptureItem.state = appState.isMonitoring ? .on : .off
-        autoCaptureItem.toolTip = "Keyboard shortcut: ⌘⌃M"
+        autoCaptureItem.toolTip = "Keyboard shortcut: ⌃⌘M"
         menu.addItem(autoCaptureItem)
 
         // Only offered where the Accessibility API can actually work
@@ -385,8 +389,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
-        let aboutSize = NSSize(width: 520, height: 620)
+        // Let the content say how tall it wants to be — a hardcoded height either
+        // leaves a stray scrollbar or dead space when the copy or font changes.
         let hostingController = NSHostingController(rootView: AboutView())
+        let fitting = hostingController.view.fittingSize
+        let maxHeight = (NSScreen.main?.visibleFrame.height ?? 800) - 40
+        let aboutSize = NSSize(width: 520, height: min(max(fitting.height, 480), maxHeight))
         hostingController.preferredContentSize = aboutSize
 
         aboutWindow = makeAuxiliaryWindow(
@@ -449,13 +457,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // IDs map to actions in the handler below.
         let bindings: [(keyCode: Int, id: UInt32, label: String)] = [
-            (kVK_ANSI_N, 1, "⌘⌃N toggle popover"),
-            (kVK_ANSI_1, 2, "⌘⌃1 yellow"),
-            (kVK_ANSI_2, 3, "⌘⌃2 orange"),
-            (kVK_ANSI_3, 4, "⌘⌃3 pink"),
-            (kVK_ANSI_4, 5, "⌘⌃4 purple"),
-            (kVK_ANSI_5, 6, "⌘⌃5 green"),
-            (kVK_ANSI_M, 7, "⌘⌃M toggle capture")
+            (kVK_ANSI_N, 1, "⌃⌘N toggle popover"),
+            (kVK_ANSI_1, 2, "⌃⌘1 yellow"),
+            (kVK_ANSI_2, 3, "⌃⌘2 orange"),
+            (kVK_ANSI_3, 4, "⌃⌘3 pink"),
+            (kVK_ANSI_4, 5, "⌃⌘4 purple"),
+            (kVK_ANSI_5, 6, "⌃⌘5 green"),
+            (kVK_ANSI_M, 7, "⌃⌘M toggle capture")
         ]
 
         for (index, binding) in bindings.enumerated() {
@@ -469,7 +477,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 &hotKeyRefs[index]
             )
             if status != noErr {
-                // Another app (window managers love ⌘⌃ digits) owns this
+                // Another app (window managers love ⌃⌘ digits) owns this
                 // combo — the shortcut silently won't fire, so leave a trace.
 #if DEBUG
                 NSLog("NibNab: couldn't register global hotkey %@ (OSStatus %d)", binding.label, status)

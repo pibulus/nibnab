@@ -65,7 +65,7 @@ Whatever you want! Here are some ideas:
 
 **Open NibNab:**
 - Click menubar icon, OR
-- Press **Cmd+Ctrl+N** (global shortcut)
+- Press **Ctrl+Cmd+N** (global shortcut)
 
 **Browse clips:**
 - Scroll through your collection
@@ -170,9 +170,20 @@ Third clip...
 
 | Shortcut | Action |
 |----------|--------|
-| **Cmd+Ctrl+N** | Toggle NibNab window |
+| **Ctrl+Cmd+N** | Toggle NibNab window |
+| **Ctrl+Cmd+M** | Pause / resume capturing |
+| **Ctrl+Cmd+1…5** | Switch active color |
 | **Cmd+C** | Copy & auto-capture |
 | **Cmd+Q** | Quit (when app is focused) |
+
+With the window open, the clip list is fully keyboard-driven:
+
+| Key | Action |
+|-----|--------|
+| **↑ / ↓** | Move through clips |
+| **Return** | Copy the selected clip and close the window |
+| **Space** | Open the selected clip's detail view |
+| **Delete** | Delete the selected clip |
 
 ## Where Your Data Lives
 

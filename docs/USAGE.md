@@ -36,7 +36,7 @@ This will:
 2. **Click footer colors** in popover (white ring = active)
 3. Your choice persists between launches
 
-**Global Shortcut**: `Cmd+Ctrl+N` - Opens NibNab from anywhere
+**Global Shortcut**: `Ctrl+Cmd+N` - Opens NibNab from anywhere
 
 ## ⚙️ Settings (Header Toggles)
 

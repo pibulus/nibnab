@@ -95,10 +95,12 @@ That's it. No signup, no account, no BS.
 
 ## Keyboard Shortcuts
 
-- **Cmd+Ctrl+N** - Toggle NibNab window
-- **Cmd+Ctrl+M** - Toggle auto-capture on/off
-- **Cmd+Ctrl+1…5** - Switch active color (yellow, orange, pink, purple, green)
+- **Ctrl+Cmd+N** - Toggle NibNab window
+- **Ctrl+Cmd+M** - Toggle auto-capture on/off
+- **Ctrl+Cmd+1…5** - Switch active color (yellow, orange, pink, purple, green)
 - **Cmd+C** - Auto-captures to active color
+
+With the window open: **↑/↓** to move through clips, **Return** to copy & close, **Space** for detail, **Delete** to remove.
 - **Right-click menubar** - Settings & color picker
 
 ## Storage

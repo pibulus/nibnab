@@ -73,6 +73,7 @@ struct HeaderIconButton: View {
         .buttonStyle(.plain)
         .disabled(isDisabled)
         .help(help ?? "")
+        .accessibilityLabel(help ?? systemName)
         .onHover { hovering in
             withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                 isHovered = hovering && !isDisabled
@@ -97,11 +98,10 @@ struct ContentHeaderView: View {
     @FocusState private var searchFieldFocused: Bool
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 10) {
             primaryControls
-            Spacer()
             searchControls
-            Spacer()
+                .frame(maxWidth: .infinity)
             actionControls
         }
         .padding(.horizontal, horizontalPadding)
@@ -117,13 +117,13 @@ struct ContentHeaderView: View {
     }
 
     private var primaryControls: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 10) {
+        HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Image(systemName: "highlighter")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundColor(Color(appState.activeColor.nsColor))
                 Text("NibNab")
-                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .font(.system(size: 18, weight: .black, design: .rounded))
                     .foregroundColor(Color(appState.activeColor.nsColor))
                     .fixedSize()
             }
@@ -131,7 +131,7 @@ struct ContentHeaderView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 15)
                     .fill(Color.white.opacity(toggleHovered ? 0.22 : 0.08))
-                    .frame(width: 56, height: 34)
+                    .frame(width: 52, height: 34)
 
                 Toggle(
                     "",
@@ -146,6 +146,8 @@ struct ContentHeaderView: View {
                 .toggleStyle(.switch)
                 .scaleEffect(toggleHovered ? 0.85 : 0.8)
                 .help(appState.isMonitoring ? "Active - capturing clips" : "Paused - click to activate")
+                .accessibilityLabel("Auto-capture")
+                .accessibilityValue(appState.isMonitoring ? "on" : "off")
             }
             .frame(height: 34)
             .onHover { hovering in
@@ -162,12 +164,12 @@ struct ContentHeaderView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.white.opacity(0.6))
-                    .frame(width: 20)
 
                 TextField("Search...", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
-                    .frame(width: 130)
+                    .frame(minWidth: 40)
+                    .accessibilityLabel("Search clips")
                     .focused($searchFieldFocused)
                     .onAppear {
                         searchFieldFocused = false
@@ -184,6 +186,7 @@ struct ContentHeaderView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.white.opacity(0.12))
@@ -229,7 +232,7 @@ struct ContentHeaderView: View {
     }
 
     private var actionControls: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: 6) {
             HeaderIconButton(systemName: "plus", action: {
                 showAddClipModal = true
             }, help: "Add clip")
@@ -409,7 +412,7 @@ struct ContentOverlaysView: View {
     @Binding var editingClip: Clip?
     @Binding var showHelp: Bool
     // The color the open modal belongs to, captured when it was opened —
-    // a ⌘⌃1-5 hotkey can change viewedColor while a modal is up, and
+    // a ⌃⌘1-5 hotkey can change viewedColor while a modal is up, and
     // saving/deleting against the new color would hit the wrong file.
     let modalColorName: String
 
@@ -525,6 +528,8 @@ struct ContentView: View {
     @State private var editingClip: Clip?
     @State private var modalColorName = ""
     @State private var dropTargetedClipID: UUID? = nil
+    @State private var focusedClipID: UUID? = nil
+    @State private var keyMonitor: Any? = nil
     @FocusState private var labelFocused: Bool
 
     enum SortOrder {
@@ -599,6 +604,18 @@ struct ContentView: View {
             toastOverlay
         }
         .frame(width: Self.popoverSize.width, height: Self.popoverSize.height)
+        .onAppear { startKeyMonitor() }
+        .onDisappear { stopKeyMonitor() }
+        .onChange(of: appState.viewedColor.name) { _ in focusedClipID = nil }
+        .onChange(of: appState.popoverClosedCount) { _ in
+            selectedClip = nil
+            editingClip = nil
+            showAddClipModal = false
+            showHelp = false
+            editingLabel = false
+            focusedClipID = nil
+        }
+        .onChange(of: searchText) { _ in focusedClipID = nil }
         .background(
             ZStack {
                 Color.black.opacity(0.85)
@@ -625,11 +642,17 @@ struct ContentView: View {
     }
 
     private var contentArea: some View {
+        ScrollViewReader { proxy in
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 8) {
                 if !sortedClips.isEmpty {
                     ForEach(sortedClips) { clip in
-                        ClipView(clip: clip, isDropTargeted: dropTargetedClipID == clip.id)
+                        ClipView(
+                            clip: clip,
+                            isDropTargeted: dropTargetedClipID == clip.id,
+                            isKeyFocused: focusedClipID == clip.id
+                        )
+                            .id(clip.id)
                             .dropDestination(for: Clip.self) { droppedClips, location in
                                 guard let dropped = droppedClips.first,
                                       dropped.id != clip.id else { return false }
@@ -697,6 +720,67 @@ struct ContentView: View {
             .padding(.vertical, 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onChange(of: focusedClipID) { id in
+            guard let id else { return }
+            withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(id, anchor: .center) }
+        }
+        }
+    }
+
+    // MARK: - Keyboard Navigation
+    // A local NSEvent monitor rather than .onKeyPress — that needs macOS 14 and
+    // this app ships to 13.0.
+    private func startKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            handleListKey(event)
+        }
+    }
+
+    private func stopKeyMonitor() {
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        keyMonitor = nil
+        focusedClipID = nil
+    }
+
+    private func handleListKey(_ event: NSEvent) -> NSEvent? {
+        // Never steal keys from a text field, a modal, or a shortcut chord.
+        guard appState.delegate?.popover.isShown == true else { return event }
+        guard selectedClip == nil, editingClip == nil,
+              !showAddClipModal, !showHelp, !editingLabel else { return event }
+        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return event }
+        if NSApp.keyWindow?.firstResponder is NSTextView { return event }
+
+        let clips = sortedClips
+        guard !clips.isEmpty else { return event }
+        let index = focusedClipID.flatMap { id in clips.firstIndex(where: { $0.id == id }) }
+
+        switch event.keyCode {
+        case 126: // up
+            focusedClipID = clips[index.map { max(0, $0 - 1) } ?? clips.count - 1].id
+        case 125: // down
+            focusedClipID = clips[index.map { min(clips.count - 1, $0 + 1) } ?? 0].id
+        case 36: // return — copy and dismiss
+            guard let i = index else { return event }
+            appState.copyToPasteboard(clips[i].text)
+            appState.delegate?.closePopover()
+        case 49: // space — detail
+            guard let i = index else { return event }
+            modalColorName = appState.viewedColor.name
+            selectedClip = clips[i]
+        case 51: // delete
+            guard let i = index else { return event }
+            let survivor = clips.count > 1 ? clips[i == clips.count - 1 ? i - 1 : i + 1].id : nil
+            appState.deleteClip(clips[i], from: appState.viewedColor.name)
+            focusedClipID = survivor
+        default:
+            return event
+        }
+        return nil
+    }
+
+    private var shortColorName: String {
+        appState.viewedColor.name.replacingOccurrences(of: "Highlighter ", with: "")
     }
 
     private var isSearchingWithNoMatches: Bool {
@@ -718,12 +802,13 @@ struct ContentView: View {
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundColor(Color.white.opacity(0.8))
                 Text(isSearchingWithNoMatches ? "Nothing here matches \"\(searchText)\""
-                    : !appState.isMonitoring ? "Flip the switch to start nabbing"
-                    : "Copy something good")
+                    : !appState.isMonitoring ? "Flip the switch up top, then copy anything — it lands here."
+                    : "Copy anything (⌘C) and it lands in \(shortColorName). Switch collections with ⌃⌘1–5.")
                     .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundColor(Color.white.opacity(0.5))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .padding(.horizontal, 32)
             }
         }
         .frame(maxWidth: .infinity)
@@ -826,6 +911,7 @@ struct ColorDropTarget: View {
 struct ClipView: View {
     let clip: Clip
     let isDropTargeted: Bool
+    var isKeyFocused: Bool = false
     @EnvironmentObject var appState: AppState
     @State private var isHovered = false
     @State private var copyHovered = false
@@ -870,8 +956,9 @@ struct ClipView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color(appState.viewedColor.nsColor).opacity(isDropTargeted ? 0.8 : (isHovered ? 0.55 : 0.2)), lineWidth: isDropTargeted ? 2 : 1.5)
+                .stroke(Color(appState.viewedColor.nsColor).opacity(isDropTargeted || isKeyFocused ? 0.9 : (isHovered ? 0.55 : 0.2)), lineWidth: isDropTargeted || isKeyFocused ? 2 : 1.5)
         )
+        .shadow(color: Color(appState.viewedColor.nsColor).opacity(isKeyFocused ? 0.5 : 0), radius: 8)
         .scaleEffect(isDropTargeted ? 1.02 : 1.0)
         .overlay(
             Group {
@@ -890,6 +977,8 @@ struct ClipView: View {
                                 )
                         }
                         .buttonStyle(.plain)
+                        .help("Copy clip")
+                        .accessibilityLabel("Copy clip")
                         .scaleEffect(copyHovered ? 1.15 : 1.0)
                         .onHover { hovering in
                             withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
@@ -912,6 +1001,8 @@ struct ClipView: View {
                                 )
                         }
                         .buttonStyle(.plain)
+                        .help("Delete clip")
+                        .accessibilityLabel("Delete clip")
                         .scaleEffect(deleteHovered ? 1.15 : 1.0)
                         .onHover { hovering in
                             withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
@@ -1230,9 +1321,9 @@ struct HelpModal: View {
     @State private var hoveredStep: Int? = nil
 
     private let shortcuts: [(keys: String, action: String)] = [
-        ("⌘⌃N", "Show / hide NibNab"),
-        ("⌘⌃1–5", "Switch active color"),
-        ("⌘⌃M", "Pause / resume capturing"),
+        ("⌃⌘N", "Show / hide NibNab"),
+        ("⌃⌘1–5", "Switch active color"),
+        ("⌃⌘M", "Pause / resume capturing"),
         ("Esc", "Close this window")
     ]
 
@@ -1557,7 +1648,7 @@ struct AboutView: View {
                         ShortcutRow(
                             icon: "highlighter",
                             description: "Toggle popover",
-                            keys: ["⌘", "⌃", "N"],
+                            keys: ["⌃", "⌘", "N"],
                             color: NibColor.pink,
                             isHovered: hoveredShortcut == 0
                         )
@@ -1570,7 +1661,7 @@ struct AboutView: View {
                         ShortcutRow(
                             icon: "power",
                             description: "Toggle auto-capture",
-                            keys: ["⌘", "⌃", "M"],
+                            keys: ["⌃", "⌘", "M"],
                             color: NibColor.pink,
                             isHovered: hoveredShortcut == 1
                         )
@@ -1587,7 +1678,7 @@ struct AboutView: View {
                         ShortcutRow(
                             icon: "circle.fill",
                             description: "Yellow highlighter",
-                            keys: ["⌘", "⌃", "1"],
+                            keys: ["⌃", "⌘", "1"],
                             color: NibColor.yellow,
                             isHovered: hoveredShortcut == 2
                         )
@@ -1600,7 +1691,7 @@ struct AboutView: View {
                         ShortcutRow(
                             icon: "circle.fill",
                             description: "Orange highlighter",
-                            keys: ["⌘", "⌃", "2"],
+                            keys: ["⌃", "⌘", "2"],
                             color: NibColor.orange,
                             isHovered: hoveredShortcut == 3
                         )
@@ -1613,7 +1704,7 @@ struct AboutView: View {
                         ShortcutRow(
                             icon: "circle.fill",
                             description: "Pink highlighter",
-                            keys: ["⌘", "⌃", "3"],
+                            keys: ["⌃", "⌘", "3"],
                             color: NibColor.pink,
                             isHovered: hoveredShortcut == 4
                         )
@@ -1626,7 +1717,7 @@ struct AboutView: View {
                         ShortcutRow(
                             icon: "circle.fill",
                             description: "Purple highlighter",
-                            keys: ["⌘", "⌃", "4"],
+                            keys: ["⌃", "⌘", "4"],
                             color: NibColor.purple,
                             isHovered: hoveredShortcut == 5
                         )
@@ -1639,7 +1730,7 @@ struct AboutView: View {
                         ShortcutRow(
                             icon: "circle.fill",
                             description: "Green highlighter",
-                            keys: ["⌘", "⌃", "5"],
+                            keys: ["⌃", "⌘", "5"],
                             color: NibColor.green,
                             isHovered: hoveredShortcut == 6
                         )
@@ -1673,7 +1764,7 @@ struct AboutView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
-        .frame(width: 520, height: 620)
+        .frame(width: 520)
         .background(Color(NSColor.windowBackgroundColor))
     }
 }
@@ -1759,14 +1850,14 @@ struct WelcomeView: View {
                     icon: "paintpalette",
                     color: NibColor.pink,
                     title: "Color Collections",
-                    description: "Organize clips with 5 vibrant colors. Switch anytime with ⌘⌃1-5"
+                    description: "Organize clips with 5 vibrant colors. Switch anytime with ⌃⌘1-5"
                 )
 
                 FeatureRow(
                     icon: "keyboard",
                     color: NibColor.green,
                     title: "Keyboard Shortcuts",
-                    description: "Toggle popover: ⌘⌃N • Auto-capture: ⌘⌃M • Right-click menubar icon for more"
+                    description: "Toggle popover: ⌃⌘N • Auto-capture: ⌃⌘M • Right-click menubar icon for more"
                 )
 
                 FeatureRow(

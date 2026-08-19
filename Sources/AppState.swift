@@ -67,6 +67,10 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(colorLabels, forKey: "colorLabels")
         }
     }
+    // Bumped every time the popover closes — the UI watches it to tear down any
+    // open modal, so reopening never resurfaces a clip from another color.
+    @Published var popoverClosedCount = 0
+
     @Published var toastMessage: String? = nil
     @Published var toastColor: NibColor? = nil
 
