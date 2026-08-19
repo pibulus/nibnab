@@ -99,7 +99,10 @@ class AppState: ObservableObject {
     private var clipboardTimer: Timer?
     private var lastChangeCount: Int = 0
     var lastCapturedText: String? = nil
-    var suppressNextClipboardCapture = false
+    /// The pasteboard changeCount of NibNab's own last write. The monitor skips
+    /// exactly that change — a boolean flag raced the 0.5s poller and could be
+    /// spent on the wrong change or left set, eating a real copy.
+    private var selfWriteChangeCount = -1
     private var toastGate = ToastGate()
     private let storageManager = StorageManager()
     private var soundCache: [NibSound: NSSound] = [:]
@@ -189,10 +192,9 @@ class AppState: ObservableObject {
                 if pasteboard.changeCount != self.lastChangeCount {
                     self.lastChangeCount = pasteboard.changeCount
 
-                    if self.suppressNextClipboardCapture {
-                        self.suppressNextClipboardCapture = false
-                        return
-                    }
+                    // NibNab put this here itself — copying a clip out must
+                    // never file it straight back in.
+                    if self.lastChangeCount == self.selfWriteChangeCount { return }
 
                     let types = pasteboard.types ?? []
                     if Self.skippedPasteboardTypes.contains(where: types.contains) {
@@ -415,13 +417,26 @@ class AppState: ObservableObject {
         showToast("Clips merged", color: activeColor, undoable: true)
     }
 
-    func copyToPasteboard(_ text: String) {
-        suppressNextClipboardCapture = true
-        lastCapturedText = text
+    /// The only place NibNab writes the pasteboard. Everything else routes
+    /// through here so the monitor always knows which change was ours.
+    private func writePasteboard(_ text: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        selfWriteChangeCount = pasteboard.changeCount
+        lastCapturedText = text
+    }
+
+    func copyToPasteboard(_ text: String) {
+        writePasteboard(text)
         play(.copy)
+    }
+
+    /// Text selected in another app: put it on the clipboard and file it, in
+    /// that order, so the write is stamped before the monitor can see it.
+    func captureSelection(_ text: String, from sourceApp: String) {
+        writePasteboard(text)
+        saveClip(text, to: activeColor, from: sourceApp)
     }
 
     func switchToColor(_ color: NibColor, announce: Bool = true) {

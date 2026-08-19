@@ -95,9 +95,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if !SandboxInfo.isSandboxed {
             autoCopyMonitor = AutoCopyMonitor { [weak self] selectedText in
                 guard let self = self else { return }
-                self.appState.suppressNextClipboardCapture = true
                 let sourceApp = self.appState.getCurrentAppName()
-                self.appState.saveClip(selectedText, to: self.appState.activeColor, from: sourceApp)
+                self.appState.captureSelection(selectedText, from: sourceApp)
                 self.pulseMenuBarIcon()
             }
         }

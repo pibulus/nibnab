@@ -111,9 +111,13 @@ class AutoCopyMonitor {
     private func checkForSelectedText() {
         guard let focusedElement = AXUIElement.focusedElement else { return }
 
-        // Never capture selections made inside NibNab's own UI (edit modals,
-        // search field) — that would re-save clips and clobber the clipboard.
-        if focusedElement.ownerPID == ProcessInfo.processInfo.processIdentifier { return }
+        // Never capture selections made inside NibNab's own UI (reading a clip,
+        // edit modal, search field) — that files the app's own contents back
+        // into itself. The AX owner check only holds while NibNab is the
+        // AX-frontmost app, so the workspace check backs it up.
+        let ourPID = ProcessInfo.processInfo.processIdentifier
+        if focusedElement.ownerPID == ourPID { return }
+        if NSWorkspace.shared.frontmostApplication?.processIdentifier == ourPID { return }
 
         guard let selectedText = focusedElement.selectedText,
               !selectedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -129,10 +133,8 @@ class AutoCopyMonitor {
         pendingSelection = nil
         lastCapturedSelection = selectedText
 
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(selectedText, forType: .string)
-
+        // The handler owns the pasteboard write — doing it here left AppState
+        // unaware of the change it would then re-capture.
         selectionHandler(selectedText)
     }
 
