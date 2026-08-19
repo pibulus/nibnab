@@ -58,6 +58,7 @@ enum StorageTests {
         legacyFormats()
         dateLikeAndMetadataLookalikeText()
         capAndDeletePersistence()
+        mergeAll()
         urlRoundTrip()
 
         print(failures == 0
@@ -208,6 +209,42 @@ enum StorageTests {
         storage.rewriteClips([], for: color)
         expect(!FileManager.default.fileExists(atPath: clipFile(in: dir).path), "empty rewrite removes the file")
         expect(storage.loadClips(for: color).isEmpty, "empty color loads as empty")
+    }
+
+    static func mergeAll() {
+        print("— merge all into one clip")
+        let (storage, dir) = makeStorage()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        // Deliberately out of order — merge must sort by timestamp, not by index.
+        let clips = [
+            Clip(text: "second", timestamp: utcDate("2026-07-10 10:01:00"), url: nil, appName: "Terminal"),
+            Clip(text: "third",  timestamp: utcDate("2026-07-10 10:02:00"), url: "https://nibnab.app", appName: "Safari"),
+            Clip(text: "first",  timestamp: utcDate("2026-07-10 10:00:00"), url: nil, appName: "Ghostty")
+        ]
+
+        guard let merged = clips.mergedIntoOne() else {
+            expect(false, "merge produced a clip"); return
+        }
+        expect(merged.text == "first\n\nsecond\n\nthird", "merged text is oldest-first")
+        expect(merged.appName == "Ghostty", "merged clip keeps the oldest clip's app")
+        expect(merged.id == clips[2].id, "merged clip keeps the oldest clip's id")
+        expect(merged.url == "https://nibnab.app", "merged clip keeps the first url it finds")
+
+        expect([clips[0]].mergedIntoOne()?.id == clips[0].id, "single clip merges to itself")
+        expect([Clip]().mergedIntoOne() == nil, "empty collection merges to nil")
+
+        // A merged block must survive the markdown round trip intact —
+        // it is the longest, most separator-prone text the app ever writes.
+        let tricky = [
+            Clip(text: "alpha\n---\nbeta", timestamp: utcDate("2026-07-10 10:00:00"), url: nil, appName: "A"),
+            Clip(text: "### gamma",         timestamp: utcDate("2026-07-10 10:01:00"), url: nil, appName: "B")
+        ]
+        let trickyMerged = tricky.mergedIntoOne()!
+        storage.rewriteClips([trickyMerged], for: color)
+        let loaded = storage.loadClips(for: color)
+        expect(loaded.count == 1, "merged clip reloads as one clip")
+        expect(loaded.first?.text == trickyMerged.text, "merged text survives the round trip")
     }
 
     static func urlRoundTrip() {

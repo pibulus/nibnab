@@ -15,38 +15,66 @@ private enum DateFormatters {
     }()
 }
 
-struct NibToggleStyle: ToggleStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack {
-            configuration.label
+// Every tappable thing in the popover squishes the same way.
+struct NibPressStyle: ButtonStyle {
+    var scale: CGFloat = 0.88
 
-            RoundedRectangle(cornerRadius: 16)
-                .fill(configuration.isOn ?
-                    LinearGradient(
-                        colors: [Color.white,
-                                Color.white.opacity(0.9)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    ) :
-                    LinearGradient(
-                        colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.2)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .frame(width: 40, height: 24)
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1.0)
+            .animation(.spring(response: 0.2, dampingFraction: 0.5), value: configuration.isPressed)
+    }
+}
+
+// The stock .switch reads as a system checkbox dropped into a neon app and
+// gives nothing back on press. This one is a chunky pill that lights up in the
+// active colour, squishes, and stretches its knob as it travels.
+struct NibToggleStyle: ToggleStyle {
+    let tint: Color
+
+    @State private var isPressed = false
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        let on = configuration.isOn
+
+        return ZStack(alignment: on ? .trailing : .leading) {
+            Capsule()
+                .fill(on
+                    ? LinearGradient(colors: [tint.opacity(0.95), tint.opacity(0.65)],
+                                     startPoint: .leading, endPoint: .trailing)
+                    : LinearGradient(colors: [Color.white.opacity(0.16), Color.white.opacity(0.10)],
+                                     startPoint: .leading, endPoint: .trailing))
                 .overlay(
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 20, height: 20)
-                        .offset(x: configuration.isOn ? 8 : -8)
-                        .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
+                    Capsule().stroke(on ? tint.opacity(0.9) : Color.white.opacity(0.22),
+                                     lineWidth: 1.5)
                 )
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                .shadow(color: tint.opacity(on ? (isHovered ? 0.55 : 0.35) : 0), radius: 7, y: 1)
+
+            Capsule()
+                .fill(Color.white)
+                .frame(width: isPressed ? 26 : 19, height: 19)
+                .shadow(color: Color.black.opacity(0.35), radius: 2, y: 1)
+                .padding(.horizontal, 3.5)
+        }
+        .frame(width: 46, height: 26)
+        .scaleEffect(isPressed ? 0.94 : (isHovered ? 1.06 : 1.0))
+        .contentShape(Capsule())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    guard !isPressed else { return }
+                    withAnimation(.spring(response: 0.18, dampingFraction: 0.55)) { isPressed = true }
+                }
+                .onEnded { _ in
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.6)) {
+                        isPressed = false
                         configuration.isOn.toggle()
                     }
                 }
+        )
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) { isHovered = hovering }
         }
     }
 }
@@ -70,10 +98,45 @@ struct HeaderIconButton: View {
                         .fill(Color.white.opacity(isHovered ? 0.24 : 0.1))
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NibPressStyle())
         .disabled(isDisabled)
         .help(help ?? "")
         .accessibilityLabel(help ?? systemName)
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
+                isHovered = hovering && !isDisabled
+            }
+        }
+    }
+}
+
+// Same 26x26 pill as HeaderIconButton — the chrome lives outside the label
+// because a borderlessButton Menu doesn't reliably paint a label background.
+struct HeaderMenuButton<Content: View>: View {
+    let systemName: String
+    let help: String
+    var isDisabled: Bool = false
+    @ViewBuilder let content: () -> Content
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Menu(content: content) {
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Color.white.opacity(isDisabled ? 0.35 : (isHovered ? 1.0 : 0.75)))
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .frame(width: 26, height: 26)
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color.white.opacity(isHovered ? 0.24 : 0.1))
+        )
+        .scaleEffect(isHovered ? 1.06 : 1.0)
+        .disabled(isDisabled)
+        .help(help)
+        .accessibilityLabel(help)
         .onHover { hovering in
             withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                 isHovered = hovering && !isDisabled
@@ -87,14 +150,11 @@ struct ContentHeaderView: View {
     @Binding var sortOrder: ContentView.SortOrder
     @Binding var searchText: String
     @Binding var showAddClipModal: Bool
-    @Binding var showExportDialog: Bool
     @Binding var showClearConfirm: Bool
     @Binding var showHelp: Bool
-    let hasExportableClips: Bool
+    let clipCount: Int
     let horizontalPadding: CGFloat
 
-    @State private var toggleHovered = false
-    @State private var sortHovered = false
     @FocusState private var searchFieldFocused: Bool
 
     var body: some View {
@@ -128,33 +188,20 @@ struct ContentHeaderView: View {
                     .fixedSize()
             }
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 15)
-                    .fill(Color.white.opacity(toggleHovered ? 0.22 : 0.08))
-                    .frame(width: 52, height: 34)
-
-                Toggle(
-                    "",
-                    isOn: Binding(
-                        get: { appState.isMonitoring },
-                        set: { newValue in
-                            appState.setMonitoring(newValue, suppressToast: false)
-                        }
-                    )
+            Toggle(
+                "",
+                isOn: Binding(
+                    get: { appState.isMonitoring },
+                    set: { newValue in
+                        appState.setMonitoring(newValue, suppressToast: false)
+                    }
                 )
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .scaleEffect(toggleHovered ? 0.85 : 0.8)
-                .help(appState.isMonitoring ? "Active - capturing clips" : "Paused - click to activate")
-                .accessibilityLabel("Auto-capture")
-                .accessibilityValue(appState.isMonitoring ? "on" : "off")
-            }
-            .frame(height: 34)
-            .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                    toggleHovered = hovering
-                }
-            }
+            )
+            .labelsHidden()
+            .toggleStyle(NibToggleStyle(tint: Color(appState.activeColor.nsColor)))
+            .help(appState.isMonitoring ? "Capturing — click to pause" : "Paused — click to start capturing")
+            .accessibilityLabel("Auto-capture")
+            .accessibilityValue(appState.isMonitoring ? "on" : "off")
         }
     }
 
@@ -192,7 +239,7 @@ struct ContentHeaderView: View {
                     .fill(Color.white.opacity(0.12))
             )
 
-            Menu {
+            HeaderMenuButton(systemName: "line.3.horizontal.decrease", help: "Sort clips") {
                 Button(action: { sortOrder = .newestFirst }) {
                     Label("Newest First", systemImage: sortOrder == .newestFirst ? "checkmark" : "")
                 }
@@ -210,23 +257,6 @@ struct ContentHeaderView: View {
                 Button(action: { sortOrder = .byLength }) {
                     Label("By Length", systemImage: sortOrder == .byLength ? "checkmark" : "")
                 }
-            } label: {
-                Image(systemName: "line.3.horizontal.decrease")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(Color.white.opacity(sortHovered ? 1.0 : 0.75))
-                    .frame(width: 26, height: 26)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7)
-                            .fill(Color.white.opacity(sortHovered ? 0.24 : 0.1))
-                    )
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .help("Sort clips")
-            .onHover { hovering in
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
-                    sortHovered = hovering
-                }
             }
         }
     }
@@ -237,51 +267,34 @@ struct ContentHeaderView: View {
                 showAddClipModal = true
             }, help: "Add clip")
 
-            HeaderIconButton(
-                systemName: "arrow.up.doc",
-                action: {
-                    guard hasExportableClips else { return }
-                    showExportDialog = true
-                },
-                help: "Export clips",
-                isDisabled: !hasExportableClips
-            )
-            .confirmationDialog(
-                "Export Clips",
-                isPresented: $showExportDialog,
-                titleVisibility: .visible
+            HeaderMenuButton(
+                systemName: "ellipsis",
+                help: "Collection actions",
+                isDisabled: clipCount == 0
             ) {
                 Button("Export as Markdown") {
                     appState.exportClipsAsMarkdown(for: appState.viewedColor.name)
-                    showExportDialog = false
                 }
                 Button("Export as Plain Text") {
                     appState.exportClipsAsPlainText(for: appState.viewedColor.name)
-                    showExportDialog = false
                 }
-                Button("Cancel", role: .cancel) {
-                    showExportDialog = false
+
+                Divider()
+
+                Button("Merge All Into One Clip") {
+                    appState.mergeAllClips(in: appState.viewedColor.name)
                 }
-            } message: {
-                Text("Choose how you want to export the \(appState.clips[appState.viewedColor.name]?.count ?? 0) clips in this collection.")
+                .disabled(clipCount < 2)
+
+                Divider()
+
+                Button("Export & Clear\u{2026}") {
+                    appState.exportAndClear(for: appState.viewedColor.name)
+                }
+                Button("Clear All\u{2026}", role: .destructive) {
+                    showClearConfirm = true
+                }
             }
-            .onChange(of: hasExportableClips, perform: { available in
-                if !available {
-                    showExportDialog = false
-                }
-            })
-
-            Divider()
-                .frame(height: 18)
-                .opacity(0.3)
-
-            HeaderIconButton(systemName: "trash", action: {
-                showClearConfirm = true
-            }, help: "Clear all clips")
-
-            Divider()
-                .frame(height: 18)
-                .opacity(0.3)
 
             HeaderIconButton(systemName: "questionmark", action: {
                 showHelp = true
@@ -421,7 +434,7 @@ struct ContentOverlaysView: View {
             if let clip = selectedClip {
                 overlayBackground {
                     ClipDetailView(clip: clip, colorName: modalColorName) {
-                        appState.playSound("Pop")
+                        appState.play(.close)
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                             selectedClip = nil
                         }
@@ -434,14 +447,13 @@ struct ContentOverlaysView: View {
                 overlayBackground {
                     AddClipModal(
                         onDismiss: {
-                            appState.playSound("Pop")
+                            appState.play(.close)
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                                 showAddClipModal = false
                             }
                         },
                         onSave: { text in
                             appState.saveClip(text, to: appState.activeColor, from: "Manual Entry")
-                            appState.playSound("Pop")
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                                 showAddClipModal = false
                             }
@@ -456,14 +468,14 @@ struct ContentOverlaysView: View {
                     EditClipModal(
                         clip: clip,
                         onDismiss: {
-                            appState.playSound("Pop")
+                            appState.play(.close)
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                                 editingClip = nil
                             }
                         },
                         onSave: { newText in
                             appState.updateClip(clip, newText: newText, in: modalColorName)
-                            appState.playSound("Pop")
+                            appState.play(.capture)
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                                 editingClip = nil
                             }
@@ -476,7 +488,7 @@ struct ContentOverlaysView: View {
             if showHelp {
                 overlayBackground {
                     HelpModal {
-                        appState.playSound("Pop")
+                        appState.play(.close)
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                             showHelp = false
                         }
@@ -494,7 +506,7 @@ struct ContentOverlaysView: View {
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    appState.playSound("Pop")
+                    appState.play(.close)
                     withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
                         showAddClipModal = false
                         editingClip = nil
@@ -523,7 +535,6 @@ struct ContentView: View {
     @State private var labelText = ""
     @State private var labelHovered = false
     @State private var showAddClipModal = false
-    @State private var showExportDialog = false
     @State private var showHelp = false
     @State private var editingClip: Clip?
     @State private var modalColorName = ""
@@ -558,11 +569,6 @@ struct ContentView: View {
         }
     }
 
-    var hasExportableClips: Bool {
-        guard let clips = appState.clips[appState.viewedColor.name] else { return false }
-        return !clips.isEmpty
-    }
-
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
@@ -570,10 +576,9 @@ struct ContentView: View {
                     sortOrder: $sortOrder,
                     searchText: $searchText,
                     showAddClipModal: $showAddClipModal,
-                    showExportDialog: $showExportDialog,
                     showClearConfirm: $showClearConfirm,
                     showHelp: $showHelp,
-                    hasExportableClips: hasExportableClips,
+                    clipCount: appState.clips[appState.viewedColor.name]?.count ?? 0,
                     horizontalPadding: Self.horizontalPadding - 10
                 )
                 .environmentObject(appState)
@@ -1165,7 +1170,7 @@ struct EditClipModal: View {
         )
         .onAppear {
             textFocused = true
-            appState.playSound("Pop")
+            appState.play(.open)
         }
         .onExitCommand {
             // Allow Escape key to close without saving
@@ -1572,7 +1577,7 @@ struct ClipDetailView: View {
                 .stroke(Color(appState.activeColor.nsColor).opacity(0.5), lineWidth: 1.5)
         )
         .onAppear {
-            appState.playSound("Pop")
+            appState.play(.open)
         }
         .onDisappear {
             saveChangesIfNeeded()

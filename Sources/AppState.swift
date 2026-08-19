@@ -2,6 +2,21 @@ import Cocoa
 import SwiftUI
 import ServiceManagement
 
+// Bundled UI sounds (Resources/sounds/*.wav) — the macOS system alert sounds
+// belong to the OS, not to this app's voice.
+enum NibSound: String {
+    case capture      = "nib-capture"
+    case copy         = "nib-copy"
+    case delete       = "nib-delete"
+    case toggleOn     = "nib-toggle-on"
+    case toggleOff    = "nib-toggle-off"
+    case switchColor  = "nib-switch"
+    case celebrate    = "nib-celebrate"
+    case nope         = "nib-nope"
+    case open         = "nib-open"
+    case close        = "nib-close"
+}
+
 @MainActor
 class AppState: ObservableObject {
     private static let maxClipsPerColor = 100
@@ -11,7 +26,7 @@ class AppState: ObservableObject {
         didSet {
             UserDefaults.standard.set(activeColor.name, forKey: "activeColorName")
             delegate?.updateMenubarIcon()
-            playSound("Pop")
+            play(.switchColor)
             // Inside the popover the whole UI recolors — that IS the feedback.
             // Only announce color switches when the popover is closed.
             if toastGate.shouldAllow(.color), delegate?.popover.isShown != true {
@@ -47,6 +62,7 @@ class AppState: ObservableObject {
     @Published var isMonitoring: Bool {
         didSet {
             UserDefaults.standard.set(isMonitoring, forKey: "isMonitoring")
+            play(isMonitoring ? .toggleOn : .toggleOff)
             if isMonitoring {
                 startClipboardMonitoring()
                 if toastGate.shouldAllow(.monitoring) {
@@ -81,7 +97,7 @@ class AppState: ObservableObject {
     var suppressNextClipboardCapture = false
     private var toastGate = ToastGate()
     private let storageManager = StorageManager()
-    private var popSound: NSSound?
+    private var soundCache: [NibSound: NSSound] = [:]
 
     @Published var selectionCaptureEnabled: Bool {
         didSet {
@@ -227,18 +243,25 @@ class AppState: ObservableObject {
             }
         }
         let isFirstInColor = clips[color.name]?.count == 1
-        playSound(isFirstInColor ? "Glass" : "Purr")
+        play(isFirstInColor ? .celebrate : .capture)
     }
 
-    func playSound(_ name: String) {
+    func play(_ sound: NibSound) {
         guard soundEffectsEnabled else { return }
-        if name == "Pop" {
-            if popSound == nil { popSound = NSSound(named: "Pop") }
-            popSound?.stop()
-            popSound?.play()
+        let cached: NSSound?
+        if let hit = soundCache[sound] {
+            cached = hit
+        } else if let url = Bundle.main.url(forResource: sound.rawValue, withExtension: "wav", subdirectory: "sounds"),
+                  let made = NSSound(contentsOf: url, byReference: true) {
+            soundCache[sound] = made
+            cached = made
         } else {
-            NSSound(named: name)?.play()
+            cached = nil
         }
+        // Restart rather than overlap — rapid presses should feel like one
+        // instrument being played, not a pile-up.
+        cached?.stop()
+        cached?.play()
     }
 
     private func getCurrentURL() -> String? {
@@ -254,13 +277,13 @@ class AppState: ObservableObject {
     func deleteClip(_ clip: Clip, from colorName: String) {
         clips[colorName]?.removeAll { $0.id == clip.id }
         storageManager.rewriteClips(clips[colorName] ?? [], for: colorName)
-        playSound("Tink")
+        play(.delete)
     }
 
     func clearAllClips(for colorName: String) {
         clips[colorName] = []
         storageManager.deleteAllClips(for: colorName)
-        playSound("Basso")
+        play(.delete)
     }
 
     func moveClip(_ clip: Clip, from sourceColor: String, to targetColor: String) {
@@ -280,7 +303,7 @@ class AppState: ObservableObject {
 
         storageManager.rewriteClips(clips[sourceColor] ?? [], for: sourceColor)
         storageManager.rewriteClips(targetClips, for: targetColor)
-        playSound("Pop")
+        play(.switchColor)
     }
 
     func reorderClip(_ clip: Clip, in colorName: String, to targetIndex: Int) {
@@ -306,6 +329,32 @@ class AppState: ObservableObject {
         clips[colorName] = colorClips
     }
 
+    /// Collapses a whole collection into a single clip, oldest first, so a
+    /// colour used as a scratch pad becomes one pasteable block.
+    func mergeAllClips(in colorName: String) {
+        guard let colorClips = clips[colorName], colorClips.count > 1,
+              let merged = colorClips.mergedIntoOne() else { return }
+
+        clips[colorName] = [merged]
+        storageManager.rewriteClips([merged], for: colorName)
+        play(.capture)
+        showToast("Merged \(colorClips.count) clips", color: activeColor)
+    }
+
+    /// Export, then clear — but only if the file actually got written. A
+    /// cancelled save panel must not take the clips with it.
+    func exportAndClear(for colorName: String) {
+        guard let colorClips = clips[colorName], !colorClips.isEmpty else { return }
+
+        let plainText = colorClips.map(\.text).joined(separator: "\n\n---\n\n")
+        presentExportPanel(
+            defaultName: "\(exportFileStem(for: colorName))-clips.txt",
+            content: plainText
+        ) { [weak self] in
+            self?.clearAllClips(for: colorName)
+        }
+    }
+
     func mergeClip(_ source: Clip, into target: Clip, in colorName: String) {
         guard var colorClips = clips[colorName],
               let targetIndex = colorClips.firstIndex(of: target) else { return }
@@ -327,7 +376,7 @@ class AppState: ObservableObject {
         }
         clips[colorName] = colorClips
         storageManager.rewriteClips(colorClips, for: colorName)
-        playSound("Bottle")
+        play(.capture)
     }
 
     func copyToPasteboard(_ text: String) {
@@ -336,6 +385,7 @@ class AppState: ObservableObject {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        play(.copy)
     }
 
     func switchToColor(_ color: NibColor, announce: Bool = true) {
@@ -388,7 +438,7 @@ class AppState: ObservableObject {
             storageManager.rewriteClips(colorClips, for: colorName)
         }
 
-        playSound("Pop")
+        play(.capture)
     }
 
     func exportClipsAsMarkdown(for colorName: String) {
@@ -421,7 +471,7 @@ class AppState: ObservableObject {
         colorName.replacingOccurrences(of: "Highlighter ", with: "").lowercased()
     }
 
-    private func presentExportPanel(defaultName: String, content: String) {
+    private func presentExportPanel(defaultName: String, content: String, onSuccess: (() -> Void)? = nil) {
         let savePanel = NSSavePanel()
         savePanel.nameFieldStringValue = defaultName
         savePanel.allowedContentTypes = [.plainText]
@@ -435,6 +485,7 @@ class AppState: ObservableObject {
             guard response == .OK, let url = savePanel.url else { return }
             do {
                 try content.write(to: url, atomically: true, encoding: .utf8)
+                onSuccess?()
             } catch {
                 let alert = NSAlert()
                 alert.alertStyle = .warning

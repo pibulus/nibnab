@@ -126,6 +126,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func showPopover() {
         if let button = statusItem.button {
+            // Opened from the global hotkey, NibNab is still a background app —
+            // the first click inside the popover would only activate it, and a
+            // transient popover reads that as "clicked away" and closes.
+            NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.becomeKey()
             // The popover auto-focuses the search field after SwiftUI's onAppear
