@@ -108,20 +108,13 @@ else
     echo -e "${YELLOW}⚠️  No AppIcon.icns found — app will use default icon${NC}"
 fi
 
-# Copy UI sounds
-if [ -d "Resources/sounds" ]; then
-    cp -R "Resources/sounds" "$APP_BUNDLE/Contents/Resources/"
-    echo "UI sounds bundled ($(ls Resources/sounds | wc -l | tr -d ' ') files)."
-else
-    echo -e "${YELLOW}⚠️  No Resources/sounds found — app will run silent${NC}"
-fi
-
 # Compile Swift
 echo -e "${YELLOW}Compiling Swift code...${NC}"
 if swiftc -O -parse-as-library \
     -target arm64-apple-macos13.0 \
     -framework Cocoa \
     -framework SwiftUI \
+    -framework AVFoundation \
     -o "$APP_BUNDLE/Contents/MacOS/${APP_NAME}" \
     Sources/*.swift; then
 

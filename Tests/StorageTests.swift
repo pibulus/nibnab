@@ -59,6 +59,7 @@ enum StorageTests {
         dateLikeAndMetadataLookalikeText()
         capAndDeletePersistence()
         mergeAll()
+        weightlessSynth()
         urlRoundTrip()
 
         print(failures == 0
@@ -245,6 +246,44 @@ enum StorageTests {
         let loaded = storage.loadClips(for: color)
         expect(loaded.count == 1, "merged clip reloads as one clip")
         expect(loaded.first?.text == trickyMerged.text, "merged text survives the round trip")
+    }
+
+    static func weightlessSynth() {
+        print("— weightless synthesis")
+
+        // Zero jitter makes a render deterministic; anything else means the
+        // engine picked up an uncontrolled source of randomness.
+        let cue = Weightless.cues["notify"]!
+        let a = WeightlessSynth.render(cue: cue, jitter: { 0 })
+        let b = WeightlessSynth.render(cue: cue, jitter: { 0 })
+        expect(a.left == b.left && a.right == b.right, "zero jitter renders deterministically")
+
+        expect(a.left.allSatisfy { $0.isFinite } && a.right.allSatisfy { $0.isFinite },
+               "no NaN or infinity in the buffer")
+
+        let peak = (a.left + a.right).map { abs($0) }.max() ?? 0
+        expect(peak > 0.05, "cue is audible, not silence (peak \(String(format: "%.3f", peak)))")
+        expect(peak < 0.99, "cue is not clipped flat against the rail")
+
+        // notify is two notes: the second starts at 0.09s and runs 0.12s.
+        let expectedFrames = Int((0.09 + 0.12 + 0.02) * Weightless.sampleRate)
+        expect(abs(a.left.count - expectedFrames) < 64, "buffer length matches the cue's span")
+        expect(a.left.count == a.right.count, "channels are the same length")
+
+        // The attack means the first sample must be near silence, not a click.
+        expect(abs(a.left[0]) < 0.01, "starts from silence — no click on attack")
+
+        // Every named cue must render; a typo'd voice name would fall back or crash.
+        for name in ["select", "success", "error", "hover", "toggleOn", "toggleOff", "notify"] {
+            let rendered = WeightlessSynth.render(cue: Weightless.cues[name]!, jitter: { 0 })
+            let cuePeak = rendered.left.map { abs($0) }.max() ?? 0
+            expect(cuePeak > 0.01 && rendered.left.allSatisfy { $0.isFinite }, "cue \(name) renders audibly")
+        }
+
+        // A frequency override must actually move the pitch.
+        let low = WeightlessSynth.render(cue: Weightless.cues["select"]!, frequencyOverride: 300, jitter: { 0 })
+        let high = WeightlessSynth.render(cue: Weightless.cues["select"]!, frequencyOverride: 1200, jitter: { 0 })
+        expect(low.left != high.left, "frequency override changes the waveform")
     }
 
     static func urlRoundTrip() {

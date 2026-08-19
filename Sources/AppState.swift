@@ -2,19 +2,23 @@ import Cocoa
 import SwiftUI
 import ServiceManagement
 
-// Bundled UI sounds (Resources/sounds/*.wav) — the macOS system alert sounds
-// belong to the OS, not to this app's voice.
-enum NibSound: String {
-    case capture      = "nib-capture"
-    case copy         = "nib-copy"
-    case delete       = "nib-delete"
-    case toggleOn     = "nib-toggle-on"
-    case toggleOff    = "nib-toggle-off"
-    case switchColor  = "nib-switch"
-    case celebrate    = "nib-celebrate"
-    case nope         = "nib-nope"
-    case open         = "nib-open"
-    case close        = "nib-close"
+// NibNab's voice is synthesised by Weightless — no sample files, and no two
+// plays identical. Each case names the Weightless cue it speaks through.
+enum NibSound {
+    case capture, copy, delete, toggleOn, toggleOff, switchColor, celebrate, nope, open, close
+
+    /// The Weightless cue this speaks through. Several actions deliberately
+    /// share one — a tap is a tap.
+    var cue: String {
+        switch self {
+        case .capture:                    return "notify"
+        case .copy, .switchColor, .open:  return "select"
+        case .delete, .close, .toggleOff: return "toggleOff"
+        case .toggleOn:                   return "toggleOn"
+        case .celebrate:                  return "success"
+        case .nope:                       return "error"
+        }
+    }
 }
 
 @MainActor
@@ -25,7 +29,9 @@ class AppState: ObservableObject {
         didSet {
             UserDefaults.standard.set(activeColor.name, forKey: "activeColorName")
             delegate?.updateMenubarIcon()
-            play(.switchColor)
+            // One scale degree per colour — cycling them plays a little run.
+            let degree = NibColor.all.firstIndex { $0.name == activeColor.name } ?? 0
+            play(.switchColor, frequency: Weightless.scale[degree + 2])
             // Inside the popover the whole UI recolors — that IS the feedback.
             // Only announce color switches when the popover is closed.
             if toastGate.shouldAllow(.color), delegate?.popover.isShown != true {
@@ -105,7 +111,6 @@ class AppState: ObservableObject {
     private var selfWriteChangeCount = -1
     private var toastGate = ToastGate()
     private let storageManager = StorageManager()
-    private var soundCache: [NibSound: NSSound] = [:]
 
     @Published var selectionCaptureEnabled: Bool {
         didSet {
@@ -258,22 +263,9 @@ class AppState: ObservableObject {
         play(isFirstInColor ? .celebrate : .capture)
     }
 
-    func play(_ sound: NibSound) {
+    func play(_ sound: NibSound, frequency: Float? = nil) {
         guard soundEffectsEnabled else { return }
-        let cached: NSSound?
-        if let hit = soundCache[sound] {
-            cached = hit
-        } else if let url = Bundle.main.url(forResource: sound.rawValue, withExtension: "wav", subdirectory: "sounds"),
-                  let made = NSSound(contentsOf: url, byReference: true) {
-            soundCache[sound] = made
-            cached = made
-        } else {
-            cached = nil
-        }
-        // Restart rather than overlap — rapid presses should feel like one
-        // instrument being played, not a pile-up.
-        cached?.stop()
-        cached?.play()
+        WeightlessPlayer.shared.play(cue: sound.cue, frequency: frequency)
     }
 
     func getCurrentAppName() -> String {

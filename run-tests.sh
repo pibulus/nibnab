@@ -14,9 +14,11 @@ TEST_BIN="$BUILD_DIR/storage-tests"
 mkdir -p "$BUILD_DIR"
 
 swiftc -parse-as-library -target arm64-apple-macos13.0 \
+    -framework AVFoundation \
     Sources/Models.swift \
     Sources/ColorTheme.swift \
     Sources/StorageManager.swift \
+    Sources/Weightless.swift \
     Tests/StorageTests.swift \
     -o "$TEST_BIN"
 
