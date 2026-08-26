@@ -9,10 +9,13 @@
 **NibNab**
 
 ## Subtitle (30 chars max)
-Color-coded clipboard manager
+5-color highlighter clipboard
 
 ## Short Description (170 chars max)
 A highlighter for your digital life. Captures everything you copy and organizes it by color. No cloud, no accounts, no tracking. Just your clips, sorted by vibe.
+
+## Promotional Text (170 chars max)
+Lost a great link, quote, or snippet? NibNab catches everything you copy and sorts it into 5 tactile highlighter colors. Markdown-native, zero cloud. Pay once.
 
 ## Long Description (4000 chars max)
 
@@ -217,27 +220,12 @@ https://nibnab.app
 ## Copyright
 © 2026 Pablo Alvarado
 
-## Screenshots Copy
-
-### Screenshot 1: Main Interface
-**Title:** Color-Coded Clipboard Collections
-**Description:** Organize everything you copy into five highlighter colors. Search, sort, and find clips instantly.
-
-### Screenshot 2: Export Options
-**Title:** Export Your Way
-**Description:** Choose Markdown with metadata or clean Plain Text. Your clips, your format.
-
-### Screenshot 3: Auto Capture
-**Title:** Capture Without Thinking
-**Description:** Cmd+C and NibNab auto-saves to your active color. The menubar shows which color is active.
-
-### Screenshot 4: Settings Menu
-**Title:** Settings Where They Belong
-**Description:** Right-click the menubar for Launch at Login, Sound Effects, and more. Mac-native design.
-
-### Screenshot 5: Detail View
-**Title:** See the Full Picture
-**Description:** Click any clip to view full text, source app, timestamp, and character count. Copy or delete with one click.
+## Screenshots (Story Cards in screenshots/appstore/)
+1. **01-color-coded-clipboard-2880x1800.png** — "Your clipboard deserves better than Notes.app. Color-coded collections."
+2. **02-five-highlighter-colors-2880x1800.png** — "Organize quotes, links & code by vibe. 5 highlighter collections."
+3. **03-keyboard-driven-tags-2880x1800.png** — "Instant search across all five collections. Keyboard-driven & #tags."
+4. **04-markdown-export-2880x1800.png** — "Export clean notes with source apps & timestamps. Markdown-native export."
+5. **05-no-subscriptions-2880x1800.png** — "Pay once. Yours forever. 100% Private, zero subscriptions."
 
 ## App Store Review Notes
 
