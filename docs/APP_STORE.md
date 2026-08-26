@@ -87,9 +87,9 @@ Right-click the menubar icon to access:
 **THE ANTI-SCALE APPROACH**
 
 NibNab will never have:
-• A pricing page (it's free)
+• Subscriptions or recurring fees (pay once, owned forever)
 • A login screen
-• A "pro" version
+• A bloated "pro" tier
 • Analytics or telemetry
 • Your email address
 
@@ -186,6 +186,12 @@ clipboard, clipboard manager, copy paste, text capture, color coding, highlighte
 
 ## Age Rating
 4+ (No objectionable content)
+
+## Price
+**$14.99 USD** (Tier 15 / $22.99 AUD) — One-time purchase
+
+## In-App Purchases
+None (Cartridge model: pay once, owned forever)
 
 ## Privacy Information
 
