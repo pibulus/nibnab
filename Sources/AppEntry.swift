@@ -78,15 +78,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
         eventMonitor?.start()
-
-        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53 /* Escape */ && self?.popover.isShown == true {
-                self?.closePopover()
-                return nil
-            }
-            return event
-        }
-
         registerGlobalShortcut()
 
         // Selection capture needs the Accessibility API, which sandboxed
@@ -197,7 +188,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Drawn via handler so it re-renders per appearance: labelColor makes
         // the glyph black on a light menubar and white on a dark one, while
         // the status dot keeps its real color (which is why isTemplate stays false).
-        let compositeImage = NSImage(size: size, flipped: false) { _ in
+        let compositeImage = NSImage(size: size, flipped: false) { [weak self] _ in
+            guard let self = self else { return false }
             let iconRect = NSRect(x: 4, y: 4, width: 18, height: 18)
             NSColor.labelColor.setFill()
             iconRect.fill()
@@ -205,13 +197,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
             let dotRect = NSRect(x: size.width - 10, y: 4, width: 8, height: 8)
             let dotPath = NSBezierPath(ovalIn: dotRect)
-            dotColor.setFill()
-            dotPath.fill()
+            if self.appState.isMonitoring {
+                dotColor.setFill()
+                dotPath.fill()
 
-            // Subtle outline so the dot reads on both menubar appearances
-            NSColor.labelColor.withAlphaComponent(0.4).setStroke()
-            dotPath.lineWidth = 0.8
-            dotPath.stroke()
+                // Subtle outline so the dot reads on both menubar appearances
+                NSColor.labelColor.withAlphaComponent(0.4).setStroke()
+                dotPath.lineWidth = 0.8
+                dotPath.stroke()
+            } else {
+                // Paused state: hollow neon ring indicator
+                dotColor.setStroke()
+                dotPath.lineWidth = 1.5
+                dotPath.stroke()
+            }
             return true
         }
         compositeImage.isTemplate = false

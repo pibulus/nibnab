@@ -131,6 +131,12 @@ class AppState: ObservableObject {
         }
     }
 
+    @Published var autoTagScreenshotsEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(autoTagScreenshotsEnabled, forKey: "autoTagScreenshots")
+        }
+    }
+
     /// All unique tags across all color collections with their frequency counts,
     /// sorted by highest count first. Powers the ZipList-style Tag Rack Shelf.
     var allTagsWithCounts: [(tag: String, count: Int)] {
@@ -179,7 +185,8 @@ class AppState: ObservableObject {
 
         soundEffectsEnabled = UserDefaults.standard.object(forKey: "soundEffectsEnabled") as? Bool ?? true
         isMonitoring = UserDefaults.standard.object(forKey: "isMonitoring") as? Bool ?? true
-        selectionCaptureEnabled = UserDefaults.standard.object(forKey: "autoCopyEnabled") as? Bool ?? true
+        selectionCaptureEnabled = UserDefaults.standard.object(forKey: "autoCopyEnabled") as? Bool ?? false
+        autoTagScreenshotsEnabled = UserDefaults.standard.object(forKey: "autoTagScreenshots") as? Bool ?? false
 
         if let savedLabels = UserDefaults.standard.dictionary(forKey: "colorLabels") as? [String: String] {
             colorLabels = savedLabels
@@ -369,6 +376,7 @@ class AppState: ObservableObject {
             }
             colorClips = Array(colorClips.prefix(Self.maxClipsPerColor))
             clips[color.name] = colorClips
+            showToast("Oldest clip archived (100 cap)", color: color)
         }
 
         if clips[color.name] != nil {
@@ -396,7 +404,7 @@ class AppState: ObservableObject {
             appName: sourceApp,
             order: 0,
             id: clipID,
-            imagePath: relPath
+            imagePaths: [relPath]
         )
 
         if clips[color.name] == nil {
@@ -408,12 +416,13 @@ class AppState: ObservableObject {
         if var colorClips = clips[color.name], colorClips.count > Self.maxClipsPerColor {
             let evicted = colorClips.suffix(from: Self.maxClipsPerColor)
             for oldClip in evicted {
-                if let oldPath = oldClip.imagePath {
+                for oldPath in oldClip.imagePaths {
                     storageManager.deleteImage(at: oldPath, for: color.name)
                 }
             }
             colorClips = Array(colorClips.prefix(Self.maxClipsPerColor))
             clips[color.name] = colorClips
+            showToast("Oldest clip archived (100 cap)", color: color)
         }
 
         reindexOrders(for: color.name)
@@ -437,8 +446,8 @@ class AppState: ObservableObject {
                     }
                 }
 
-                // Optional AI auto-tag pass
-                if self.hasAiSuperpowers {
+                // Optional AI auto-tag pass (strictly opt-in via autoTagScreenshotsEnabled)
+                if self.hasAiSuperpowers && self.autoTagScreenshotsEnabled {
                     let existing = await MainActor.run { self.allTagsWithCounts.map(\.tag) }
                     let suggested = await NibAI.suggestTags(for: recognized, existingTags: existing, apiKey: self.geminiApiKey)
                     if !suggested.isEmpty {
@@ -651,7 +660,7 @@ class AppState: ObservableObject {
     }
 
     func moveClip(_ clip: Clip, from sourceColor: String, to targetColor: String) {
-        invalidateUndo()
+        snapshotForUndo([sourceColor, targetColor], what: "move")
         clips[sourceColor]?.removeAll { $0.id == clip.id }
 
         var targetClips = clips[targetColor] ?? []
@@ -692,10 +701,11 @@ class AppState: ObservableObject {
         storageManager.rewriteClips(clips[sourceColor] ?? [], for: sourceColor)
         storageManager.rewriteClips(targetClips, for: targetColor)
         play(.switchColor)
+        showToast("Moved clip", color: activeColor, undoable: true)
     }
 
     func reorderClip(_ clip: Clip, in colorName: String, to targetIndex: Int) {
-        invalidateUndo()
+        snapshotForUndo([colorName], what: "reorder")
         guard var colorClips = clips[colorName] else { return }
         guard let sourceIndex = colorClips.firstIndex(of: clip) else { return }
 
@@ -708,6 +718,16 @@ class AppState: ObservableObject {
         }
         clips[colorName] = colorClips
         storageManager.rewriteClips(colorClips, for: colorName)
+        showToast("Reordered clip", color: activeColor, undoable: true)
+    }
+
+    func testApiKey(_ key: String) async -> (success: Bool, message: String) {
+        do {
+            let res = try await NibAI.generateText(prompt: "Say OK", apiKey: key)
+            return (!res.isEmpty, "Key verified! ✨")
+        } catch {
+            return (false, "Verification failed: \(error.localizedDescription)")
+        }
     }
 
     private func reindexOrders(for colorName: String) {

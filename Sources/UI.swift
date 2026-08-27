@@ -1218,7 +1218,7 @@ struct ClipView: View {
     private var thumbnailImage: NSImage? {
         guard let path = clip.imagePath else { return nil }
         let url = appState.storageManager.imageURL(for: path, in: color.name)
-        return NSImage(contentsOf: url)
+        return ThumbnailLoader.thumbnail(for: url)
     }
 
     var body: some View {
@@ -2674,6 +2674,8 @@ struct ApiKeyModal: View {
     @State private var keyInput: String = ""
     @State private var saveHovered = false
     @State private var cancelHovered = false
+    @State private var isTesting = false
+    @State private var testResult: String? = nil
     @FocusState private var inputFocused: Bool
 
     var body: some View {
@@ -2734,6 +2736,17 @@ struct ApiKeyModal: View {
                     )
                     .focused($inputFocused)
 
+                Toggle("Auto-tag new screenshots with AI (default off)", isOn: $appState.autoTagScreenshotsEnabled)
+                    .toggleStyle(.checkbox)
+                    .font(.system(size: 11.5, design: .rounded))
+                    .foregroundColor(.white.opacity(0.85))
+
+                if let result = testResult {
+                    Text(result)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(result.contains("verified") ? Color(appState.activeColor.nsColor) : Color.red.opacity(0.9))
+                }
+
                 HStack {
                     Link("Get free Gemini API key ↗", destination: URL(string: "https://aistudio.google.com/app/apikey")!)
                         .font(.system(size: 11, weight: .medium))
@@ -2745,6 +2758,7 @@ struct ApiKeyModal: View {
                         Button("Clear Key (Go Offline)") {
                             appState.geminiApiKey = ""
                             keyInput = ""
+                            testResult = nil
                             appState.play(.toggleOff)
                             onDismiss()
                         }
@@ -2778,6 +2792,30 @@ struct ApiKeyModal: View {
 
                 Spacer()
 
+                if !keyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button(action: {
+                        isTesting = true
+                        testResult = nil
+                        Task {
+                            let (_, msg) = await appState.testApiKey(keyInput)
+                            await MainActor.run {
+                                isTesting = false
+                                testResult = msg
+                            }
+                        }
+                    }) {
+                        Text(isTesting ? "Testing..." : "Test Key")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white.opacity(0.85))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.15))
+                            .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isTesting)
+                }
+
                 Button(action: {
                     appState.geminiApiKey = keyInput.trimmingCharacters(in: .whitespacesAndNewlines)
                     appState.play(.celebrate)
@@ -2803,7 +2841,7 @@ struct ApiKeyModal: View {
             .padding()
             .background(Color.nibSurface)
         }
-        .frame(width: 440)
+        .frame(width: 450)
         .fixedSize(horizontal: false, vertical: true)
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.5), radius: 20)
