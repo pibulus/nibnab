@@ -349,7 +349,8 @@ final class StorageManager {
     }
 
     func imageURL(for relativePath: String, in colorName: String) -> URL {
-        directoryURL(for: colorName).appendingPathComponent(relativePath)
+        let safeFilename = (relativePath as NSString).lastPathComponent
+        return imagesDirectoryURL(for: colorName).appendingPathComponent(safeFilename)
     }
 
     func saveImageData(_ data: Data, id: UUID, for colorName: String) -> String? {

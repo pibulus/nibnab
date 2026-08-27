@@ -397,7 +397,11 @@ class AppState: ObservableObject {
             let recognized = await VisionOCR.recognizeText(from: data)
             if !recognized.isEmpty {
                 await MainActor.run {
-                    self.updateClipText(clipID: clipID, newText: recognized, in: color.name)
+                    // Only replace if the user hasn't already manually edited the placeholder
+                    if let current = self.clips[color.name]?.first(where: { $0.id == clipID }),
+                       current.text.hasPrefix("Screenshot (") {
+                        self.updateClipText(clipID: clipID, newText: recognized, in: color.name)
+                    }
                 }
 
                 // Optional AI auto-tag pass
@@ -406,8 +410,10 @@ class AppState: ObservableObject {
                     let suggested = await NibAI.suggestTags(for: recognized, existingTags: existing, apiKey: self.geminiApiKey)
                     if !suggested.isEmpty {
                         await MainActor.run {
-                            let taggedText = recognized + "\n\n" + suggested.joined(separator: " ")
-                            self.updateClipText(clipID: clipID, newText: taggedText, in: color.name)
+                            if let current = self.clips[color.name]?.first(where: { $0.id == clipID }) {
+                                let taggedText = current.text + "\n\n" + suggested.joined(separator: " ")
+                                self.updateClipText(clipID: clipID, newText: taggedText, in: color.name)
+                            }
                         }
                     }
                 }
@@ -697,13 +703,15 @@ class AppState: ObservableObject {
               let targetIndex = colorClips.firstIndex(of: target) else { return }
 
         let mergedText = target.text + "\n" + source.text
+        let primaryImagePath = target.imagePath ?? source.imagePath
         let merged = Clip(
             text: mergedText,
             timestamp: Date(),
             url: target.url ?? source.url,
             appName: target.appName,
             order: target.order,
-            id: target.id
+            id: target.id,
+            imagePath: primaryImagePath
         )
         colorClips[targetIndex] = merged
         colorClips.removeAll { $0.id == source.id }
@@ -774,7 +782,8 @@ class AppState: ObservableObject {
             url: clip.url,
             appName: clip.appName,
             order: clip.order,
-            id: clip.id
+            id: clip.id,
+            imagePath: clip.imagePath
         )
 
         if let colorClips = clips[colorName] {

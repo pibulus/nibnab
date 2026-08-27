@@ -1028,7 +1028,7 @@ struct ContentView: View {
         // Never steal keys from a text field, a modal, or a shortcut chord.
         guard appState.delegate?.popover.isShown == true else { return event }
         guard selectedClip == nil, editingClip == nil,
-              !showAddClipModal, !showHelp, !editingLabel else { return event }
+              !showAddClipModal, !showHelp, !showApiKeyModal, !editingLabel else { return event }
         if NSApp.keyWindow?.firstResponder is NSTextView { return event }
 
         // ⌘Z is the one chord the list claims.
