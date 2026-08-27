@@ -10,14 +10,16 @@ struct Clip: Identifiable, Codable, Equatable, Hashable, Sendable {
     let url: String?
     let appName: String
     var order: Int = 0
+    let imagePath: String?
 
-    init(text: String, timestamp: Date, url: String?, appName: String, order: Int = 0, id: UUID? = nil) {
+    init(text: String, timestamp: Date, url: String?, appName: String, order: Int = 0, id: UUID? = nil, imagePath: String? = nil) {
         self.id = id ?? UUID()
         self.text = text
         self.timestamp = timestamp
         self.url = url
         self.appName = appName
         self.order = order
+        self.imagePath = imagePath
     }
 }
 
@@ -82,6 +84,34 @@ enum NibTag {
         var seen = Set<String>()
         return matches(in: text).map { String(text[$0]) }.filter { seen.insert($0.lowercased()).inserted }
     }
+
+    /// Anti-drift normalization: Snaps tags to existing vocabulary where possible.
+    /// If `#idea` exists and a new tag is `#ideas`, snaps to `#idea`.
+    /// If `#ideas` exists and a new tag is `#idea`, snaps to `#ideas`.
+    static func canonicalTag(_ tag: String, existingTags: [String]) -> String {
+        let cleanTag = tag.hasPrefix("#") ? tag : "#\(tag)"
+        let lower = cleanTag.lowercased()
+
+        // Exact match (case-insensitive)
+        if let exact = existingTags.first(where: { $0.lowercased() == lower }) {
+            return exact
+        }
+
+        // Plural / singular snapping: check if `tag + s` or `tag - s` matches existing vocabulary
+        if lower.hasSuffix("s") && lower.count > 3 {
+            let singular = String(lower.dropLast())
+            if let match = existingTags.first(where: { $0.lowercased() == singular }) {
+                return match
+            }
+        } else {
+            let plural = lower + "s"
+            if let match = existingTags.first(where: { $0.lowercased() == plural }) {
+                return match
+            }
+        }
+
+        return cleanTag
+    }
 }
 
 extension Array where Element == Clip {
@@ -98,7 +128,8 @@ extension Array where Element == Clip {
             url: ordered.compactMap(\.url).first,
             appName: oldest.appName,
             order: 0,
-            id: oldest.id
+            id: oldest.id,
+            imagePath: ordered.compactMap(\.imagePath).first
         )
     }
 }

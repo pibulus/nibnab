@@ -62,7 +62,9 @@ enum StorageTests {
         weightlessSynth()
         crossColorRemoval()
         tagParsing()
+        tagCanonicalization()
         urlRoundTrip()
+        imageMetadataRoundTrip()
 
         print(failures == 0
             ? "\n🎉 All \(checks) checks passed"
@@ -367,5 +369,59 @@ enum StorageTests {
         let loaded = storage.loadClips(for: color)
         expect(loaded.first?.url == clip.url, "url survives round trip")
         expect(loaded.first?.appName == "Safari", "app name intact next to url")
+    }
+
+    static func tagCanonicalization() {
+        print("— tag anti-drift & canonicalization")
+
+        let existing = ["#idea", "#visuals", "#bug"]
+        expect(NibTag.canonicalTag("#idea", existingTags: existing) == "#idea", "exact match keeps tag")
+        expect(NibTag.canonicalTag("#Idea", existingTags: existing) == "#idea", "case matches canonical")
+        expect(NibTag.canonicalTag("#ideas", existingTags: existing) == "#idea", "plural snaps to singular canonical")
+        expect(NibTag.canonicalTag("#visual", existingTags: existing) == "#visuals", "singular snaps to plural canonical")
+        expect(NibTag.canonicalTag("#bugs", existingTags: existing) == "#bug", "plural snaps to singular")
+        expect(NibTag.canonicalTag("#newtag", existingTags: existing) == "#newtag", "unseen tag passes through")
+    }
+
+    static func imageMetadataRoundTrip() {
+        print("— image storage and metadata")
+        let (storage, dir) = makeStorage()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sampleData = "fake-png-data".data(using: .utf8)!
+        let clipID = UUID()
+        guard let imageRelPath = storage.saveImageData(sampleData, id: clipID, for: color) else {
+            expect(false, "image data saves to disk")
+            return
+        }
+        expect(imageRelPath == "images/\(clipID.uuidString).png", "image relative path format correct")
+
+        let fullURL = storage.imageURL(for: imageRelPath, in: color)
+        expect(FileManager.default.fileExists(atPath: fullURL.path), "image file exists on disk")
+
+        let clip = Clip(
+            text: "screenshot OCR text",
+            timestamp: utcDate("2026-08-27 12:00:00"),
+            url: "https://github.com",
+            appName: "CleanShot",
+            order: 0,
+            id: clipID,
+            imagePath: imageRelPath
+        )
+
+        storage.rewriteClips([clip], for: color)
+        let loaded = storage.loadClips(for: color)
+
+        expect(loaded.count == 1, "clip loaded")
+        expect(loaded.first?.imagePath == imageRelPath, "imagePath survives markdown round trip")
+        expect(loaded.first?.text == "screenshot OCR text", "OCR text intact alongside image")
+
+        // Test moving image to another color
+        let targetColor = "Highlighter Pink"
+        let movedRelPath = storage.moveImage(at: imageRelPath, from: color, to: targetColor)
+        expect(movedRelPath == imageRelPath, "moved image keeps relative path format")
+        let targetURL = storage.imageURL(for: imageRelPath, in: targetColor)
+        expect(FileManager.default.fileExists(atPath: targetURL.path), "image file moved to target color directory")
+        expect(!FileManager.default.fileExists(atPath: fullURL.path), "source image removed after move")
     }
 }

@@ -131,6 +131,7 @@ final class StorageManager {
         var clipID: UUID? = nil
         var timestamp = Date()
         var order = 0
+        var imagePath: String? = nil
         var text = ""
         var headerIndex = 0
 
@@ -180,6 +181,11 @@ final class StorageManager {
                 if let parsedOrder = Int(String(metadataLine.dropFirst("order: ".count))) {
                     order = parsedOrder
                 }
+            } else if metadataLine.hasPrefix("image: ") {
+                let pathVal = String(metadataLine.dropFirst("image: ".count)).trimmingCharacters(in: .whitespaces)
+                if !pathVal.isEmpty {
+                    imagePath = pathVal
+                }
             } else if clipID == nil && !sawTimestampKey {
                 // Legacy sections (pre-`id:`) wrote a bare timestamp line.
                 // Only try this before any keyed metadata, so a clip whose
@@ -202,7 +208,7 @@ final class StorageManager {
             text = textLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
-        guard !text.isEmpty else { return nil }
+        guard !text.isEmpty || imagePath != nil else { return nil }
 
         let resolvedID = clipID ?? legacyID(
             appName: appName,
@@ -217,7 +223,8 @@ final class StorageManager {
             url: url,
             appName: appName,
             order: order,
-            id: resolvedID
+            id: resolvedID,
+            imagePath: imagePath
         )
     }
 
@@ -230,6 +237,9 @@ final class StorageManager {
         markdown += "\n"
         markdown += "id: \(clip.id.uuidString)\n"
         markdown += "timestamp: \(formatter.string(from: clip.timestamp))\n"
+        if let imagePath = clip.imagePath, !imagePath.isEmpty {
+            markdown += "image: \(imagePath)\n"
+        }
         markdown += "order: \(clip.order)\n"
         markdown += "\n"
         markdown += "\(escapeDividerLines(in: clip.text))\n"
@@ -319,17 +329,70 @@ final class StorageManager {
         }
     }
 
-    private func ensureDirectoryExists(for colorName: String) {
+    func ensureDirectoryExists(for colorName: String) {
         let directory = directoryURL(for: colorName)
+        let imagesDir = imagesDirectoryURL(for: colorName)
         do {
             try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            try self.fileManager.createDirectory(at: imagesDir, withIntermediateDirectories: true)
         } catch {
             self.logger.error("Failed creating directory \(directory.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 
-    private func directoryURL(for colorName: String) -> URL {
+    func directoryURL(for colorName: String) -> URL {
         self.baseURL.appendingPathComponent(colorName.lowercased(), isDirectory: true)
+    }
+
+    func imagesDirectoryURL(for colorName: String) -> URL {
+        directoryURL(for: colorName).appendingPathComponent("images", isDirectory: true)
+    }
+
+    func imageURL(for relativePath: String, in colorName: String) -> URL {
+        directoryURL(for: colorName).appendingPathComponent(relativePath)
+    }
+
+    func saveImageData(_ data: Data, id: UUID, for colorName: String) -> String? {
+        ensureDirectoryExists(for: colorName)
+        let filename = "\(id.uuidString).png"
+        let fileURL = imagesDirectoryURL(for: colorName).appendingPathComponent(filename)
+        do {
+            try data.write(to: fileURL, options: .atomic)
+            return "images/\(filename)"
+        } catch {
+            self.logger.error("Failed writing image file \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    func deleteImage(at relativePath: String, for colorName: String) {
+        let fileURL = imageURL(for: relativePath, in: colorName)
+        guard self.fileManager.fileExists(atPath: fileURL.path) else { return }
+        do {
+            try self.fileManager.removeItem(at: fileURL)
+        } catch {
+            self.logger.error("Failed deleting image \(fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func moveImage(at relativePath: String, from sourceColor: String, to targetColor: String) -> String? {
+        let sourceURL = imageURL(for: relativePath, in: sourceColor)
+        guard self.fileManager.fileExists(atPath: sourceURL.path) else { return nil }
+
+        ensureDirectoryExists(for: targetColor)
+        let filename = sourceURL.lastPathComponent
+        let targetURL = imagesDirectoryURL(for: targetColor).appendingPathComponent(filename)
+
+        do {
+            if self.fileManager.fileExists(atPath: targetURL.path) {
+                try self.fileManager.removeItem(at: targetURL)
+            }
+            try self.fileManager.moveItem(at: sourceURL, to: targetURL)
+            return "images/\(filename)"
+        } catch {
+            self.logger.error("Failed moving image from \(sourceURL.path, privacy: .public) to \(targetURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     private func clipFileURL(for colorName: String) -> URL {
