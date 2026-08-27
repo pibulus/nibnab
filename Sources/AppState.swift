@@ -207,13 +207,6 @@ class AppState: ObservableObject {
         }
     }
 
-    private func deleteImages(_ clips: [Clip], keepingImagePath keepPath: String?, in colorName: String) {
-        for clip in clips {
-            guard let path = clip.imagePath, path != keepPath else { continue }
-            storageManager.deleteImage(at: path, for: colorName)
-        }
-    }
-
     /// True when the next capture will silently evict the oldest clip.
     func isColorFull(_ colorName: String) -> Bool {
         (clips[colorName]?.count ?? 0) >= Self.maxClipsPerColor

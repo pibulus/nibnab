@@ -1031,6 +1031,16 @@ struct ContentView: View {
               !showAddClipModal, !showHelp, !showApiKeyModal, !editingLabel else { return event }
         if NSApp.keyWindow?.firstResponder is NSTextView { return event }
 
+        // Escape dismisses search or closes popover when no modal is active
+        if event.keyCode == 53 /* Escape */ {
+            if !searchText.isEmpty {
+                searchText = ""
+                return nil
+            }
+            appState.delegate?.closePopover()
+            return nil
+        }
+
         // ⌘Z is the one chord the list claims.
         if event.modifierFlags.contains(.command),
            !event.modifierFlags.contains(.shift),
@@ -1999,7 +2009,8 @@ struct ClipDetailView: View {
                                 HStack(spacing: 6) {
                                     ForEach(0..<clip.imagePaths.count, id: \.self) { idx in
                                         let path = clip.imagePaths[idx]
-                                        if let thumb = NSImage(contentsOf: appState.storageManager.imageURL(for: path, in: colorName)) {
+                                        let url = appState.storageManager.imageURL(for: path, in: colorName)
+                                        if let thumb = ThumbnailLoader.thumbnail(for: url, maxDimension: 64) {
                                             Button(action: { selectedImageIndex = idx }) {
                                                 Image(nsImage: thumb)
                                                     .resizable()
