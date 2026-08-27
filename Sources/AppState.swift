@@ -113,6 +113,16 @@ class AppState: ObservableObject {
     let storageManager = StorageManager()
     private var lastCapturedImageHash: Int? = nil
 
+    @Published var geminiApiKey: String {
+        didSet {
+            UserDefaults.standard.set(geminiApiKey, forKey: "geminiApiKey")
+        }
+    }
+
+    var hasAiSuperpowers: Bool {
+        !geminiApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     @Published var selectionCaptureEnabled: Bool {
         didSet {
             UserDefaults.standard.set(selectionCaptureEnabled, forKey: "autoCopyEnabled")
@@ -152,6 +162,9 @@ class AppState: ObservableObject {
             initialColor = NibColor.yellow
         }
         activeColor = initialColor
+
+        geminiApiKey = UserDefaults.standard.string(forKey: "geminiApiKey")
+            ?? (ProcessInfo.processInfo.environment["GEMINI_API_KEY"] ?? "")
 
         soundEffectsEnabled = UserDefaults.standard.object(forKey: "soundEffectsEnabled") as? Bool ?? true
         isMonitoring = UserDefaults.standard.object(forKey: "isMonitoring") as? Bool ?? true
@@ -385,6 +398,79 @@ class AppState: ObservableObject {
             if !recognized.isEmpty {
                 await MainActor.run {
                     self.updateClipText(clipID: clipID, newText: recognized, in: color.name)
+                }
+
+                // Optional AI auto-tag pass
+                if self.hasAiSuperpowers {
+                    let existing = await MainActor.run { self.allTagsWithCounts.map(\.tag) }
+                    let suggested = await NibAI.suggestTags(for: recognized, existingTags: existing, apiKey: self.geminiApiKey)
+                    if !suggested.isEmpty {
+                        await MainActor.run {
+                            let taggedText = recognized + "\n\n" + suggested.joined(separator: " ")
+                            self.updateClipText(clipID: clipID, newText: taggedText, in: color.name)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - AI Actions
+    func aiAutoTagClip(_ clip: Clip, in colorName: String) {
+        guard hasAiSuperpowers else { return }
+        Task {
+            let existing = allTagsWithCounts.map(\.tag)
+            let suggested = await NibAI.suggestTags(for: clip.text, existingTags: existing, apiKey: geminiApiKey)
+            guard !suggested.isEmpty else { return }
+
+            await MainActor.run {
+                var newText = clip.text
+                for tag in suggested {
+                    if !newText.contains(tag) {
+                        newText += " " + tag
+                    }
+                }
+                self.updateClipText(clipID: clip.id, newText: newText, in: colorName)
+                self.play(.celebrate)
+                self.showToast("AI Auto-Tagged", color: activeColor)
+            }
+        }
+    }
+
+    func aiCleanClipText(_ clip: Clip, in colorName: String) {
+        guard hasAiSuperpowers else { return }
+        Task {
+            do {
+                let cleaned = try await NibAI.cleanOCR(text: clip.text, apiKey: geminiApiKey)
+                await MainActor.run {
+                    self.updateClipText(clipID: clip.id, newText: cleaned, in: colorName)
+                    self.play(.celebrate)
+                    self.showToast("AI Cleaned to Markdown", color: activeColor)
+                }
+            } catch {
+                await MainActor.run {
+                    self.play(.nope)
+                    self.showToast("AI error", color: NibColor.orange)
+                }
+            }
+        }
+    }
+
+    func aiSummarizeClip(_ clip: Clip, in colorName: String) {
+        guard hasAiSuperpowers else { return }
+        Task {
+            do {
+                let summary = try await NibAI.summarizeToBullets(text: clip.text, apiKey: geminiApiKey)
+                await MainActor.run {
+                    let combined = clip.text + "\n\n### ⚡ Summary\n" + summary
+                    self.updateClipText(clipID: clip.id, newText: combined, in: colorName)
+                    self.play(.celebrate)
+                    self.showToast("AI Summary Added", color: activeColor)
+                }
+            } catch {
+                await MainActor.run {
+                    self.play(.nope)
+                    self.showToast("AI error", color: NibColor.orange)
                 }
             }
         }

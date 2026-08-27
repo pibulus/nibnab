@@ -295,6 +295,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
+        let aiItem = NSMenuItem(
+            title: appState.hasAiSuperpowers ? "AI Superpowers (Active ✨)" : "Configure AI Superpowers...",
+            action: #selector(configureAiSuperpowers),
+            keyEquivalent: ""
+        )
+        menu.addItem(aiItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         let aboutItem = NSMenuItem(
             title: "About NibNab...",
             action: #selector(showAbout),
@@ -325,6 +334,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func showWelcomeFromMenu() {
         showWelcomeWindow()
+    }
+
+    @objc func configureAiSuperpowers() {
+        showPopover()
     }
 
     @objc func selectColor(_ sender: NSMenuItem) {

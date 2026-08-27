@@ -189,6 +189,7 @@ struct ContentHeaderView: View {
     @Binding var showAddClipModal: Bool
     @Binding var showClearConfirm: Bool
     @Binding var showHelp: Bool
+    @Binding var showApiKeyModal: Bool
     let clipCount: Int
     /// The clips currently on screen. While searching these span colours, and
     /// every collection action follows them instead of the active colour.
@@ -348,6 +349,12 @@ struct ContentHeaderView: View {
                     showClearConfirm = true
                 }
             }
+
+            HeaderIconButton(
+                systemName: "sparkles",
+                action: { showApiKeyModal = true },
+                help: appState.hasAiSuperpowers ? "AI Superpowers (Active)" : "Unlock AI Superpowers (Gemini)"
+            )
 
             HeaderIconButton(systemName: "questionmark", action: {
                 showHelp = true
@@ -595,6 +602,7 @@ struct ContentOverlaysView: View {
     @Binding var showAddClipModal: Bool
     @Binding var editingClip: Clip?
     @Binding var showHelp: Bool
+    @Binding var showApiKeyModal: Bool
     // The color the open modal belongs to, captured when it was opened —
     // a ⌃⌘1-5 hotkey can change the active colour while a modal is up, and
     // saving/deleting against the new color would hit the wrong file.
@@ -668,6 +676,18 @@ struct ContentOverlaysView: View {
                 }
             }
 
+            if showApiKeyModal {
+                overlayBackground {
+                    ApiKeyModal {
+                        appState.play(.close)
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                            showApiKeyModal = false
+                        }
+                    }
+                    .environmentObject(appState)
+                }
+            }
+
             // Welcome modal shown in separate window, not in popover
         }
     }
@@ -683,6 +703,7 @@ struct ContentOverlaysView: View {
                         editingClip = nil
                         selectedClip = nil
                         showHelp = false
+                        showApiKeyModal = false
                     }
                 }
                 .transition(.opacity)
@@ -707,6 +728,7 @@ struct ContentView: View {
     @State private var labelHovered = false
     @State private var showAddClipModal = false
     @State private var showHelp = false
+    @State private var showApiKeyModal = false
     @State private var editingClip: Clip?
     @State private var modalColorName = ""
     @State private var dropTargetedClipID: UUID? = nil
@@ -768,6 +790,7 @@ struct ContentView: View {
                     showAddClipModal: $showAddClipModal,
                     showClearConfirm: $showClearConfirm,
                     showHelp: $showHelp,
+                    showApiKeyModal: $showApiKeyModal,
                     clipCount: appState.clips[appState.activeColor.name]?.count ?? 0,
                     visibleClips: rows.map(\.clip),
                     searchLabel: isSearching ? "\u{201C}\(searchText)\u{201D}" : nil,
@@ -802,6 +825,7 @@ struct ContentView: View {
                 showAddClipModal: $showAddClipModal,
                 editingClip: $editingClip,
                 showHelp: $showHelp,
+                showApiKeyModal: $showApiKeyModal,
                 modalColorName: modalColorName
             )
             .environmentObject(appState)
@@ -824,6 +848,7 @@ struct ContentView: View {
             editingClip = nil
             showAddClipModal = false
             showHelp = false
+            showApiKeyModal = false
             editingLabel = false
             focusedClipID = nil
         }
@@ -939,6 +964,31 @@ struct ContentView: View {
                                     }
                                 }) {
                                     Label("Delete", systemImage: "trash")
+                                }
+
+                                if appState.hasAiSuperpowers {
+                                    Divider()
+                                    Menu {
+                                        Button(action: {
+                                            appState.aiAutoTagClip(clip, in: row.color.name)
+                                        }) {
+                                            Label("Auto-Tag", systemImage: "tag")
+                                        }
+
+                                        Button(action: {
+                                            appState.aiCleanClipText(clip, in: row.color.name)
+                                        }) {
+                                            Label("Clean to Markdown", systemImage: "sparkles")
+                                        }
+
+                                        Button(action: {
+                                            appState.aiSummarizeClip(clip, in: row.color.name)
+                                        }) {
+                                            Label("Summarize to Bullets", systemImage: "list.bullet")
+                                        }
+                                    } label: {
+                                        Label("AI Superpowers", systemImage: "sparkles")
+                                    }
                                 }
                             }
                     }
@@ -1970,6 +2020,55 @@ struct ClipDetailView: View {
                     }
                 }
 
+                if appState.hasAiSuperpowers {
+                    Menu {
+                        Button(action: {
+                            saveChangesIfNeeded()
+                            appState.aiAutoTagClip(clip, in: colorName)
+                            onDismiss()
+                        }) {
+                            Label("Auto-Tag with AI", systemImage: "tag")
+                        }
+
+                        Button(action: {
+                            Task {
+                                do {
+                                    let cleaned = try await NibAI.cleanOCR(text: editedText, apiKey: appState.geminiApiKey)
+                                    await MainActor.run {
+                                        editedText = cleaned
+                                        appState.play(.celebrate)
+                                    }
+                                } catch { }
+                            }
+                        }) {
+                            Label("Clean to Markdown", systemImage: "sparkles")
+                        }
+
+                        Button(action: {
+                            Task {
+                                do {
+                                    let summary = try await NibAI.summarizeToBullets(text: editedText, apiKey: appState.geminiApiKey)
+                                    await MainActor.run {
+                                        editedText = editedText + "\n\n### ⚡ Summary\n" + summary
+                                        appState.play(.celebrate)
+                                    }
+                                } catch { }
+                            }
+                        }) {
+                            Label("Summarize to Bullets", systemImage: "list.bullet")
+                        }
+                    } label: {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 16))
+                            .foregroundColor(Color(appState.activeColor.nsColor))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .padding(8)
+                    .background(Color(appState.activeColor.nsColor).opacity(0.15))
+                    .cornerRadius(8)
+                    .help("AI Superpowers")
+                }
+
                 Spacer()
 
                 Text("\(editedText.count) characters")
@@ -2482,5 +2581,155 @@ struct ToastView: View {
                 )
         )
         .shadow(color: Color(color.nsColor).opacity(0.3), radius: 12, x: 0, y: 4)
+    }
+}
+
+// MARK: - API Key Modal (Gemini Superpowers)
+struct ApiKeyModal: View {
+    let onDismiss: () -> Void
+    @EnvironmentObject var appState: AppState
+    @State private var keyInput: String = ""
+    @State private var saveHovered = false
+    @State private var cancelHovered = false
+    @FocusState private var inputFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(Color(appState.activeColor.nsColor))
+                    Text("AI Superpowers (Gemini)")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+
+                Spacer()
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .help("Close (Esc)")
+            }
+            .padding()
+            .background(Color.nibSurface)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color(appState.activeColor.nsColor).opacity(0.4))
+                    .frame(height: 1)
+            }
+
+            // Content
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Enter your Gemini API key to unlock auto-tagging, OCR cleanup, and instant bullet summarization. Core NibNab (offline OCR & local storage) stays 100% private.")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundColor(.white.opacity(0.75))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                SecureField("Paste API Key (AIzaSy...)", text: $keyInput)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13, design: .monospaced))
+                    .foregroundColor(.white)
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.white.opacity(0.12))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(appState.activeColor.nsColor).opacity(0.5), lineWidth: 1)
+                    )
+                    .focused($inputFocused)
+
+                HStack {
+                    Link("Get free Gemini API key ↗", destination: URL(string: "https://aistudio.google.com/app/apikey")!)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color(appState.activeColor.nsColor))
+
+                    Spacer()
+
+                    if !appState.geminiApiKey.isEmpty {
+                        Button("Clear Key (Go Offline)") {
+                            appState.geminiApiKey = ""
+                            keyInput = ""
+                            appState.play(.toggleOff)
+                            onDismiss()
+                        }
+                        .font(.system(size: 11))
+                        .foregroundColor(.red.opacity(0.8))
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(18)
+            .background(Color.black.opacity(0.7))
+
+            // Footer
+            HStack {
+                Button(action: onDismiss) {
+                    Text("Cancel")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.white.opacity(0.9))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(cancelHovered ? 0.2 : 0.1))
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .scaleEffect(cancelHovered ? 1.05 : 1.0)
+                .onHover { hovering in
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
+                        cancelHovered = hovering
+                    }
+                }
+
+                Spacer()
+
+                Button(action: {
+                    appState.geminiApiKey = keyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                    appState.play(.celebrate)
+                    appState.showToast(appState.hasAiSuperpowers ? "AI Superpowers Active ✨" : "Key Cleared", color: appState.activeColor)
+                    onDismiss()
+                }) {
+                    Text("Save Key")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color(appState.activeColor.nsColor).opacity(saveHovered ? 1.0 : 0.8))
+                        .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                .scaleEffect(saveHovered ? 1.05 : 1.0)
+                .onHover { hovering in
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
+                        saveHovered = hovering
+                    }
+                }
+            }
+            .padding()
+            .background(Color.nibSurface)
+        }
+        .frame(width: 440)
+        .fixedSize(horizontal: false, vertical: true)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.5), radius: 20)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(appState.activeColor.nsColor).opacity(0.5), lineWidth: 1.5)
+        )
+        .onAppear {
+            keyInput = appState.geminiApiKey
+            inputFocused = true
+            appState.play(.open)
+        }
+        .onExitCommand {
+            onDismiss()
+        }
     }
 }
