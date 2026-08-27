@@ -1237,6 +1237,25 @@ struct ClipView: View {
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundColor(Color(red: 0.659, green: 0.855, blue: 0.863))
 
+                if let urlString = clip.url, let url = URL(string: urlString) {
+                    Link(destination: url) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "globe")
+                                .font(.system(size: 8))
+                            Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "link")
+                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color.white.opacity(0.12))
+                        .cornerRadius(4)
+                        .foregroundColor(Color(color.nsColor))
+                    }
+                    .buttonStyle(.plain)
+                    .help(urlString)
+                }
+
                 Spacer()
 
                 // Timestamp with padding to avoid overlap with hover buttons
@@ -1247,17 +1266,31 @@ struct ClipView: View {
             }
 
             HStack(alignment: .top, spacing: 8) {
-                if let thumb = thumbnailImage {
-                    Image(nsImage: thumb)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color(color.nsColor).opacity(0.6), lineWidth: 1)
-                        )
-                        .shadow(color: Color(color.nsColor).opacity(0.3), radius: 3)
+                if !clip.imagePaths.isEmpty {
+                    ZStack(alignment: .bottomTrailing) {
+                        if let thumb = thumbnailImage {
+                            Image(nsImage: thumb)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 44, height: 44)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color(color.nsColor).opacity(0.6), lineWidth: 1)
+                                )
+                                .shadow(color: Color(color.nsColor).opacity(0.3), radius: 3)
+                        }
+                        if clip.imagePaths.count > 1 {
+                            Text("\(clip.imagePaths.count)")
+                                .font(.system(size: 8, weight: .bold, design: .rounded))
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Color(color.nsColor))
+                                .clipShape(Capsule())
+                                .offset(x: 2, y: 2)
+                        }
+                    }
                 }
 
                 Text(TagLink.attributed(
@@ -1867,6 +1900,7 @@ struct ClipDetailView: View {
     @State private var deleteHovered = false
     @State private var editedText: String
     @State private var originalText: String
+    @State private var selectedImageIndex = 0
 
     init(clip: Clip, colorName: String, onDismiss: @escaping () -> Void) {
         self.clip = clip
@@ -1884,6 +1918,13 @@ struct ClipDetailView: View {
         !trimmedEditedText.isEmpty && editedText != originalText
     }
 
+    private var currentImage: NSImage? {
+        guard !clip.imagePaths.isEmpty, selectedImageIndex < clip.imagePaths.count else { return nil }
+        let path = clip.imagePaths[selectedImageIndex]
+        let url = appState.storageManager.imageURL(for: path, in: colorName)
+        return NSImage(contentsOf: url)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -1893,9 +1934,26 @@ struct ClipDetailView: View {
                         .font(.system(size: 14, weight: .bold, design: .monospaced))
                         .foregroundColor(Color(red: 0.659, green: 0.855, blue: 0.863))
 
-                    Text(formatDate(clip.timestamp))
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(Color.white.opacity(0.5))
+                    HStack(spacing: 8) {
+                        Text(formatDate(clip.timestamp))
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(Color.white.opacity(0.5))
+
+                        if let urlString = clip.url, let url = URL(string: urlString) {
+                            Link(destination: url) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "safari")
+                                        .font(.system(size: 10))
+                                    Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "link")
+                                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                        .lineLimit(1)
+                                }
+                                .foregroundColor(Color(appState.activeColor.nsColor))
+                            }
+                            .buttonStyle(.plain)
+                            .help(urlString)
+                        }
+                    }
                 }
 
                 Spacer()
@@ -1921,20 +1979,46 @@ struct ClipDetailView: View {
 
             // Content
             VStack(spacing: 8) {
-                if let imagePath = clip.imagePath,
-                   let nsImage = NSImage(contentsOf: appState.storageManager.imageURL(for: imagePath, in: colorName)) {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxHeight: 130)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color(appState.activeColor.nsColor).opacity(0.6), lineWidth: 1)
-                        )
-                        .shadow(color: Color(appState.activeColor.nsColor).opacity(0.25), radius: 6)
-                        .padding(.horizontal)
-                        .padding(.top, 8)
+                if let nsImage = currentImage {
+                    VStack(spacing: 6) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxHeight: clip.imagePaths.count > 1 ? 100 : 130)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color(appState.activeColor.nsColor).opacity(0.6), lineWidth: 1)
+                            )
+                            .shadow(color: Color(appState.activeColor.nsColor).opacity(0.25), radius: 6)
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+
+                        if clip.imagePaths.count > 1 {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    ForEach(0..<clip.imagePaths.count, id: \.self) { idx in
+                                        let path = clip.imagePaths[idx]
+                                        if let thumb = NSImage(contentsOf: appState.storageManager.imageURL(for: path, in: colorName)) {
+                                            Button(action: { selectedImageIndex = idx }) {
+                                                Image(nsImage: thumb)
+                                                    .resizable()
+                                                    .aspectRatio(contentMode: .fill)
+                                                    .frame(width: 32, height: 32)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 5)
+                                                            .stroke(selectedImageIndex == idx ? Color(appState.activeColor.nsColor) : Color.white.opacity(0.3), lineWidth: selectedImageIndex == idx ? 2 : 1)
+                                                    )
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                        }
+                    }
                 }
 
                 ZStack {
@@ -1979,8 +2063,7 @@ struct ClipDetailView: View {
                     }
                 }
 
-                if let imagePath = clip.imagePath,
-                   let nsImage = NSImage(contentsOf: appState.storageManager.imageURL(for: imagePath, in: colorName)) {
+                if let nsImage = currentImage {
                     Button(action: {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.writeObjects([nsImage])
@@ -2629,6 +2712,11 @@ struct ApiKeyModal: View {
                 Text("Enter your Gemini API key to unlock auto-tagging, OCR cleanup, and instant bullet summarization. Core NibNab (offline OCR & local storage) stays 100% private.")
                     .font(.system(size: 12, design: .rounded))
                     .foregroundColor(.white.opacity(0.75))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("🔒 Stored securely in your macOS Keychain. Requests are sent directly to Google's official endpoint with zero intermediate servers.")
+                    .font(.system(size: 10.5, design: .rounded))
+                    .foregroundColor(.white.opacity(0.5))
                     .fixedSize(horizontal: false, vertical: true)
 
                 SecureField("Paste API Key (AIzaSy...)", text: $keyInput)

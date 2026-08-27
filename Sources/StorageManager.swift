@@ -131,7 +131,7 @@ final class StorageManager {
         var clipID: UUID? = nil
         var timestamp = Date()
         var order = 0
-        var imagePath: String? = nil
+        var imagePaths: [String] = []
         var text = ""
         var headerIndex = 0
 
@@ -181,10 +181,14 @@ final class StorageManager {
                 if let parsedOrder = Int(String(metadataLine.dropFirst("order: ".count))) {
                     order = parsedOrder
                 }
+            } else if metadataLine.hasPrefix("images: ") {
+                let pathsVal = String(metadataLine.dropFirst("images: ".count)).trimmingCharacters(in: .whitespaces)
+                let paths = pathsVal.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                imagePaths.append(contentsOf: paths)
             } else if metadataLine.hasPrefix("image: ") {
                 let pathVal = String(metadataLine.dropFirst("image: ".count)).trimmingCharacters(in: .whitespaces)
                 if !pathVal.isEmpty {
-                    imagePath = pathVal
+                    imagePaths.append(pathVal)
                 }
             } else if clipID == nil && !sawTimestampKey {
                 // Legacy sections (pre-`id:`) wrote a bare timestamp line.
@@ -208,7 +212,7 @@ final class StorageManager {
             text = textLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
-        guard !text.isEmpty || imagePath != nil else { return nil }
+        guard !text.isEmpty || !imagePaths.isEmpty else { return nil }
 
         let resolvedID = clipID ?? legacyID(
             appName: appName,
@@ -224,7 +228,7 @@ final class StorageManager {
             appName: appName,
             order: order,
             id: resolvedID,
-            imagePath: imagePath
+            imagePaths: imagePaths
         )
     }
 
@@ -237,8 +241,10 @@ final class StorageManager {
         markdown += "\n"
         markdown += "id: \(clip.id.uuidString)\n"
         markdown += "timestamp: \(formatter.string(from: clip.timestamp))\n"
-        if let imagePath = clip.imagePath, !imagePath.isEmpty {
-            markdown += "image: \(imagePath)\n"
+        if clip.imagePaths.count > 1 {
+            markdown += "images: \(clip.imagePaths.joined(separator: ", "))\n"
+        } else if let single = clip.imagePath, !single.isEmpty {
+            markdown += "image: \(single)\n"
         }
         markdown += "order: \(clip.order)\n"
         markdown += "\n"

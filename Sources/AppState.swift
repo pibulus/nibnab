@@ -115,7 +115,8 @@ class AppState: ObservableObject {
 
     @Published var geminiApiKey: String {
         didSet {
-            UserDefaults.standard.set(geminiApiKey, forKey: "geminiApiKey")
+            KeychainHelper.saveGeminiApiKey(geminiApiKey)
+            UserDefaults.standard.removeObject(forKey: "geminiApiKey")
         }
     }
 
@@ -167,7 +168,13 @@ class AppState: ObservableObject {
         }
         activeColor = initialColor
 
-        geminiApiKey = UserDefaults.standard.string(forKey: "geminiApiKey")
+        // Migrate from UserDefaults to Keychain if legacy key exists
+        if let legacyKey = UserDefaults.standard.string(forKey: "geminiApiKey"), !legacyKey.isEmpty {
+            KeychainHelper.saveGeminiApiKey(legacyKey)
+            UserDefaults.standard.removeObject(forKey: "geminiApiKey")
+        }
+
+        geminiApiKey = KeychainHelper.loadGeminiApiKey()
             ?? (ProcessInfo.processInfo.environment["GEMINI_API_KEY"] ?? "")
 
         soundEffectsEnabled = UserDefaults.standard.object(forKey: "soundEffectsEnabled") as? Bool ?? true
@@ -325,14 +332,23 @@ class AppState: ObservableObject {
     func saveClip(_ text: String, to color: NibColor, from sourceApp: String, url: String? = nil) {
         // Trim on save so what's persisted round-trips identically
         // (the storage parser trims section text on load).
-        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        // Huge payload guard: Cap single clip text at 100,000 characters
+        let maxCharacters = 100_000
+        let processedText: String
+        if trimmed.count > maxCharacters {
+            processedText = String(trimmed.prefix(maxCharacters)) + "\n\n[...truncated: payload exceeded 100,000 characters]"
+        } else {
+            processedText = trimmed
+        }
 
         // Re-capturing the newest clip again would just create a duplicate.
-        if clips[color.name]?.first?.text == text { return }
+        if clips[color.name]?.first?.text == processedText { return }
 
         let clip = Clip(
-            text: text,
+            text: processedText,
             timestamp: Date(),
             url: url,
             appName: sourceApp
@@ -345,6 +361,12 @@ class AppState: ObservableObject {
         clips[color.name]?.insert(clip, at: 0)
 
         if var colorClips = clips[color.name], colorClips.count > Self.maxClipsPerColor {
+            let evicted = colorClips.suffix(from: Self.maxClipsPerColor)
+            for oldClip in evicted {
+                for oldPath in oldClip.imagePaths {
+                    storageManager.deleteImage(at: oldPath, for: color.name)
+                }
+            }
             colorClips = Array(colorClips.prefix(Self.maxClipsPerColor))
             clips[color.name] = colorClips
         }
@@ -604,7 +626,7 @@ class AppState: ObservableObject {
     func deleteClip(_ clip: Clip, from colorName: String) {
         snapshotForUndo([colorName], what: "delete")
         clips[colorName]?.removeAll { $0.id == clip.id }
-        if let imagePath = clip.imagePath {
+        for imagePath in clip.imagePaths {
             storageManager.moveImageToUndo(at: imagePath, for: colorName)
         }
         storageManager.rewriteClips(clips[colorName] ?? [], for: colorName)
@@ -617,7 +639,7 @@ class AppState: ObservableObject {
         let clearedCount = undoSnapshot?.colors[colorName]?.count ?? 0
         if let colorClips = clips[colorName] {
             for clip in colorClips {
-                if let imagePath = clip.imagePath {
+                for imagePath in clip.imagePaths {
                     storageManager.moveImageToUndo(at: imagePath, for: colorName)
                 }
             }
@@ -634,22 +656,24 @@ class AppState: ObservableObject {
 
         var targetClips = clips[targetColor] ?? []
 
-        // If clip has an image, move it to target color directory
-        let updatedClip: Clip
-        if let imagePath = clip.imagePath {
-            let newPath = storageManager.moveImage(at: imagePath, from: sourceColor, to: targetColor)
-            updatedClip = Clip(
-                text: clip.text,
-                timestamp: clip.timestamp,
-                url: clip.url,
-                appName: clip.appName,
-                order: clip.order,
-                id: clip.id,
-                imagePath: newPath ?? imagePath
-            )
-        } else {
-            updatedClip = clip
+        var newPaths: [String] = []
+        for path in clip.imagePaths {
+            if let newPath = storageManager.moveImage(at: path, from: sourceColor, to: targetColor) {
+                newPaths.append(newPath)
+            } else {
+                newPaths.append(path)
+            }
         }
+
+        let updatedClip = Clip(
+            text: clip.text,
+            timestamp: clip.timestamp,
+            url: clip.url,
+            appName: clip.appName,
+            order: clip.order,
+            id: clip.id,
+            imagePaths: newPaths
+        )
 
         // Insert preserving newest-first order so the cap below always trims
         // the oldest clip — never the clip the user just moved.
@@ -659,7 +683,7 @@ class AppState: ObservableObject {
         if targetClips.count > Self.maxClipsPerColor,
            let dropIndex = targetClips.indices.reversed().first(where: { targetClips[$0].id != updatedClip.id }) {
             let evicted = targetClips.remove(at: dropIndex)
-            if let evictedPath = evicted.imagePath {
+            for evictedPath in evicted.imagePaths {
                 storageManager.deleteImage(at: evictedPath, for: targetColor)
             }
         }
@@ -701,7 +725,6 @@ class AppState: ObservableObject {
               let merged = colorClips.mergedIntoOne() else { return }
 
         snapshotForUndo([colorName], what: "merge all")
-        deleteImages(colorClips, keepingImagePath: merged.imagePath, in: colorName)
 
         clips[colorName] = [merged]
         storageManager.rewriteClips([merged], for: colorName)
@@ -718,7 +741,7 @@ class AppState: ObservableObject {
         presentExportPanel(
             defaultName: "\(exportFileStem(for: colorName))-clips.txt",
             content: plainText
-        ) { [weak self] in
+        ) { [weak self] _ in
             self?.clearAllClips(for: colorName)
         }
     }
@@ -728,9 +751,8 @@ class AppState: ObservableObject {
         guard var colorClips = clips[colorName],
               let targetIndex = colorClips.firstIndex(of: target) else { return }
 
-        let mergedText = target.text + "\n" + source.text
-        let primaryImagePath = target.imagePath ?? source.imagePath
-        deleteImages([source], keepingImagePath: primaryImagePath, in: colorName)
+        let mergedText = target.text + "\n\n" + source.text
+        let combinedImages = target.imagePaths + source.imagePaths
 
         let merged = Clip(
             text: mergedText,
@@ -739,7 +761,7 @@ class AppState: ObservableObject {
             appName: target.appName,
             order: target.order,
             id: target.id,
-            imagePath: primaryImagePath
+            imagePaths: combinedImages
         )
         colorClips[targetIndex] = merged
         colorClips.removeAll { $0.id == source.id }
@@ -811,7 +833,7 @@ class AppState: ObservableObject {
             appName: clip.appName,
             order: clip.order,
             id: clip.id,
-            imagePath: clip.imagePath
+            imagePaths: clip.imagePaths
         )
 
         if let colorClips = clips[colorName] {
@@ -835,12 +857,44 @@ class AppState: ObservableObject {
 
         for clip in clipsToExport {
             markdown += "---\n"
-            markdown += "### \(clip.appName)\n"
+            markdown += "### \(clip.appName)"
+            if let url = clip.url {
+                markdown += " | [\(url)](\(url))"
+            }
+            markdown += "\n"
             markdown += "*\(formatter.string(from: clip.timestamp))*\n\n"
+
+            for imgPath in clip.imagePaths {
+                let filename = (imgPath as NSString).lastPathComponent
+                markdown += "![Screenshot](images/\(filename))\n\n"
+            }
+
             markdown += "\(clip.text)\n\n"
         }
 
-        presentExportPanel(defaultName: "\(stem)-clips.md", content: markdown)
+        presentExportPanel(defaultName: "\(stem)-clips.md", content: markdown) { [weak self] exportURL in
+            guard let self = self else { return }
+            let exportDir = exportURL.deletingLastPathComponent()
+            let targetImagesDir = exportDir.appendingPathComponent("images", isDirectory: true)
+
+            for clip in clipsToExport {
+                guard !clip.imagePaths.isEmpty else { continue }
+                for imgPath in clip.imagePaths {
+                    for color in NibColor.all {
+                        let srcURL = self.storageManager.imageURL(for: imgPath, in: color.name)
+                        if FileManager.default.fileExists(atPath: srcURL.path) {
+                            try? FileManager.default.createDirectory(at: targetImagesDir, withIntermediateDirectories: true)
+                            let destURL = targetImagesDir.appendingPathComponent(srcURL.lastPathComponent)
+                            if FileManager.default.fileExists(atPath: destURL.path) {
+                                try? FileManager.default.removeItem(at: destURL)
+                            }
+                            try? FileManager.default.copyItem(at: srcURL, to: destURL)
+                            break
+                        }
+                    }
+                }
+            }
+        }
     }
 
     func exportAsPlainText(_ clipsToExport: [Clip], stem: String) {
@@ -867,12 +921,34 @@ class AppState: ObservableObject {
         let holders = clips.filter { $0.value.contains { ids.contains($0.id) } }.map(\.key)
         snapshotForUndo(Array(Set(holders + [targetColor])), what: "merge")
 
-        let touched = clips.removeClips(ids: ids).union([targetColor])
-        for name in touched {
-            let removed = clipsToMerge.filter { !self.clips[name, default: []].contains($0) }
-            deleteImages(removed, keepingImagePath: merged.imagePath, in: name)
+        var finalImagePaths: [String] = []
+        for clip in clipsToMerge {
+            let sourceColor = holders.first(where: { self.clips[$0]?.contains(where: { $0.id == clip.id }) == true }) ?? targetColor
+            for path in clip.imagePaths {
+                if sourceColor != targetColor {
+                    if let newPath = storageManager.moveImage(at: path, from: sourceColor, to: targetColor) {
+                        finalImagePaths.append(newPath)
+                    } else {
+                        finalImagePaths.append(path)
+                    }
+                } else {
+                    finalImagePaths.append(path)
+                }
+            }
         }
-        clips[targetColor, default: []].insert(merged, at: 0)
+
+        let updatedMerged = Clip(
+            text: merged.text,
+            timestamp: merged.timestamp,
+            url: merged.url,
+            appName: merged.appName,
+            order: 0,
+            id: merged.id,
+            imagePaths: finalImagePaths
+        )
+
+        let touched = clips.removeClips(ids: ids).union([targetColor])
+        clips[targetColor, default: []].insert(updatedMerged, at: 0)
 
         for name in touched {
             reindexOrders(for: name)
@@ -886,7 +962,7 @@ class AppState: ObservableObject {
         colorName.replacingOccurrences(of: "Highlighter ", with: "").lowercased()
     }
 
-    private func presentExportPanel(defaultName: String, content: String, onSuccess: (() -> Void)? = nil) {
+    private func presentExportPanel(defaultName: String, content: String, onSuccess: ((URL) -> Void)? = nil) {
         let savePanel = NSSavePanel()
         savePanel.nameFieldStringValue = defaultName
         savePanel.allowedContentTypes = [.plainText]
@@ -900,7 +976,7 @@ class AppState: ObservableObject {
             guard response == .OK, let url = savePanel.url else { return }
             do {
                 try content.write(to: url, atomically: true, encoding: .utf8)
-                onSuccess?()
+                onSuccess?(url)
             } catch {
                 let alert = NSAlert()
                 alert.alertStyle = .warning

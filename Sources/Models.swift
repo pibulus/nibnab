@@ -10,16 +10,27 @@ struct Clip: Identifiable, Codable, Equatable, Hashable, Sendable {
     let url: String?
     let appName: String
     var order: Int = 0
-    let imagePath: String?
+    var imagePaths: [String] = []
 
-    init(text: String, timestamp: Date, url: String?, appName: String, order: Int = 0, id: UUID? = nil, imagePath: String? = nil) {
+    /// Backward-compatible accessor for primary image
+    var imagePath: String? {
+        imagePaths.first
+    }
+
+    init(text: String, timestamp: Date, url: String?, appName: String, order: Int = 0, id: UUID? = nil, imagePaths: [String] = [], imagePath: String? = nil) {
         self.id = id ?? UUID()
         self.text = text
         self.timestamp = timestamp
         self.url = url
         self.appName = appName
         self.order = order
-        self.imagePath = imagePath
+        if !imagePaths.isEmpty {
+            self.imagePaths = imagePaths
+        } else if let single = imagePath {
+            self.imagePaths = [single]
+        } else {
+            self.imagePaths = []
+        }
     }
 }
 
@@ -122,6 +133,7 @@ extension Array where Element == Clip {
         guard count > 1, let oldest = self.min(by: { $0.timestamp < $1.timestamp }) else { return first }
 
         let ordered = sorted { $0.timestamp < $1.timestamp }
+        let allImages = ordered.flatMap(\.imagePaths)
         return Clip(
             text: ordered.map(\.text).joined(separator: "\n\n"),
             timestamp: now,
@@ -129,7 +141,7 @@ extension Array where Element == Clip {
             appName: oldest.appName,
             order: 0,
             id: oldest.id,
-            imagePath: ordered.compactMap(\.imagePath).first
+            imagePaths: allImages
         )
     }
 }

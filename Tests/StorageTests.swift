@@ -432,5 +432,25 @@ enum StorageTests {
         storage.moveImageToUndo(at: imageRelPath, for: targetColor)
         storage.purgeUndoImages(for: targetColor)
         expect(!FileManager.default.fileExists(atPath: targetURL.path), "purged undo images cleaned from disk")
+
+        // Test multi-image clip round trip
+        let multiClip = Clip(
+            text: "multi image clip",
+            timestamp: utcDate("2026-08-27 12:05:00"),
+            url: nil,
+            appName: "CleanShot",
+            order: 0,
+            id: UUID(),
+            imagePaths: ["images/one.png", "images/two.png"]
+        )
+        storage.rewriteClips([multiClip], for: color)
+        let loadedMulti = storage.loadClips(for: color)
+        expect(loadedMulti.first?.imagePaths == ["images/one.png", "images/two.png"], "multi-image paths survive round trip")
+
+        // Test merge preserves ALL images
+        let clipA = Clip(text: "A", timestamp: utcDate("2026-08-27 12:00:00"), url: nil, appName: "X", imagePaths: ["images/a.png"])
+        let clipB = Clip(text: "B", timestamp: utcDate("2026-08-27 12:01:00"), url: nil, appName: "X", imagePaths: ["images/b.png"])
+        let mergedAB = [clipA, clipB].mergedIntoOne()
+        expect(mergedAB?.imagePaths == ["images/a.png", "images/b.png"], "merged clip retains all images chronologically")
     }
 }
