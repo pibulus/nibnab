@@ -1,13 +1,22 @@
 import AppKit
 
 // MARK: - Color Theme
-struct NibColor {
+struct NibColor: Identifiable, Hashable, Equatable {
+    var id: String { name }
     let name: String
     let hex: String
     /// Shown greyed in an empty collection. Nobody switches colours until
     /// something suggests what the other four are for.
     let suggestion: String
     let nsColor: NSColor
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+    }
+
+    static func == (lhs: NibColor, rhs: NibColor) -> Bool {
+        lhs.name == rhs.name
+    }
 
     static let yellow = NibColor(
         name: "Highlighter Yellow",

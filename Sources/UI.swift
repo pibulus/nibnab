@@ -1231,105 +1231,248 @@ struct ClipView: View {
         return ThumbnailLoader.thumbnail(for: url)
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                if showColorPip {
-                    Circle()
-                        .fill(Color(color.nsColor))
-                        .frame(width: 7, height: 7)
-                        .shadow(color: Color(color.nsColor).opacity(0.7), radius: 3)
-                        .help(appState.labelForColor(color.name))
-                        .accessibilityLabel("in \(appState.labelForColor(color.name))")
+    private var formattedUrlHost: (url: URL, host: String)? {
+        guard let urlString = clip.url, let url = URL(string: urlString) else { return nil }
+        let cleanHost = url.host?.replacingOccurrences(of: "www.", with: "") ?? "link"
+        return (url, cleanHost)
+    }
+
+    private var headerRow: some View {
+        HStack(spacing: 6) {
+            if showColorPip {
+                Circle()
+                    .fill(Color(color.nsColor))
+                    .frame(width: 7, height: 7)
+                    .shadow(color: Color(color.nsColor).opacity(0.7), radius: 3)
+                    .help(appState.labelForColor(color.name))
+                    .accessibilityLabel("in \(appState.labelForColor(color.name))")
+            }
+
+            Text(clip.appName)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundColor(Color(red: 0.659, green: 0.855, blue: 0.863))
+
+            if let (url, host) = formattedUrlHost {
+                Link(destination: url) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "globe")
+                            .font(.system(size: 8))
+                        Text(host)
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.white.opacity(0.12))
+                    .cornerRadius(4)
+                    .foregroundColor(Color(color.nsColor))
                 }
+                .buttonStyle(.plain)
+                .help(url.absoluteString)
+            }
 
-                Text(clip.appName)
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundColor(Color(red: 0.659, green: 0.855, blue: 0.863))
+            Spacer()
 
-                if let urlString = clip.url, let url = URL(string: urlString) {
-                    Link(destination: url) {
-                        HStack(spacing: 3) {
-                            Image(systemName: "globe")
-                                .font(.system(size: 8))
-                            Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "link")
-                                .font(.system(size: 9, weight: .medium, design: .monospaced))
-                                .lineLimit(1)
-                        }
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(Color.white.opacity(0.12))
-                        .cornerRadius(4)
-                        .foregroundColor(Color(color.nsColor))
+            Text(timeAgo(from: clip.timestamp))
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundColor(Color.white.opacity(0.4))
+                .padding(.trailing, isHovered ? 56 : 0)
+        }
+    }
+
+    private var contentRow: some View {
+        HStack(alignment: .top, spacing: 8) {
+            if !clip.imagePaths.isEmpty {
+                ZStack(alignment: .bottomTrailing) {
+                    if let thumb = thumbnailImage {
+                        Image(nsImage: thumb)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 44, height: 44)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color(color.nsColor).opacity(0.6), lineWidth: 1)
+                            )
+                            .shadow(color: Color(color.nsColor).opacity(0.3), radius: 3)
+                    }
+                    if clip.imagePaths.count > 1 {
+                        Text("\(clip.imagePaths.count)")
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color(color.nsColor))
+                            .clipShape(Capsule())
+                            .offset(x: 2, y: 2)
+                    }
+                }
+            }
+
+            Text(TagLink.attributed(
+                String(clip.text.prefix(150)) + (clip.text.count > 150 ? "..." : ""),
+                tint: Color(color.nsColor)
+            ))
+            .font(.system(size: 12))
+            .lineLimit(3)
+            .foregroundColor(Color.white.opacity(0.9))
+            .tint(Color(color.nsColor))
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .fill(
+                LinearGradient(
+                    colors: isDropTargeted ?
+                        [Color(color.nsColor).opacity(0.25), Color(color.nsColor).opacity(0.15)] :
+                        isHovered ?
+                        [Color.white.opacity(0.18), Color.white.opacity(0.12)] :
+                        [Color.white.opacity(0.10), Color.white.opacity(0.06)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+    }
+
+    private var mergeOverlay: some View {
+        Group {
+            if isDropTargeted {
+                VStack(spacing: 0) {
+                    insertHint
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrow.triangle.merge")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("merge")
+                            .font(.system(size: 10, weight: .heavy, design: .rounded))
+                    }
+                    .foregroundColor(Color.black.opacity(0.8))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 24)
+                    .background(Color(color.nsColor).opacity(0.85))
+                    insertHint
+                }
+                .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private var hoverActions: some View {
+        Group {
+            if isHovered {
+                HStack(spacing: 4) {
+                    Button(action: {
+                        appState.copyToPasteboard(clip.text)
+                    }) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.85))
+                            .frame(width: 26, height: 26)
+                            .background(
+                                Circle()
+                                    .fill(Color.white.opacity(copyHovered ? 0.2 : 0.1))
+                            )
                     }
                     .buttonStyle(.plain)
-                    .help(urlString)
-                }
-
-                Spacer()
-
-                // Timestamp with padding to avoid overlap with hover buttons
-                Text(timeAgo(from: clip.timestamp))
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundColor(Color.white.opacity(0.4))
-                    .padding(.trailing, isHovered ? 56 : 0)
-            }
-
-            HStack(alignment: .top, spacing: 8) {
-                if !clip.imagePaths.isEmpty {
-                    ZStack(alignment: .bottomTrailing) {
-                        if let thumb = thumbnailImage {
-                            Image(nsImage: thumb)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 44, height: 44)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .stroke(Color(color.nsColor).opacity(0.6), lineWidth: 1)
-                                )
-                                .shadow(color: Color(color.nsColor).opacity(0.3), radius: 3)
+                    .help("Copy clip")
+                    .accessibilityLabel("Copy clip")
+                    .scaleEffect(copyHovered ? 1.15 : 1.0)
+                    .onHover { hovering in
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+                            copyHovered = hovering
                         }
-                        if clip.imagePaths.count > 1 {
-                            Text("\(clip.imagePaths.count)")
-                                .font(.system(size: 8, weight: .bold, design: .rounded))
-                                .foregroundColor(.black)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(Color(color.nsColor))
-                                .clipShape(Capsule())
-                                .offset(x: 2, y: 2)
+                    }
+
+                    Button(action: {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            appState.deleteClip(clip, from: color.name)
+                        }
+                    }) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.85))
+                            .frame(width: 26, height: 26)
+                            .background(
+                                Circle()
+                                    .fill(Color.white.opacity(deleteHovered ? 0.2 : 0.1))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Delete clip")
+                    .accessibilityLabel("Delete clip")
+                    .scaleEffect(deleteHovered ? 1.15 : 1.0)
+                    .onHover { hovering in
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+                            deleteHovered = hovering
                         }
                     }
                 }
-
-                Text(TagLink.attributed(
-                    String(clip.text.prefix(150)) + (clip.text.count > 150 ? "..." : ""),
-                    tint: Color(color.nsColor)
-                ))
-                .font(.system(size: 12))
-                .lineLimit(3)
-                .foregroundColor(Color.white.opacity(0.9))
-                .tint(Color(color.nsColor))
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(6)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var contextMenuContent: some View {
+        Button(action: { appState.copyToPasteboard(clip.text) }) {
+            Label("Copy Text", systemImage: "doc.on.doc")
+        }
+        if let img = thumbnailImage {
+            Button(action: {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.writeObjects([img])
+                appState.play(.copy)
+            }) {
+                Label("Copy Image", systemImage: "photo")
+            }
+        }
+        Divider()
+        if let clipsList = appState.clips[color.name],
+           let idx = clipsList.firstIndex(where: { $0.id == clip.id }) {
+            if idx > 0 {
+                let prev = clipsList[idx - 1]
+                Button(action: {
+                    appState.mergeClip(clip, into: prev, in: color.name)
+                }) {
+                    Label("Merge with Previous Clip", systemImage: "arrow.up.and.line.horizontal.and.arrow.down")
+                }
+            }
+            if idx < clipsList.count - 1 {
+                let next = clipsList[idx + 1]
+                Button(action: {
+                    appState.mergeClip(next, into: clip, in: color.name)
+                }) {
+                    Label("Merge with Next Clip", systemImage: "arrow.down.and.line.horizontal.and.arrow.up")
+                }
+            }
+        }
+        Divider()
+        Menu("Move to Color") {
+            ForEach(NibColor.all.filter { $0.name != color.name }) { targetColor in
+                Button(action: {
+                    appState.moveClip(clip, from: color.name, to: targetColor.name)
+                }) {
+                    Label(appState.labelForColor(targetColor.name), systemImage: "circle.fill")
+                }
+            }
+        }
+        Divider()
+        Button(role: .destructive, action: {
+            appState.deleteClip(clip, from: color.name)
+        }) {
+            Label("Delete Clip", systemImage: "trash")
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            headerRow
+            contentRow
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(
-                    LinearGradient(
-                        colors: isDropTargeted ?
-                            [Color(color.nsColor).opacity(0.25), Color(color.nsColor).opacity(0.15)] :
-                            isHovered ?
-                            [Color.white.opacity(0.18), Color.white.opacity(0.12)] :
-                            [Color.white.opacity(0.10), Color.white.opacity(0.06)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
+        .background(cardBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 10)
                 .stroke(Color(color.nsColor).opacity(isDropTargeted || isKeyFocused ? 0.9 : (isHovered ? 0.55 : 0.2)), lineWidth: isDropTargeted || isKeyFocused ? 2 : 1.5)
@@ -1339,82 +1482,8 @@ struct ClipView: View {
         // The merge zone used to be an invisible 24px band. Dropping there
         // destroys two clips to make one, so while a drag is over this card
         // the band names itself and the edges show where an insert would go.
-        .overlay(
-            Group {
-                if isDropTargeted {
-                    VStack(spacing: 0) {
-                        insertHint
-                        HStack(spacing: 5) {
-                            Image(systemName: "arrow.triangle.merge")
-                                .font(.system(size: 10, weight: .bold))
-                            Text("merge")
-                                .font(.system(size: 10, weight: .heavy, design: .rounded))
-                        }
-                        .foregroundColor(Color.black.opacity(0.8))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 24)
-                        .background(Color(color.nsColor).opacity(0.85))
-                        insertHint
-                    }
-                    .allowsHitTesting(false)
-                }
-            }
-        )
-        .overlay(
-            Group {
-                if isHovered {
-                    HStack(spacing: 4) {
-                        Button(action: {
-                            appState.copyToPasteboard(clip.text)
-                        }) {
-                            Image(systemName: "doc.on.doc")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.85))
-                                .frame(width: 26, height: 26)
-                                .background(
-                                    Circle()
-                                        .fill(Color.white.opacity(copyHovered ? 0.2 : 0.1))
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .help("Copy clip")
-                        .accessibilityLabel("Copy clip")
-                        .scaleEffect(copyHovered ? 1.15 : 1.0)
-                        .onHover { hovering in
-                            withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
-                                copyHovered = hovering
-                            }
-                        }
-
-                        Button(action: {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                appState.deleteClip(clip, from: color.name)
-                            }
-                        }) {
-                            Image(systemName: "trash")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.85))
-                                .frame(width: 26, height: 26)
-                                .background(
-                                    Circle()
-                                        .fill(Color.white.opacity(deleteHovered ? 0.2 : 0.1))
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .help("Delete clip")
-                        .accessibilityLabel("Delete clip")
-                        .scaleEffect(deleteHovered ? 1.15 : 1.0)
-                        .onHover { hovering in
-                            withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
-                                deleteHovered = hovering
-                            }
-                        }
-                    }
-                    .padding(6)
-                }
-            },
-            alignment: .topTrailing
-        )
+        .overlay(mergeOverlay)
+        .overlay(hoverActions, alignment: .topTrailing)
         .draggable(clip) {
             // Drag preview
             Text(clip.text.prefix(50))
@@ -1422,6 +1491,9 @@ struct ClipView: View {
                 .padding(8)
                 .background(Color(color.nsColor).opacity(0.3))
                 .cornerRadius(8)
+        }
+        .contextMenu {
+            contextMenuContent
         }
         .onHover { hovering in
             withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
@@ -2368,6 +2440,49 @@ struct AboutView: View {
                                 hoveredShortcut = hovering ? 6 : nil
                             }
                         }
+
+                        Divider()
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 8)
+
+                        ShortcutRow(
+                            icon: "space",
+                            description: "Preview / edit card & gallery",
+                            keys: ["Space"],
+                            color: NibColor.yellow,
+                            isHovered: hoveredShortcut == 7
+                        )
+                        .onHover { hovering in
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
+                                hoveredShortcut = hovering ? 7 : nil
+                            }
+                        }
+
+                        ShortcutRow(
+                            icon: "return",
+                            description: "Copy clip & dismiss",
+                            keys: ["Return"],
+                            color: NibColor.orange,
+                            isHovered: hoveredShortcut == 8
+                        )
+                        .onHover { hovering in
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
+                                hoveredShortcut = hovering ? 8 : nil
+                            }
+                        }
+
+                        ShortcutRow(
+                            icon: "arrow.uturn.backward",
+                            description: "Undo last action",
+                            keys: ["⌘", "Z"],
+                            color: NibColor.pink,
+                            isHovered: hoveredShortcut == 9
+                        )
+                        .onHover { hovering in
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
+                                hoveredShortcut = hovering ? 9 : nil
+                            }
+                        }
                     }
                 }
                 .padding(.bottom, 20)
@@ -2496,38 +2611,38 @@ struct WelcomeView: View {
             // Content
             VStack(alignment: .leading, spacing: 20) {
                 FeatureRow(
-                    icon: "doc.on.clipboard",
+                    icon: "camera.viewfinder",
                     color: NibColor.yellow,
-                    title: "Automatic Capture",
-                    description: "Copy anything and NibNab saves it to your active color"
+                    title: "Screenshots & Offline OCR",
+                    description: "Snap screenshots (⌘⇧4) — NibNab grabs the image & runs local Apple Vision OCR"
                 )
 
                 FeatureRow(
-                    icon: "paintpalette",
+                    icon: "tag",
                     color: NibColor.pink,
-                    title: "Color Collections",
-                    description: "Organize clips with 5 vibrant colors. Switch anytime with ⌃⌘1-5"
+                    title: "ZipList Tag Rack",
+                    description: "Include #tags in your notes — they turn into interactive filter pills with anti-drift"
                 )
 
                 FeatureRow(
-                    icon: "keyboard",
+                    icon: "arrow.triangle.merge",
                     color: NibColor.green,
-                    title: "Keyboard Shortcuts",
-                    description: "Toggle popover: ⌃⌘N • Auto-capture: ⌃⌘M • Right-click menubar icon for more"
+                    title: "Multi-Image Cards & Merge",
+                    description: "Drag cards together or right-click to fuse screenshots & notes into rich cards"
                 )
 
                 FeatureRow(
                     icon: "magnifyingglass",
                     color: NibColor.purple,
-                    title: "Find It Later",
-                    description: "Search looks in every color at once, so you never have to remember where a clip went"
+                    title: "Find It Anywhere",
+                    description: "Instant in-memory search across all 5 colors simultaneously by text, tag, or app"
                 )
 
                 FeatureRow(
                     icon: "square.and.arrow.down",
                     color: NibColor.orange,
-                    title: "Yours To Keep",
-                    description: "Clips are plain markdown files on your Mac. Export any color as Markdown or text"
+                    title: "Yours To Keep (Obsidian Ready)",
+                    description: "Plain Markdown & companion PNGs on your Mac. Export self-contained bundles anytime"
                 )
             }
             .padding(.horizontal, 32)
