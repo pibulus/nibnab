@@ -396,6 +396,51 @@ final class StorageManager {
         }
     }
 
+    func undoDirectoryURL(for colorName: String) -> URL {
+        imagesDirectoryURL(for: colorName).appendingPathComponent(".undo", isDirectory: true)
+    }
+
+    /// Moves an image to the staging .undo folder instead of deleting it immediately,
+    /// so that an Undo operation can restore it seamlessly.
+    func moveImageToUndo(at relativePath: String, for colorName: String) {
+        let sourceURL = imageURL(for: relativePath, in: colorName)
+        guard self.fileManager.fileExists(atPath: sourceURL.path) else { return }
+        let undoDir = undoDirectoryURL(for: colorName)
+        try? self.fileManager.createDirectory(at: undoDir, withIntermediateDirectories: true)
+        let filename = sourceURL.lastPathComponent
+        let destURL = undoDir.appendingPathComponent(filename)
+        do {
+            if self.fileManager.fileExists(atPath: destURL.path) {
+                try self.fileManager.removeItem(at: destURL)
+            }
+            try self.fileManager.moveItem(at: sourceURL, to: destURL)
+        } catch {
+            self.logger.error("Failed moving image to undo staging: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Restores all staged undo images back into the main images directory.
+    func restoreImagesFromUndo(for colorName: String) {
+        let undoDir = undoDirectoryURL(for: colorName)
+        guard let items = try? self.fileManager.contentsOfDirectory(at: undoDir, includingPropertiesForKeys: nil) else { return }
+        ensureDirectoryExists(for: colorName)
+        for item in items {
+            let destURL = imagesDirectoryURL(for: colorName).appendingPathComponent(item.lastPathComponent)
+            if self.fileManager.fileExists(atPath: destURL.path) {
+                try? self.fileManager.removeItem(at: destURL)
+            }
+            try? self.fileManager.moveItem(at: item, to: destURL)
+        }
+        try? self.fileManager.removeItem(at: undoDir)
+    }
+
+    /// Permanently deletes all staged undo images for a color collection.
+    func purgeUndoImages(for colorName: String) {
+        let undoDir = undoDirectoryURL(for: colorName)
+        guard self.fileManager.fileExists(atPath: undoDir.path) else { return }
+        try? self.fileManager.removeItem(at: undoDir)
+    }
+
     private func clipFileURL(for colorName: String) -> URL {
         directoryURL(for: colorName).appendingPathComponent("\(colorName.lowercased())_clips.md")
     }

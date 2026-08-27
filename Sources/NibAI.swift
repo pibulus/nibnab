@@ -10,7 +10,7 @@ enum NibAI {
             throw NSError(domain: "NibAI", code: 401, userInfo: [NSLocalizedDescriptionKey: "Missing API Key"])
         }
 
-        let urlString = "https://generativelanguage.googleapis.com/v1beta/models/\(defaultModel):generateContent?key=\(trimmedKey)"
+        let urlString = "https://generativelanguage.googleapis.com/v1beta/models/\(defaultModel):generateContent"
         guard let url = URL(string: urlString) else {
             throw NSError(domain: "NibAI", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
         }
@@ -18,6 +18,7 @@ enum NibAI {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue(trimmedKey, forHTTPHeaderField: "x-goog-api-key")
 
         let body: [String: Any] = [
             "contents": [

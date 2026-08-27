@@ -133,15 +133,19 @@ class AppState: ObservableObject {
     /// All unique tags across all color collections with their frequency counts,
     /// sorted by highest count first. Powers the ZipList-style Tag Rack Shelf.
     var allTagsWithCounts: [(tag: String, count: Int)] {
-        var counts: [String: Int] = [:]
+        var rawCounts: [String: Int] = [:]
         for (_, list) in clips {
             for clip in list {
-                let tags = NibTag.tags(in: clip.text)
-                for tag in tags {
-                    let canonical = NibTag.canonicalTag(tag, existingTags: Array(counts.keys))
-                    counts[canonical, default: 0] += 1
+                for tag in NibTag.tags(in: clip.text) {
+                    rawCounts[tag.lowercased(), default: 0] += 1
                 }
             }
+        }
+        let vocabulary = Array(rawCounts.keys)
+        var counts: [String: Int] = [:]
+        for (raw, count) in rawCounts {
+            let canonical = NibTag.canonicalTag(raw, existingTags: vocabulary)
+            counts[canonical, default: 0] += count
         }
         return counts.sorted { lhs, rhs in
             if lhs.value != rhs.value {
@@ -186,6 +190,13 @@ class AppState: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self.delegate?.showWelcomeWindow()
             }
+        }
+    }
+
+    private func deleteImages(_ clips: [Clip], keepingImagePath keepPath: String?, in colorName: String) {
+        for clip in clips {
+            guard let path = clip.imagePath, path != keepPath else { continue }
+            storageManager.deleteImage(at: path, for: colorName)
         }
     }
 
@@ -532,14 +543,21 @@ class AppState: ObservableObject {
         default:
             return nil
         }
-        var error: NSDictionary?
-        guard let script = NSAppleScript(source: scriptText),
-              let output = script.executeAndReturnError(&error).stringValue,
-              !output.isEmpty,
-              output.hasPrefix("http://") || output.hasPrefix("https://") else {
-            return nil
+        var result: String? = nil
+        let semaphore = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .utility).async {
+            defer { semaphore.signal() }
+            var error: NSDictionary?
+            guard let script = NSAppleScript(source: scriptText),
+                  let output = script.executeAndReturnError(&error).stringValue,
+                  !output.isEmpty,
+                  output.hasPrefix("http://") || output.hasPrefix("https://") else {
+                return
+            }
+            result = output
         }
-        return output
+        _ = semaphore.wait(timeout: .now() + 0.15)
+        return result
     }
 
     func play(_ sound: NibSound, transpose: Float = 1) {
@@ -552,6 +570,9 @@ class AppState: ObservableObject {
     }
 
     private func snapshotForUndo(_ colorNames: [String], what: String) {
+        if let old = undoSnapshot {
+            for name in old.colors.keys { storageManager.purgeUndoImages(for: name) }
+        }
         var snapshot: [String: [Clip]] = [:]
         for name in colorNames { snapshot[name] = clips[name] ?? [] }
         undoSnapshot = (snapshot, what)
@@ -559,6 +580,9 @@ class AppState: ObservableObject {
     }
 
     private func invalidateUndo() {
+        if let snapshot = undoSnapshot {
+            for name in snapshot.colors.keys { storageManager.purgeUndoImages(for: name) }
+        }
         undoSnapshot = nil
         canUndo = false
         toastUndoable = false
@@ -567,6 +591,7 @@ class AppState: ObservableObject {
     func undoLast() {
         guard let snapshot = undoSnapshot else { return }
         for (name, list) in snapshot.colors {
+            storageManager.restoreImagesFromUndo(for: name)
             clips[name] = list
             storageManager.rewriteClips(list, for: name)
         }
@@ -580,7 +605,7 @@ class AppState: ObservableObject {
         snapshotForUndo([colorName], what: "delete")
         clips[colorName]?.removeAll { $0.id == clip.id }
         if let imagePath = clip.imagePath {
-            storageManager.deleteImage(at: imagePath, for: colorName)
+            storageManager.moveImageToUndo(at: imagePath, for: colorName)
         }
         storageManager.rewriteClips(clips[colorName] ?? [], for: colorName)
         play(.delete)
@@ -593,7 +618,7 @@ class AppState: ObservableObject {
         if let colorClips = clips[colorName] {
             for clip in colorClips {
                 if let imagePath = clip.imagePath {
-                    storageManager.deleteImage(at: imagePath, for: colorName)
+                    storageManager.moveImageToUndo(at: imagePath, for: colorName)
                 }
             }
         }
@@ -676,6 +701,7 @@ class AppState: ObservableObject {
               let merged = colorClips.mergedIntoOne() else { return }
 
         snapshotForUndo([colorName], what: "merge all")
+        deleteImages(colorClips, keepingImagePath: merged.imagePath, in: colorName)
 
         clips[colorName] = [merged]
         storageManager.rewriteClips([merged], for: colorName)
@@ -704,6 +730,8 @@ class AppState: ObservableObject {
 
         let mergedText = target.text + "\n" + source.text
         let primaryImagePath = target.imagePath ?? source.imagePath
+        deleteImages([source], keepingImagePath: primaryImagePath, in: colorName)
+
         let merged = Clip(
             text: mergedText,
             timestamp: Date(),
@@ -840,6 +868,10 @@ class AppState: ObservableObject {
         snapshotForUndo(Array(Set(holders + [targetColor])), what: "merge")
 
         let touched = clips.removeClips(ids: ids).union([targetColor])
+        for name in touched {
+            let removed = clipsToMerge.filter { !self.clips[name, default: []].contains($0) }
+            deleteImages(removed, keepingImagePath: merged.imagePath, in: name)
+        }
         clips[targetColor, default: []].insert(merged, at: 0)
 
         for name in touched {

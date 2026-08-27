@@ -71,6 +71,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
     <false/>
     <key>NSAccessibilityUsageDescription</key>
     <string>NibNab needs accessibility access to auto-capture selected text. You can still use NibNab with just Cmd+C if you deny this permission.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>NibNab reads the current browser URL to attach it to captured clips. You can still use NibNab without this.</string>
     <key>UTExportedTypeDeclarations</key>
     <array>
         <dict>

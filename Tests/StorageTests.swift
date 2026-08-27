@@ -423,5 +423,14 @@ enum StorageTests {
         let targetURL = storage.imageURL(for: imageRelPath, in: targetColor)
         expect(FileManager.default.fileExists(atPath: targetURL.path), "image file moved to target color directory")
         expect(!FileManager.default.fileExists(atPath: fullURL.path), "source image removed after move")
+
+        // Test undo staging and restoration
+        storage.moveImageToUndo(at: imageRelPath, for: targetColor)
+        expect(!FileManager.default.fileExists(atPath: targetURL.path), "image moved to .undo staging")
+        storage.restoreImagesFromUndo(for: targetColor)
+        expect(FileManager.default.fileExists(atPath: targetURL.path), "image restored from .undo staging")
+        storage.moveImageToUndo(at: imageRelPath, for: targetColor)
+        storage.purgeUndoImages(for: targetColor)
+        expect(!FileManager.default.fileExists(atPath: targetURL.path), "purged undo images cleaned from disk")
     }
 }
