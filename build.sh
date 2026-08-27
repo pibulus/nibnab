@@ -115,6 +115,7 @@ if swiftc -O -parse-as-library \
     -framework Cocoa \
     -framework SwiftUI \
     -framework AVFoundation \
+    -framework Vision \
     -o "$APP_BUNDLE/Contents/MacOS/${APP_NAME}" \
     Sources/*.swift; then
 
