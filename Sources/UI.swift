@@ -356,6 +356,100 @@ struct ContentHeaderView: View {
     }
 }
 
+// MARK: - ZipList-style Tag Rack Shelf
+struct TagRackShelfView: View {
+    @EnvironmentObject var appState: AppState
+    @Binding var searchText: String
+    let horizontalPadding: CGFloat
+
+    var body: some View {
+        let tags = appState.allTagsWithCounts
+        if !tags.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    TagPill(
+                        title: "All",
+                        count: nil,
+                        isSelected: searchText.isEmpty,
+                        tint: Color(appState.activeColor.nsColor),
+                        action: {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                                searchText = ""
+                            }
+                        }
+                    )
+
+                    ForEach(tags, id: \.tag) { item in
+                        let isSelected = searchText.lowercased() == item.tag.lowercased()
+                        TagPill(
+                            title: item.tag,
+                            count: item.count,
+                            isSelected: isSelected,
+                            tint: Color(appState.activeColor.nsColor),
+                            action: {
+                                withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                                    if isSelected {
+                                        searchText = ""
+                                    } else {
+                                        searchText = item.tag
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, horizontalPadding)
+                .padding(.vertical, 6)
+            }
+            .background(Color.black.opacity(0.45))
+        }
+    }
+}
+
+struct TagPill: View {
+    let title: String
+    let count: Int?
+    let isSelected: Bool
+    let tint: Color
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .rounded))
+                    .foregroundColor(isSelected ? Color.black : (isHovered ? tint : Color.white.opacity(0.85)))
+
+                if let count = count {
+                    Text("\(count)")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundColor(isSelected ? Color.black.opacity(0.7) : (isHovered ? tint.opacity(0.9) : Color.white.opacity(0.45)))
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(
+                Capsule()
+                    .fill(isSelected ? tint : Color.white.opacity(isHovered ? 0.16 : 0.08))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(isSelected ? tint : (isHovered ? tint.opacity(0.5) : Color.white.opacity(0.15)), lineWidth: 1)
+            )
+            .scaleEffect(isHovered ? 1.05 : 1.0)
+            .shadow(color: isSelected ? tint.opacity(0.4) : .clear, radius: 4)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
 struct ContentFooterView: View {
     @EnvironmentObject var appState: AppState
     @Binding var editingLabel: Bool
@@ -677,6 +771,12 @@ struct ContentView: View {
                     clipCount: appState.clips[appState.activeColor.name]?.count ?? 0,
                     visibleClips: rows.map(\.clip),
                     searchLabel: isSearching ? "\u{201C}\(searchText)\u{201D}" : nil,
+                    horizontalPadding: Self.horizontalPadding - 10
+                )
+                .environmentObject(appState)
+
+                TagRackShelfView(
+                    searchText: $searchText,
                     horizontalPadding: Self.horizontalPadding - 10
                 )
                 .environmentObject(appState)
@@ -1065,6 +1165,12 @@ struct ClipView: View {
     @State private var copyHovered = false
     @State private var deleteHovered = false
 
+    private var thumbnailImage: NSImage? {
+        guard let path = clip.imagePath else { return nil }
+        let url = appState.storageManager.imageURL(for: path, in: color.name)
+        return NSImage(contentsOf: url)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
@@ -1090,14 +1196,30 @@ struct ClipView: View {
                     .padding(.trailing, isHovered ? 56 : 0)
             }
 
-            Text(TagLink.attributed(
-                String(clip.text.prefix(150)) + (clip.text.count > 150 ? "..." : ""),
-                tint: Color(color.nsColor)
-            ))
+            HStack(alignment: .top, spacing: 8) {
+                if let thumb = thumbnailImage {
+                    Image(nsImage: thumb)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color(color.nsColor).opacity(0.6), lineWidth: 1)
+                        )
+                        .shadow(color: Color(color.nsColor).opacity(0.3), radius: 3)
+                }
+
+                Text(TagLink.attributed(
+                    String(clip.text.prefix(150)) + (clip.text.count > 150 ? "..." : ""),
+                    tint: Color(color.nsColor)
+                ))
                 .font(.system(size: 12))
                 .lineLimit(3)
                 .foregroundColor(Color.white.opacity(0.9))
                 .tint(Color(color.nsColor))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
@@ -1293,6 +1415,38 @@ struct EditClipModal: View {
                 .background(Color.black.opacity(0.7))
                 .focused($textFocused)
 
+            // Tag suggestions
+            if !appState.allTagsWithCounts.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(appState.allTagsWithCounts.prefix(10), id: \.tag) { item in
+                            Button(action: {
+                                if !clipText.contains(item.tag) {
+                                    clipText = (clipText.isEmpty ? "" : clipText + " ") + item.tag
+                                }
+                            }) {
+                                HStack(spacing: 3) {
+                                    Text(item.tag)
+                                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    Text("\(item.count)")
+                                        .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                                        .opacity(0.6)
+                                }
+                                .foregroundColor(Color(appState.activeColor.nsColor))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color(appState.activeColor.nsColor).opacity(0.14))
+                                .cornerRadius(5)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+                }
+                .background(Color.black.opacity(0.5))
+            }
+
             // Footer with actions
             HStack(spacing: 12) {
                 Button(action: onDismiss) {
@@ -1436,6 +1590,38 @@ struct AddClipModal: View {
                 .onAppear {
                     textFocused = true
                 }
+
+            // Tag suggestions
+            if !appState.allTagsWithCounts.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(appState.allTagsWithCounts.prefix(10), id: \.tag) { item in
+                            Button(action: {
+                                if !clipText.contains(item.tag) {
+                                    clipText = (clipText.isEmpty ? "" : clipText + " ") + item.tag
+                                }
+                            }) {
+                                HStack(spacing: 3) {
+                                    Text(item.tag)
+                                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    Text("\(item.count)")
+                                        .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                                        .opacity(0.6)
+                                }
+                                .foregroundColor(Color(appState.activeColor.nsColor))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color(appState.activeColor.nsColor).opacity(0.14))
+                                .cornerRadius(5)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+                }
+                .background(Color.black.opacity(0.5))
+            }
 
             // Footer with actions
             HStack(spacing: 12) {
@@ -1684,22 +1870,41 @@ struct ClipDetailView: View {
             }
 
             // Content
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.black.opacity(0.7))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(appState.activeColor.nsColor).opacity(0.5), lineWidth: 1)
-                    )
+            VStack(spacing: 8) {
+                if let imagePath = clip.imagePath,
+                   let nsImage = NSImage(contentsOf: appState.storageManager.imageURL(for: imagePath, in: colorName)) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxHeight: 130)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(appState.activeColor.nsColor).opacity(0.6), lineWidth: 1)
+                        )
+                        .shadow(color: Color(appState.activeColor.nsColor).opacity(0.25), radius: 6)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                }
 
-                TextEditor(text: $editedText)
-                    .font(.system(size: 14))
-                    .foregroundColor(Color.white.opacity(0.92))
-                    .scrollContentBackground(.hidden)
-                    .padding(18)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.black.opacity(0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color(appState.activeColor.nsColor).opacity(0.5), lineWidth: 1)
+                        )
+
+                    TextEditor(text: $editedText)
+                        .font(.system(size: 14))
+                        .foregroundColor(Color.white.opacity(0.92))
+                        .scrollContentBackground(.hidden)
+                        .padding(14)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             // Footer with actions
             HStack(spacing: 12) {
@@ -1717,11 +1922,30 @@ struct ClipDetailView: View {
                 .background(Color.white.opacity(copyHovered ? 0.3 : 0.2))
                 .cornerRadius(8)
                 .scaleEffect(copyHovered ? 1.05 : 1.0)
-                .help("Copy to clipboard")
+                .help("Copy text to clipboard")
                 .onHover { hovering in
                     withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                         copyHovered = hovering
                     }
+                }
+
+                if let imagePath = clip.imagePath,
+                   let nsImage = NSImage(contentsOf: appState.storageManager.imageURL(for: imagePath, in: colorName)) {
+                    Button(action: {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.writeObjects([nsImage])
+                        appState.play(.copy)
+                        onDismiss()
+                    }) {
+                        Image(systemName: "photo")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white.opacity(0.9))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(10)
+                    .background(Color.white.opacity(0.2))
+                    .cornerRadius(8)
+                    .help("Copy image to clipboard")
                 }
 
                 Button(action: {
