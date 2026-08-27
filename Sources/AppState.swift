@@ -476,9 +476,30 @@ class AppState: ObservableObject {
         }
     }
 
-    func updateClipText(clipID: UUID, newText: String, in colorName: String) {
-        guard let index = clips[colorName]?.firstIndex(where: { $0.id == clipID }) else { return }
-        let existing = clips[colorName]![index]
+    func updateClipText(clipID: UUID, newText: String, in preferredColorName: String? = nil) {
+        let targetColor: String
+        let targetIndex: Int
+
+        if let preferred = preferredColorName,
+           let index = clips[preferred]?.firstIndex(where: { $0.id == clipID }) {
+            targetColor = preferred
+            targetIndex = index
+        } else {
+            var foundColor: String? = nil
+            var foundIndex: Int? = nil
+            for (color, list) in clips {
+                if let idx = list.firstIndex(where: { $0.id == clipID }) {
+                    foundColor = color
+                    foundIndex = idx
+                    break
+                }
+            }
+            guard let c = foundColor, let i = foundIndex else { return }
+            targetColor = c
+            targetIndex = i
+        }
+
+        let existing = clips[targetColor]![targetIndex]
         let updated = Clip(
             text: newText,
             timestamp: existing.timestamp,
@@ -488,9 +509,9 @@ class AppState: ObservableObject {
             id: existing.id,
             imagePath: existing.imagePath
         )
-        clips[colorName]?[index] = updated
-        if let colorClips = clips[colorName] {
-            storageManager.rewriteClips(colorClips, for: colorName)
+        clips[targetColor]?[targetIndex] = updated
+        if let colorClips = clips[targetColor] {
+            storageManager.rewriteClips(colorClips, for: targetColor)
         }
     }
 
