@@ -112,14 +112,27 @@ fi
 
 # Compile Swift
 echo -e "${YELLOW}Compiling Swift code...${NC}"
-if swiftc -O -parse-as-library \
-    -target arm64-apple-macos13.0 \
-    -framework Cocoa \
-    -framework SwiftUI \
-    -framework AVFoundation \
-    -framework Vision \
-    -o "$APP_BUNDLE/Contents/MacOS/${APP_NAME}" \
-    Sources/*.swift; then
+# Build each architecture separately, then fuse. lipo output carries NO
+# signature, so the codesign below is what makes it launchable at all —
+# Apple Silicon refuses to spawn unsigned arm64 code (errno 163).
+_build_arch() {
+    swiftc -O -parse-as-library \
+        -target "$1-apple-macos13.0" \
+        -framework Cocoa \
+        -framework SwiftUI \
+        -framework AVFoundation \
+        -framework Vision \
+        -o "$2" \
+        Sources/*.swift
+}
+
+ARCH_TMP="$(mktemp -d)"
+trap 'rm -rf "$ARCH_TMP"' EXIT
+
+if _build_arch arm64 "$ARCH_TMP/arm64" \
+    && _build_arch x86_64 "$ARCH_TMP/x86_64" \
+    && lipo -create -output "$APP_BUNDLE/Contents/MacOS/${APP_NAME}" \
+        "$ARCH_TMP/arm64" "$ARCH_TMP/x86_64"; then
 
     echo -e "${GREEN}✅ Build successful!${NC}"
     echo -e "${GREEN}📦 App created at: $APP_BUNDLE${NC}"
