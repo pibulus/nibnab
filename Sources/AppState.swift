@@ -80,6 +80,7 @@ class AppState: ObservableObject {
                 }
             }
             delegate?.syncSelectionMonitoring()
+            delegate?.updateMenubarIcon()
         }
     }
     @Published var clips: [String: [Clip]] = [:]
@@ -383,6 +384,52 @@ class AppState: ObservableObject {
     }
 
     func saveImageClip(data: Data, to color: NibColor, from sourceApp: String, url: String? = nil) {
+        // Coalesce burst screenshots from the same source app within 2 minutes (up to 10 images)
+        if let topClip = clips[color.name]?.first,
+           !topClip.imagePaths.isEmpty,
+           topClip.imagePaths.count < 10,
+           topClip.appName == sourceApp,
+           abs(Date().timeIntervalSince(topClip.timestamp)) < 120,
+           let relPath = storageManager.saveImageData(data, id: topClip.id, for: color.name) {
+
+            let updatedImages = topClip.imagePaths + [relPath]
+            let updatedClip = Clip(
+                text: topClip.text,
+                timestamp: Date(),
+                url: topClip.url ?? url,
+                appName: topClip.appName,
+                order: topClip.order,
+                id: topClip.id,
+                imagePaths: updatedImages
+            )
+            clips[color.name]?[0] = updatedClip
+            if let colorClips = clips[color.name] {
+                storageManager.rewriteClips(colorClips, for: color.name)
+            }
+            play(.capture)
+            delegate?.pulseMenuBarIcon()
+            showToast("Added to screenshot card (\(updatedImages.count))", color: color)
+
+            // Run OCR for the new image and append recognized text
+            Task {
+                let recognized = await VisionOCR.recognizeText(from: data)
+                if !recognized.isEmpty {
+                    await MainActor.run {
+                        if let current = self.clips[color.name]?.first(where: { $0.id == topClip.id }) {
+                            let newText: String
+                            if current.text.hasPrefix("Screenshot (") {
+                                newText = recognized
+                            } else {
+                                newText = current.text + "\n\n" + recognized
+                            }
+                            self.updateClipText(clipID: topClip.id, newText: newText, in: color.name)
+                        }
+                    }
+                }
+            }
+            return
+        }
+
         let clipID = UUID()
         guard let relPath = storageManager.saveImageData(data, id: clipID, for: color.name) else { return }
 
@@ -453,6 +500,36 @@ class AppState: ObservableObject {
                     }
                 }
             }
+        }
+    }
+
+    /// Captures the current text selection (if accessibility is trusted) or
+    /// pasteboard contents directly into the specified color collection.
+    func captureCurrentSelectionOrClipboard(to targetColor: NibColor) {
+        let sourceApp = getCurrentAppName()
+        let browserURL = getCurrentBrowserURL(for: sourceApp)
+
+        var textToSave: String? = nil
+        if let focused = AXUIElement.focusedElement,
+           let selected = focused.selectedText,
+           !selected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            textToSave = selected
+        }
+
+        if textToSave == nil {
+            let pasteboard = NSPasteboard.general
+            if let imageData = Self.extractImageData(from: pasteboard) {
+                saveImageClip(data: imageData, to: targetColor, from: sourceApp, url: browserURL)
+                return
+            }
+            textToSave = pasteboard.string(forType: .string) ?? Self.filePaths(from: pasteboard)
+        }
+
+        if let text = textToSave, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            saveClip(text, to: targetColor, from: sourceApp, url: browserURL)
+            showToast("Saved to \(labelForColor(targetColor.name))", color: targetColor)
+        } else {
+            showToast("Nothing to copy", color: targetColor)
         }
     }
 

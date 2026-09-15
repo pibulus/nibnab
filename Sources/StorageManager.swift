@@ -361,8 +361,15 @@ final class StorageManager {
 
     func saveImageData(_ data: Data, id: UUID, for colorName: String) -> String? {
         ensureDirectoryExists(for: colorName)
-        let filename = "\(id.uuidString).png"
-        let fileURL = imagesDirectoryURL(for: colorName).appendingPathComponent(filename)
+        let dir = imagesDirectoryURL(for: colorName)
+        var filename = "\(id.uuidString).png"
+        var fileURL = dir.appendingPathComponent(filename)
+
+        if self.fileManager.fileExists(atPath: fileURL.path) {
+            filename = "\(id.uuidString)_\(UUID().uuidString.prefix(8)).png"
+            fileURL = dir.appendingPathComponent(filename)
+        }
+
         do {
             try data.write(to: fileURL, options: .atomic)
             return "images/\(filename)"

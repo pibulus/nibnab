@@ -340,7 +340,7 @@ enum StorageTests {
         expect(NibTag.tags(in: "no tags here").isEmpty, "no false positives in plain prose")
 
         // The reasons a naive #-scan lights up every code clip.
-        expect(NibTag.tags(in: "color: #FFEB3B;").isEmpty, "hex colours are not tags")
+        expect(NibTag.tags(in: "color: #FFEB3B; background: #fff; border: #000000ff;").isEmpty, "hex colours (3, 6, 8 digits) are not tags")
         expect(NibTag.tags(in: "see issue #42").isEmpty, "issue numbers are not tags")
         expect(NibTag.tags(in: "#include <stdio.h>") == ["#include"], "a real word after # is a tag")
         expect(NibTag.tags(in: "id#5 and a#b").isEmpty, "mid-word hashes are not tags")

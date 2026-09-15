@@ -23,7 +23,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var eventMonitor: EventMonitor?
     var autoCopyMonitor: AutoCopyMonitor?
     private var localKeyMonitor: Any?
-    private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 7)
+    private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 12)
     private var hotKeyHandlerRef: EventHandlerRef?
 
     private var welcomeWindow: NSWindow?
@@ -248,7 +248,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             item.image = image
             item.representedObject = color
             item.state = appState.activeColor.name == color.name ? .on : .off
-            item.toolTip = "Keyboard shortcut: \(colorShortcuts[index])"
+            item.toolTip = "Switch color: \(colorShortcuts[index]) (Direct copy: ⌃⌥⌘\(index + 1))"
             menu.addItem(item)
         }
 
@@ -478,29 +478,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let signature = OSType(0x4E42_4E42) // 'NBNB'
 
         // IDs map to actions in the handler below.
-        let bindings: [(keyCode: Int, id: UInt32, label: String)] = [
-            (kVK_ANSI_N, 1, "⌃⌘N toggle popover"),
-            (kVK_ANSI_1, 2, "⌃⌘1 yellow"),
-            (kVK_ANSI_2, 3, "⌃⌘2 orange"),
-            (kVK_ANSI_3, 4, "⌃⌘3 pink"),
-            (kVK_ANSI_4, 5, "⌃⌘4 purple"),
-            (kVK_ANSI_5, 6, "⌃⌘5 green"),
-            (kVK_ANSI_M, 7, "⌃⌘M toggle capture")
+        let bindings: [(keyCode: Int, modifiers: UInt32, id: UInt32, label: String)] = [
+            (kVK_ANSI_N, UInt32(cmdKey | controlKey), 1, "⌃⌘N toggle popover"),
+            (kVK_ANSI_1, UInt32(cmdKey | controlKey), 2, "⌃⌘1 yellow"),
+            (kVK_ANSI_2, UInt32(cmdKey | controlKey), 3, "⌃⌘2 orange"),
+            (kVK_ANSI_3, UInt32(cmdKey | controlKey), 4, "⌃⌘3 pink"),
+            (kVK_ANSI_4, UInt32(cmdKey | controlKey), 5, "⌃⌘4 purple"),
+            (kVK_ANSI_5, UInt32(cmdKey | controlKey), 6, "⌃⌘5 green"),
+            (kVK_ANSI_M, UInt32(cmdKey | controlKey), 7, "⌃⌘M toggle capture"),
+            (kVK_ANSI_1, UInt32(cmdKey | controlKey | optionKey), 8, "⌃⌥⌘1 copy to yellow"),
+            (kVK_ANSI_2, UInt32(cmdKey | controlKey | optionKey), 9, "⌃⌥⌘2 copy to orange"),
+            (kVK_ANSI_3, UInt32(cmdKey | controlKey | optionKey), 10, "⌃⌥⌘3 copy to pink"),
+            (kVK_ANSI_4, UInt32(cmdKey | controlKey | optionKey), 11, "⌃⌥⌘4 copy to purple"),
+            (kVK_ANSI_5, UInt32(cmdKey | controlKey | optionKey), 12, "⌃⌥⌘5 copy to green")
         ]
 
         for (index, binding) in bindings.enumerated() {
             let hotKeyID = EventHotKeyID(signature: signature, id: binding.id)
             let status = RegisterEventHotKey(
                 UInt32(binding.keyCode),
-                UInt32(cmdKey | controlKey),
+                binding.modifiers,
                 hotKeyID,
                 GetApplicationEventTarget(),
                 0,
                 &hotKeyRefs[index]
             )
             if status != noErr {
-                // Another app (window managers love ⌃⌘ digits) owns this
-                // combo — the shortcut silently won't fire, so leave a trace.
+                // Another app owns this combo — the shortcut silently won't fire, so leave a trace.
 #if DEBUG
                 NSLog("NibNab: couldn't register global hotkey %@ (OSStatus %d)", binding.label, status)
 #endif
@@ -540,6 +544,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         selfPointer.appState.switchToColor(NibColor.green)
                     case 7:
                         selfPointer.toggleAutoCapture()
+                    case 8:
+                        selfPointer.appState.captureCurrentSelectionOrClipboard(to: NibColor.yellow)
+                    case 9:
+                        selfPointer.appState.captureCurrentSelectionOrClipboard(to: NibColor.orange)
+                    case 10:
+                        selfPointer.appState.captureCurrentSelectionOrClipboard(to: NibColor.pink)
+                    case 11:
+                        selfPointer.appState.captureCurrentSelectionOrClipboard(to: NibColor.purple)
+                    case 12:
+                        selfPointer.appState.captureCurrentSelectionOrClipboard(to: NibColor.green)
                     default:
                         break
                     }

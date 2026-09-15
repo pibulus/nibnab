@@ -190,6 +190,10 @@ struct ContentHeaderView: View {
     @Binding var showClearConfirm: Bool
     @Binding var showHelp: Bool
     @Binding var showApiKeyModal: Bool
+    @Binding var editingLabel: Bool
+    @Binding var labelText: String
+    @Binding var labelHovered: Bool
+    var labelFocused: FocusState<Bool>.Binding
     let clipCount: Int
     /// The clips currently on screen. While searching these span colours, and
     /// every collection action follows them instead of the active colour.
@@ -216,18 +220,70 @@ struct ContentHeaderView: View {
                 endPoint: .bottom
             )
         )
+        .onChange(of: appState.activeColor.name) { _ in
+            if editingLabel {
+                editingLabel = false
+                labelFocused.wrappedValue = false
+            }
+        }
     }
 
     private var primaryControls: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "highlighter")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(Color(appState.activeColor.nsColor))
-                Text("NibNab")
-                    .font(.system(size: 18, weight: .black, design: .rounded))
-                    .foregroundColor(Color(appState.activeColor.nsColor))
-                    .fixedSize()
+        HStack(spacing: 8) {
+            Image(systemName: "highlighter")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(Color(appState.activeColor.nsColor))
+
+            if editingLabel {
+                HStack(spacing: 4) {
+                    TextField("", text: $labelText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 15, weight: .black, design: .rounded))
+                        .foregroundColor(Color(appState.activeColor.nsColor))
+                        .frame(maxWidth: 100)
+                        .focused(labelFocused)
+                        .onSubmit {
+                            appState.setLabel(labelText, forColor: appState.activeColor.name)
+                            editingLabel = false
+                            labelFocused.wrappedValue = false
+                        }
+                        .onExitCommand {
+                            editingLabel = false
+                            labelFocused.wrappedValue = false
+                        }
+
+                    Text("\(labelText.count)/12")
+                        .font(.system(size: 8, design: .monospaced))
+                        .foregroundColor(Color.white.opacity(labelText.count > 12 ? 0.8 : 0.4))
+                }
+            } else {
+                Button(action: {
+                    labelText = appState.labelForColor(appState.activeColor.name)
+                    editingLabel = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        labelFocused.wrappedValue = true
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Text(appState.labelForColor(appState.activeColor.name))
+                            .font(.system(size: 15, weight: .black, design: .rounded))
+                            .foregroundColor(Color(appState.activeColor.nsColor))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(maxWidth: 110, alignment: .leading)
+
+                        Image(systemName: "pencil")
+                            .font(.system(size: 9))
+                            .foregroundColor(Color(appState.activeColor.nsColor).opacity(labelHovered ? 0.9 : 0.4))
+                    }
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
+                        labelHovered = hovering
+                    }
+                }
+                .help("Click to rename collection")
             }
 
             Toggle(
@@ -241,7 +297,7 @@ struct ContentHeaderView: View {
             )
             .labelsHidden()
             .toggleStyle(NibToggleStyle(tint: Color(appState.activeColor.nsColor)))
-            .help(appState.isMonitoring ? "Capturing — click to pause" : "Paused — click to start capturing")
+            .help(appState.isMonitoring ? "Capturing ON (⌃⌘M) — click to pause" : "Capturing OFF (⌃⌘M) — click to resume")
             .accessibilityLabel("Auto-capture")
             .accessibilityValue(appState.isMonitoring ? "on" : "off")
         }
@@ -307,12 +363,12 @@ struct ContentHeaderView: View {
         HStack(alignment: .center, spacing: 6) {
             HeaderIconButton(systemName: "plus", action: {
                 showAddClipModal = true
-            }, help: "Add clip")
+            }, help: "Add clip (manual entry)")
 
             HeaderMenuButton(
                 systemName: "ellipsis",
-                help: searchLabel.map { "Actions for \($0)" } ?? "Collection actions",
-                isDisabled: visibleClips.isEmpty
+                help: searchLabel.map { "Actions for \($0)" } ?? "More options & actions",
+                isDisabled: false
             ) {
                 let scope = searchLabel ?? appState.labelForColor(appState.activeColor.name)
                 let stem = (searchLabel ?? appState.activeColor.name)
@@ -320,45 +376,50 @@ struct ContentHeaderView: View {
                     .replacingOccurrences(of: "#", with: "tag-")
                     .lowercased()
 
-                Section(searchLabel.map { "\(visibleClips.count) matching \($0)" } ?? scope) {
-                    Button("Export as Markdown") {
-                        appState.exportAsMarkdown(visibleClips, title: scope, stem: stem)
+                if !visibleClips.isEmpty {
+                    Section(searchLabel.map { "\(visibleClips.count) matching \($0)" } ?? scope) {
+                        Button("Export as Markdown") {
+                            appState.exportAsMarkdown(visibleClips, title: scope, stem: stem)
+                        }
+                        Button("Export as Plain Text") {
+                            appState.exportAsPlainText(visibleClips, stem: stem)
+                        }
                     }
-                    Button("Export as Plain Text") {
-                        appState.exportAsPlainText(visibleClips, stem: stem)
+
+                    Divider()
+
+                    Button(searchLabel == nil ? "Merge All Into One Clip"
+                                              : "Merge \(visibleClips.count) Results Into One Clip") {
+                        appState.mergeClips(visibleClips, into: appState.activeColor.name)
                     }
+                    .disabled(visibleClips.count < 2)
+
+                    Divider()
+
+                    Button("Export & Clear \(appState.labelForColor(appState.activeColor.name))\u{2026}") {
+                        appState.exportAndClear(for: appState.activeColor.name)
+                    }
+                    Button("Clear \(appState.labelForColor(appState.activeColor.name))\u{2026}", role: .destructive) {
+                        showClearConfirm = true
+                    }
+
+                    Divider()
                 }
 
-                Divider()
+                Section("NibNab") {
+                    Button {
+                        showApiKeyModal = true
+                    } label: {
+                        Label(appState.hasAiSuperpowers ? "AI Superpowers (Active ✨)" : "Configure AI Superpowers...", systemImage: "sparkles")
+                    }
 
-                Button(searchLabel == nil ? "Merge All Into One Clip"
-                                          : "Merge \(visibleClips.count) Results Into One Clip") {
-                    appState.mergeClips(visibleClips, into: appState.activeColor.name)
-                }
-                .disabled(visibleClips.count < 2)
-
-                Divider()
-
-                // Clearing stays scoped to the collection on purpose — a
-                // destructive action shouldn't quietly change meaning because
-                // there's text in the search box.
-                Button("Export & Clear \(appState.labelForColor(appState.activeColor.name))\u{2026}") {
-                    appState.exportAndClear(for: appState.activeColor.name)
-                }
-                Button("Clear \(appState.labelForColor(appState.activeColor.name))\u{2026}", role: .destructive) {
-                    showClearConfirm = true
+                    Button {
+                        showHelp = true
+                    } label: {
+                        Label("Help & Shortcuts...", systemImage: "questionmark.circle")
+                    }
                 }
             }
-
-            HeaderIconButton(
-                systemName: "sparkles",
-                action: { showApiKeyModal = true },
-                help: appState.hasAiSuperpowers ? "AI Superpowers (Active)" : "Unlock AI Superpowers (Gemini)"
-            )
-
-            HeaderIconButton(systemName: "questionmark", action: {
-                showHelp = true
-            }, help: "How NibNab works")
         }
     }
 }
@@ -459,10 +520,6 @@ struct TagPill: View {
 
 struct ContentFooterView: View {
     @EnvironmentObject var appState: AppState
-    @Binding var editingLabel: Bool
-    @Binding var labelText: String
-    @Binding var labelHovered: Bool
-    var labelFocused: FocusState<Bool>.Binding
     let horizontalPadding: CGFloat
     let viewedClipCount: Int
     let resultCount: Int?
@@ -471,7 +528,19 @@ struct ContentFooterView: View {
     var body: some View {
         ZStack {
             HStack {
-                footerLabel
+                if appState.canUndo {
+                    Button(action: { appState.undoLast() }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.uturn.backward")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("Undo (⌘Z)")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundColor(Color.white.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Undo last delete or merge (⌘Z)")
+                }
                 Spacer()
                 clipCounter
             }
@@ -492,8 +561,8 @@ struct ContentFooterView: View {
             }
         }
         .padding(.horizontal, horizontalPadding)
-        .padding(.top, 16)
-        .padding(.bottom, 20)
+        .padding(.top, 14)
+        .padding(.bottom, 18)
         .background(
             LinearGradient(
                 colors: [Color.black.opacity(0.6), Color.black.opacity(0.4)],
@@ -528,71 +597,6 @@ struct ContentFooterView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Color(appState.activeColor.nsColor))
         }
-    }
-
-    private var footerLabel: some View {
-        HStack(spacing: 4) {
-            Text("Active:")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color(appState.activeColor.nsColor))
-
-            if editingLabel {
-                HStack(spacing: 4) {
-                    TextField("", text: $labelText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(Color(appState.activeColor.nsColor))
-                        .frame(width: 120)
-                        .focused(labelFocused)
-                        .onSubmit {
-                            appState.setLabel(labelText, forColor: appState.activeColor.name)
-                            editingLabel = false
-                            labelFocused.wrappedValue = false
-                        }
-                        .onExitCommand {
-                            // Cancel editing on Escape key
-                            editingLabel = false
-                            labelFocused.wrappedValue = false
-                        }
-
-                    Text("\(labelText.count)/12")
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundColor(Color.white.opacity(labelText.count > 12 ? 0.8 : 0.4))
-                }
-            } else {
-                Button(action: {
-                    labelText = appState.labelForColor(appState.activeColor.name)
-                    editingLabel = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        labelFocused.wrappedValue = true
-                    }
-                }) {
-                    HStack(spacing: 3) {
-                        Text(appState.labelForColor(appState.activeColor.name))
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(Color(appState.activeColor.nsColor))
-
-                        Image(systemName: "pencil")
-                            .font(.system(size: 8))
-                            .foregroundColor(Color(appState.activeColor.nsColor).opacity(labelHovered ? 0.9 : 0.4))
-                    }
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
-                        labelHovered = hovering
-                    }
-                }
-                .help("Click to rename")
-            }
-        }
-        .onChange(of: appState.activeColor.name, perform: { _ in
-            // Cancel editing when switching colors to prevent label bleeding
-            if editingLabel {
-                editingLabel = false
-                labelFocused.wrappedValue = false
-            }
-        })
     }
 }
 
@@ -791,6 +795,10 @@ struct ContentView: View {
                     showClearConfirm: $showClearConfirm,
                     showHelp: $showHelp,
                     showApiKeyModal: $showApiKeyModal,
+                    editingLabel: $editingLabel,
+                    labelText: $labelText,
+                    labelHovered: $labelHovered,
+                    labelFocused: $labelFocused,
                     clipCount: appState.clips[appState.activeColor.name]?.count ?? 0,
                     visibleClips: rows.map(\.clip),
                     searchLabel: isSearching ? "\u{201C}\(searchText)\u{201D}" : nil,
@@ -807,10 +815,6 @@ struct ContentView: View {
                 Divider()
                 contentArea
                 ContentFooterView(
-                    editingLabel: $editingLabel,
-                    labelText: $labelText,
-                    labelHovered: $labelHovered,
-                    labelFocused: $labelFocused,
                     horizontalPadding: Self.horizontalPadding - 10,
                     viewedClipCount: appState.clips[appState.activeColor.name]?.count ?? 0,
                     resultCount: isSearching ? rows.count : nil,
@@ -1869,8 +1873,10 @@ struct HelpModal: View {
 
     private let shortcuts: [(keys: String, action: String)] = [
         ("⌃⌘N", "Show / hide NibNab"),
-        ("⌃⌘1–5", "Switch active color"),
         ("⌃⌘M", "Pause / resume capturing"),
+        ("⌃⌘1–5", "Switch active color"),
+        ("⌃⌥⌘1–5", "Direct copy into color"),
+        ("⌘Z", "Undo delete or merge"),
         ("Esc", "Close this window")
     ]
 
@@ -1919,7 +1925,7 @@ struct HelpModal: View {
                             Text(shortcut.keys)
                                 .font(.system(size: 12, weight: .semibold, design: .monospaced))
                                 .foregroundColor(Color(appState.activeColor.nsColor))
-                                .frame(width: 64, alignment: .leading)
+                                .frame(width: 84, alignment: .leading)
                             Text(shortcut.action)
                                 .font(.system(size: 12, design: .rounded))
                                 .foregroundColor(.white.opacity(0.85))

@@ -81,7 +81,7 @@ enum NibTag {
                 end = text.index(after: end)
             }
 
-            let looksHex = body.count == 6 && body.allSatisfy { $0.isHexDigit }
+            let looksHex = (body.count == 3 || body.count == 6 || body.count == 8) && body.allSatisfy { $0.isHexDigit }
             if atWordStart, let first = body.first, first.isLetter,
                body.count >= 2, body.count <= 24, !looksHex {
                 found.append(index..<end)
