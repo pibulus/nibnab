@@ -22,7 +22,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var appState: AppState!
     var eventMonitor: EventMonitor?
     var autoCopyMonitor: AutoCopyMonitor?
-    private var localKeyMonitor: Any?
     private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 12)
     private var hotKeyHandlerRef: EventHandlerRef?
 
@@ -33,9 +32,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appState?.stopClipboardMonitoring()
         autoCopyMonitor?.stop()
         eventMonitor?.stop()
-        if let monitor = localKeyMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
         for ref in hotKeyRefs {
             if let ref { UnregisterEventHotKey(ref) }
         }

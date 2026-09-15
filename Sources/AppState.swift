@@ -392,6 +392,7 @@ class AppState: ObservableObject {
            abs(Date().timeIntervalSince(topClip.timestamp)) < 120,
            let relPath = storageManager.saveImageData(data, id: topClip.id, for: color.name) {
 
+            invalidateUndo()
             let updatedImages = topClip.imagePaths + [relPath]
             let updatedClip = Clip(
                 text: topClip.text,
@@ -625,7 +626,7 @@ class AppState: ObservableObject {
             appName: existing.appName,
             order: existing.order,
             id: existing.id,
-            imagePath: existing.imagePath
+            imagePaths: existing.imagePaths
         )
         clips[targetColor]?[targetIndex] = updated
         if let colorClips = clips[targetColor] {
@@ -1039,6 +1040,17 @@ class AppState: ObservableObject {
 
         let touched = clips.removeClips(ids: ids).union([targetColor])
         clips[targetColor, default: []].insert(updatedMerged, at: 0)
+
+        if var targetClips = clips[targetColor], targetClips.count > Self.maxClipsPerColor {
+            let evicted = targetClips.suffix(from: Self.maxClipsPerColor)
+            for oldClip in evicted {
+                for oldPath in oldClip.imagePaths {
+                    storageManager.deleteImage(at: oldPath, for: targetColor)
+                }
+            }
+            targetClips = Array(targetClips.prefix(Self.maxClipsPerColor))
+            clips[targetColor] = targetClips
+        }
 
         for name in touched {
             reindexOrders(for: name)
