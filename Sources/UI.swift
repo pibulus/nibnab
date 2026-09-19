@@ -229,26 +229,18 @@ struct ContentHeaderView: View {
     }
 
     private var primaryControls: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Image(systemName: "highlighter")
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 16, weight: .bold))
                 .foregroundColor(Color(appState.activeColor.nsColor))
-
-            Text("NibNab")
-                .font(.system(size: 14, weight: .black, design: .rounded))
-                .foregroundColor(.white)
-
-            Text("/")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundColor(.white.opacity(0.3))
 
             if editingLabel {
                 HStack(spacing: 4) {
                     TextField("", text: $labelText)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 15, weight: .black, design: .rounded))
                         .foregroundColor(Color(appState.activeColor.nsColor))
-                        .frame(maxWidth: 80)
+                        .frame(maxWidth: 110)
                         .focused(labelFocused)
                         .onSubmit {
                             appState.setLabel(labelText, forColor: appState.activeColor.name)
@@ -272,13 +264,13 @@ struct ContentHeaderView: View {
                         labelFocused.wrappedValue = true
                     }
                 }) {
-                    HStack(spacing: 3) {
+                    HStack(spacing: 4) {
                         Text(appState.labelForColor(appState.activeColor.name))
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .font(.system(size: 15, weight: .black, design: .rounded))
                             .foregroundColor(Color(appState.activeColor.nsColor))
                             .lineLimit(1)
                             .truncationMode(.tail)
-                            .frame(maxWidth: 90, alignment: .leading)
+                            .frame(maxWidth: 120, alignment: .leading)
 
                         Image(systemName: "pencil")
                             .font(.system(size: 9))
@@ -2623,113 +2615,103 @@ struct WelcomeView: View {
     @State private var gotItHovered = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            VStack(spacing: 16) {
-                Image(systemName: "highlighter")
-                    .font(.system(size: 48, weight: .bold))
-                    .foregroundColor(Color(NibColor.pink.nsColor))
-                    .shadow(color: Color(NibColor.pink.nsColor).opacity(0.3), radius: 8)
+        ScrollView {
+            VStack(spacing: 0) {
+                // Header
+                VStack(spacing: 16) {
+                    Image(systemName: "highlighter")
+                        .font(.system(size: 48, weight: .bold))
+                        .foregroundColor(Color(NibColor.pink.nsColor))
+                        .shadow(color: Color(NibColor.pink.nsColor).opacity(0.3), radius: 8)
 
-                Text("Welcome to NibNab!")
-                    .font(.system(size: 24, weight: .black, design: .rounded))
-                    .foregroundColor(.white)
-            }
-            .padding(.top, 32)
-            .padding(.bottom, 24)
+                    Text("Welcome to NibNab!")
+                        .font(.system(size: 24, weight: .black, design: .rounded))
+                        .foregroundColor(.primary)
+                }
+                .padding(.top, 32)
+                .padding(.bottom, 20)
 
-            // Content
-            VStack(alignment: .leading, spacing: 20) {
-                FeatureRow(
-                    icon: "camera.viewfinder",
-                    color: NibColor.yellow,
-                    title: "Screenshots & Offline OCR",
-                    description: "Snap screenshots (⌘⇧4) — NibNab grabs the image & runs local Apple Vision OCR"
-                )
+                // Content
+                VStack(alignment: .leading, spacing: 18) {
+                    FeatureRow(
+                        icon: "camera.viewfinder",
+                        color: NibColor.yellow,
+                        title: "Screenshots & Offline OCR",
+                        description: "Snap screenshots (⌘⇧4) — NibNab grabs the image & runs local Apple Vision OCR"
+                    )
 
-                FeatureRow(
-                    icon: "tag",
-                    color: NibColor.pink,
-                    title: "ZipList Tag Rack",
-                    description: "Include #tags in your notes — they turn into interactive filter pills with anti-drift"
-                )
+                    FeatureRow(
+                        icon: "tag",
+                        color: NibColor.pink,
+                        title: "ZipList Tag Rack",
+                        description: "Include #tags in your notes — they turn into interactive filter pills with anti-drift"
+                    )
 
-                FeatureRow(
-                    icon: "arrow.triangle.merge",
-                    color: NibColor.green,
-                    title: "Multi-Image Cards & Merge",
-                    description: "Drag cards together or right-click to fuse screenshots & notes into rich cards"
-                )
+                    FeatureRow(
+                        icon: "arrow.triangle.merge",
+                        color: NibColor.green,
+                        title: "Multi-Image Cards & Merge",
+                        description: "Drag cards together or right-click to fuse screenshots & notes into rich cards"
+                    )
 
-                FeatureRow(
-                    icon: "magnifyingglass",
-                    color: NibColor.purple,
-                    title: "Find It Anywhere",
-                    description: "Instant in-memory search across all 5 colors simultaneously by text, tag, or app"
-                )
+                    FeatureRow(
+                        icon: "magnifyingglass",
+                        color: NibColor.purple,
+                        title: "Find It Anywhere",
+                        description: "Instant in-memory search across all 5 colors simultaneously by text, tag, or app"
+                    )
 
-                FeatureRow(
-                    icon: "square.and.arrow.down",
-                    color: NibColor.orange,
-                    title: "Yours To Keep (Obsidian Ready)",
-                    description: "Plain Markdown & companion PNGs on your Mac. Export self-contained bundles anytime"
-                )
-            }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 20)
+                    FeatureRow(
+                        icon: "square.and.arrow.down",
+                        color: NibColor.orange,
+                        title: "Yours To Keep (Obsidian Ready)",
+                        description: "Plain Markdown & companion PNGs on your Mac. Export self-contained bundles anytime"
+                    )
+                }
+                .padding(.horizontal, 32)
+                .padding(.vertical, 16)
 
-            // Footer
-            Button(action: onDismiss) {
-                Text("Got it!")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color(NibColor.pink.nsColor).opacity(gotItHovered ? 1.0 : 0.9),
-                                        Color(NibColor.purple.nsColor).opacity(gotItHovered ? 1.0 : 0.9)
-                                    ],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
+                // Footer
+                Button(action: onDismiss) {
+                    Text("Got it!")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(NibColor.pink.nsColor).opacity(gotItHovered ? 1.0 : 0.9),
+                                            Color(NibColor.purple.nsColor).opacity(gotItHovered ? 1.0 : 0.9)
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
                                 )
-                            )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                    )
-                    .scaleEffect(gotItHovered ? 1.02 : 1.0)
-                    .shadow(color: Color(NibColor.pink.nsColor).opacity(0.3), radius: 8)
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 32)
-            .padding(.bottom, 32)
-            .onHover { hovering in
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
-                    gotItHovered = hovering
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        )
+                        .scaleEffect(gotItHovered ? 1.02 : 1.0)
+                        .shadow(color: Color(NibColor.pink.nsColor).opacity(0.3), radius: 8)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 24)
+                .onHover { hovering in
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
+                        gotItHovered = hovering
+                    }
                 }
             }
+            .frame(maxWidth: .infinity)
         }
-        .frame(width: 460)
-        .background(
-            ZStack {
-                Color.black.opacity(0.9)
-                LinearGradient(
-                    colors: [
-                        Color(NibColor.pink.nsColor).opacity(0.1),
-                        Color(NibColor.purple.nsColor).opacity(0.1)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            }
-        )
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.5), radius: 20)
+        .scrollIndicators(.hidden)
+        .frame(width: 480)
+        .background(Color(NSColor.windowBackgroundColor))
     }
 }
 

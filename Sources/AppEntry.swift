@@ -396,11 +396,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         .environmentObject(appState)
         .preferredColorScheme(.dark)
 
-        // Same as About: the content decides how tall it needs to be.
         let hosting = NSHostingController(rootView: welcomeView)
-        let fitting = hosting.view.fittingSize
         let maxHeight = (NSScreen.main?.visibleFrame.height ?? 800) - 40
-        let welcomeSize = NSSize(width: 460, height: min(max(fitting.height, 420), maxHeight))
+        let welcomeSize = NSSize(width: 480, height: min(560, maxHeight))
         hosting.preferredContentSize = welcomeSize
 
         welcomeWindow = makeAuxiliaryWindow(
