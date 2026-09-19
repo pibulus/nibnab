@@ -555,9 +555,9 @@ struct ContentFooterView: View {
                     .help("Undo last delete or merge (⌘Z)")
                 } else {
                     Text("NibNab")
-                        .font(.system(size: 11, weight: .black, design: .rounded))
-                        .foregroundColor(Color(appState.activeColor.nsColor))
-                        .shadow(color: Color(appState.activeColor.nsColor).opacity(0.35), radius: 3)
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundColor(Color(appState.activeColor.nsColor).opacity(0.85))
+                        .tracking(0.5)
                 }
                 Spacer()
                 clipCounter
@@ -598,22 +598,22 @@ struct ContentFooterView: View {
     private var clipCounter: some View {
         if let resultCount {
             Text("\(resultCount) found")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color(appState.activeColor.nsColor))
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundColor(Color(appState.activeColor.nsColor).opacity(0.85))
                 .help("Searching every collection")
         } else if isFull {
             HStack(spacing: 4) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 9, weight: .bold))
                 Text("\(viewedClipCount) / \(AppState.maxClipsPerColor) full")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
             }
             .foregroundColor(Color(NibColor.orange.nsColor))
             .help("This collection is full — the next capture drops the oldest clip. Export, merge, or clear to keep them.")
         } else {
             Text("\(viewedClipCount) clips")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(Color(appState.activeColor.nsColor))
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundColor(Color(appState.activeColor.nsColor).opacity(0.85))
         }
     }
 }

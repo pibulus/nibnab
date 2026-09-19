@@ -186,7 +186,7 @@ class AppState: ObservableObject {
             ?? (ProcessInfo.processInfo.environment["GEMINI_API_KEY"] ?? "")
 
         soundEffectsEnabled = UserDefaults.standard.object(forKey: "soundEffectsEnabled") as? Bool ?? true
-        isMonitoring = UserDefaults.standard.object(forKey: "isMonitoring") as? Bool ?? true
+        isMonitoring = true
         selectionCaptureEnabled = UserDefaults.standard.object(forKey: "autoCopyEnabled") as? Bool ?? false
         autoTagScreenshotsEnabled = UserDefaults.standard.object(forKey: "autoTagScreenshots") as? Bool ?? false
 
