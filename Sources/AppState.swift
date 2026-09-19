@@ -101,6 +101,7 @@ class AppState: ObservableObject {
     @Published var toastMessage: String? = nil
     @Published var toastUndoable = false
     @Published var toastColor: NibColor? = nil
+    @Published var showWelcomeModal = false
 
     weak var delegate: AppDelegate?
     private var clipboardTimer: Timer?

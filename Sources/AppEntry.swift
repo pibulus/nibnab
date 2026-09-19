@@ -25,7 +25,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var hotKeyRefs: [EventHotKeyRef?] = Array(repeating: nil, count: 12)
     private var hotKeyHandlerRef: EventHandlerRef?
 
-    private var welcomeWindow: NSWindow?
     private var aboutWindow: NSWindow?
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -93,11 +92,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         syncSelectionMonitoring()
 
-        // Check if first launch - show welcome window
+        // Check if first launch - open popover with welcome modal
         let hasLaunchedBefore = UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
         if !hasLaunchedBefore {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                self?.showWelcomeWindow()
+                self?.appState.showWelcomeModal = true
+                self?.showPopover()
             }
         }
     }
@@ -336,7 +336,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func showWelcomeFromMenu() {
-        showWelcomeWindow()
+        appState.showWelcomeModal = true
+        showPopover()
     }
 
     @objc func configureAiSuperpowers() {
@@ -380,32 +381,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func showWelcomeWindow() {
-        if let welcomeWindow {
-            welcomeWindow.level = .floating
-            welcomeWindow.orderFrontRegardless()
-            welcomeWindow.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-
-        let welcomeView = WelcomeView(onDismiss: { [weak self] in
-            self?.welcomeWindow?.close()
-            UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
-            self?.pulseMenuBarIcon()
-        })
-        .environmentObject(appState)
-        .preferredColorScheme(.dark)
-
-        let hosting = NSHostingController(rootView: welcomeView)
-        let maxHeight = (NSScreen.main?.visibleFrame.height ?? 800) - 40
-        let welcomeSize = NSSize(width: 480, height: min(560, maxHeight))
-        hosting.preferredContentSize = welcomeSize
-
-        welcomeWindow = makeAuxiliaryWindow(
-            title: "Welcome to NibNab",
-            contentViewController: hosting,
-            size: welcomeSize
-        )
+        appState.showWelcomeModal = true
+        showPopover()
     }
 
     @objc func showAbout() {
@@ -469,9 +446,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let window = notification.object as? NSWindow else { return }
         // The deferred release below lets AppKit finish its close teardown
         // before ARC drops the last reference.
-        if window == welcomeWindow {
-            DispatchQueue.main.async { [weak self] in self?.welcomeWindow = nil }
-        } else if window == aboutWindow {
+        if window == aboutWindow {
             DispatchQueue.main.async { [weak self] in self?.aboutWindow = nil }
         }
     }

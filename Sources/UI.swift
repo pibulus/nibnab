@@ -190,6 +190,7 @@ struct ContentHeaderView: View {
     @Binding var showClearConfirm: Bool
     @Binding var showHelp: Bool
     @Binding var showApiKeyModal: Bool
+    @Binding var showWelcomeModal: Bool
     @Binding var editingLabel: Bool
     @Binding var labelText: String
     @Binding var labelHovered: Bool
@@ -420,7 +421,7 @@ struct ContentHeaderView: View {
                     }
 
                     Button {
-                        appState.delegate?.showWelcomeFromMenu()
+                        showWelcomeModal = true
                     } label: {
                         Label("Welcome Guide...", systemImage: "hand.wave")
                     }
@@ -555,7 +556,8 @@ struct ContentFooterView: View {
                 } else {
                     Text("NibNab")
                         .font(.system(size: 11, weight: .black, design: .rounded))
-                        .foregroundColor(Color.white.opacity(0.2))
+                        .foregroundColor(Color(appState.activeColor.nsColor))
+                        .shadow(color: Color(appState.activeColor.nsColor).opacity(0.35), radius: 3)
                 }
                 Spacer()
                 clipCounter
@@ -623,6 +625,7 @@ struct ContentOverlaysView: View {
     @Binding var editingClip: Clip?
     @Binding var showHelp: Bool
     @Binding var showApiKeyModal: Bool
+    @Binding var showWelcomeModal: Bool
     // The color the open modal belongs to, captured when it was opened —
     // a ⌃⌘1-5 hotkey can change the active colour while a modal is up, and
     // saving/deleting against the new color would hit the wrong file.
@@ -708,7 +711,19 @@ struct ContentOverlaysView: View {
                 }
             }
 
-            // Welcome modal shown in separate window, not in popover
+            if showWelcomeModal {
+                overlayBackground {
+                    WelcomeModal(onDismiss: {
+                        appState.play(.close)
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                            showWelcomeModal = false
+                        }
+                        UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
+                        appState.delegate?.pulseMenuBarIcon()
+                    })
+                    .environmentObject(appState)
+                }
+            }
         }
     }
 
@@ -724,6 +739,11 @@ struct ContentOverlaysView: View {
                         selectedClip = nil
                         showHelp = false
                         showApiKeyModal = false
+                        if showWelcomeModal {
+                            showWelcomeModal = false
+                            UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
+                            appState.delegate?.pulseMenuBarIcon()
+                        }
                     }
                 }
                 .transition(.opacity)
@@ -749,6 +769,7 @@ struct ContentView: View {
     @State private var showAddClipModal = false
     @State private var showHelp = false
     @State private var showApiKeyModal = false
+    @State private var showWelcomeModal = false
     @State private var editingClip: Clip?
     @State private var modalColorName = ""
     @State private var dropTargetedClipID: UUID? = nil
@@ -811,6 +832,7 @@ struct ContentView: View {
                     showClearConfirm: $showClearConfirm,
                     showHelp: $showHelp,
                     showApiKeyModal: $showApiKeyModal,
+                    showWelcomeModal: $showWelcomeModal,
                     editingLabel: $editingLabel,
                     labelText: $labelText,
                     labelHovered: $labelHovered,
@@ -846,6 +868,7 @@ struct ContentView: View {
                 editingClip: $editingClip,
                 showHelp: $showHelp,
                 showApiKeyModal: $showApiKeyModal,
+                showWelcomeModal: $showWelcomeModal,
                 modalColorName: modalColorName
             )
             .environmentObject(appState)
@@ -860,8 +883,20 @@ struct ContentView: View {
             appState.play(.copy)
             return .handled
         })
-        .onAppear { startKeyMonitor() }
+        .onAppear {
+            startKeyMonitor()
+            let hasLaunched = UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+            if !hasLaunched {
+                showWelcomeModal = true
+            }
+        }
         .onDisappear { stopKeyMonitor() }
+        .onChange(of: appState.showWelcomeModal) { val in
+            if val {
+                showWelcomeModal = true
+                appState.showWelcomeModal = false
+            }
+        }
         .onChange(of: appState.activeColor.name) { _ in focusedClipID = nil }
         .onChange(of: appState.popoverClosedCount) { _ in
             selectedClip = nil
@@ -869,6 +904,7 @@ struct ContentView: View {
             showAddClipModal = false
             showHelp = false
             showApiKeyModal = false
+            showWelcomeModal = false
             editingLabel = false
             focusedClipID = nil
         }
@@ -2608,78 +2644,98 @@ struct ShortcutRow: View {
     }
 }
 
-// MARK: - Welcome View
-struct WelcomeView: View {
+// MARK: - Welcome Modal (In-Popover)
+struct WelcomeModal: View {
     let onDismiss: () -> Void
     @EnvironmentObject var appState: AppState
     @State private var gotItHovered = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                // Header
-                VStack(spacing: 16) {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                HStack(spacing: 8) {
                     Image(systemName: "highlighter")
-                        .font(.system(size: 48, weight: .bold))
-                        .foregroundColor(Color(NibColor.pink.nsColor))
-                        .shadow(color: Color(NibColor.pink.nsColor).opacity(0.3), radius: 8)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(Color(appState.activeColor.nsColor))
 
                     Text("Welcome to NibNab!")
-                        .font(.system(size: 24, weight: .black, design: .rounded))
-                        .foregroundColor(.primary)
+                        .font(.system(size: 15, weight: .black, design: .rounded))
+                        .foregroundColor(.white)
                 }
-                .padding(.top, 32)
-                .padding(.bottom, 20)
 
-                // Content
-                VStack(alignment: .leading, spacing: 18) {
-                    FeatureRow(
+                Spacer()
+
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .help("Close (Esc)")
+            }
+            .padding()
+            .background(Color.nibSurface)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color(appState.activeColor.nsColor).opacity(0.4))
+                    .frame(height: 1)
+            }
+
+            // Content
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    WelcomeFeatureRow(
                         icon: "camera.viewfinder",
                         color: NibColor.yellow,
                         title: "Screenshots & Offline OCR",
-                        description: "Snap screenshots (⌘⇧4) — NibNab grabs the image & runs local Apple Vision OCR"
+                        description: "Snap screenshots (⌘⇧4) — NibNab grabs them & runs local Apple Vision OCR"
                     )
 
-                    FeatureRow(
+                    WelcomeFeatureRow(
+                        icon: "circle.grid.2x2",
+                        color: NibColor.orange,
+                        title: "5 Color Collections & Shortcuts",
+                        description: "Switch colors with ⌃⌘1–5 or copy straight into any color with ⌃⌥⌘1–5"
+                    )
+
+                    WelcomeFeatureRow(
                         icon: "tag",
                         color: NibColor.pink,
                         title: "ZipList Tag Rack",
-                        description: "Include #tags in your notes — they turn into interactive filter pills with anti-drift"
+                        description: "Include #tags in your clips to filter them with one click on the tag shelf"
                     )
 
-                    FeatureRow(
+                    WelcomeFeatureRow(
                         icon: "arrow.triangle.merge",
-                        color: NibColor.green,
-                        title: "Multi-Image Cards & Merge",
-                        description: "Drag cards together or right-click to fuse screenshots & notes into rich cards"
-                    )
-
-                    FeatureRow(
-                        icon: "magnifyingglass",
                         color: NibColor.purple,
-                        title: "Find It Anywhere",
-                        description: "Instant in-memory search across all 5 colors simultaneously by text, tag, or app"
+                        title: "Multi-Image Cards & Merge",
+                        description: "Burst screenshots group automatically, or drag cards together to merge"
                     )
 
-                    FeatureRow(
+                    WelcomeFeatureRow(
                         icon: "square.and.arrow.down",
-                        color: NibColor.orange,
-                        title: "Yours To Keep (Obsidian Ready)",
-                        description: "Plain Markdown & companion PNGs on your Mac. Export self-contained bundles anytime"
+                        color: NibColor.green,
+                        title: "Obsidian Ready & Yours To Keep",
+                        description: "Every clip is a plain local markdown file. Export bundles anytime"
                     )
                 }
-                .padding(.horizontal, 32)
-                .padding(.vertical, 16)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+            }
+            .background(Color.black.opacity(0.65))
 
-                // Footer
+            // Footer
+            HStack {
+                Spacer()
                 Button(action: onDismiss) {
                     Text("Got it!")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 8)
                         .background(
-                            RoundedRectangle(cornerRadius: 10)
+                            RoundedRectangle(cornerRadius: 8)
                                 .fill(
                                     LinearGradient(
                                         colors: [
@@ -2692,26 +2748,60 @@ struct WelcomeView: View {
                                 )
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 10)
+                            RoundedRectangle(cornerRadius: 8)
                                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
                         )
-                        .scaleEffect(gotItHovered ? 1.02 : 1.0)
-                        .shadow(color: Color(NibColor.pink.nsColor).opacity(0.3), radius: 8)
+                        .scaleEffect(gotItHovered ? 1.04 : 1.0)
+                        .shadow(color: Color(NibColor.pink.nsColor).opacity(0.3), radius: 6)
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, 32)
-                .padding(.vertical, 24)
                 .onHover { hovering in
                     withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                         gotItHovered = hovering
                     }
                 }
+                Spacer()
             }
-            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(Color.nibSurface)
         }
-        .scrollIndicators(.hidden)
-        .frame(width: 480)
-        .background(Color(NSColor.windowBackgroundColor))
+        .frame(width: 460, height: 400)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.5), radius: 20)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(appState.activeColor.nsColor).opacity(0.5), lineWidth: 1.5)
+        )
+        .onExitCommand {
+            onDismiss()
+        }
+    }
+}
+
+struct WelcomeFeatureRow: View {
+    let icon: String
+    let color: NibColor
+    let title: String
+    let description: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(Color(color.nsColor))
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+
+                Text(description)
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 
