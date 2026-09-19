@@ -198,14 +198,6 @@ class AppState: ObservableObject {
         }
 
         launchAtLogin = SMAppService.mainApp.status == .enabled
-
-        // Check if first launch - show welcome window
-        let hasLaunchedBefore = UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
-        if !hasLaunchedBefore {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.delegate?.showWelcomeWindow()
-            }
-        }
     }
 
     /// True when the next capture will silently evict the oldest clip.

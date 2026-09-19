@@ -92,6 +92,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             appState.startClipboardMonitoring()
         }
         syncSelectionMonitoring()
+
+        // Check if first launch - show welcome window
+        let hasLaunchedBefore = UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+        if !hasLaunchedBefore {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                self?.showWelcomeWindow()
+            }
+        }
     }
 
     @objc func handleMenubarClick(_ sender: NSStatusBarButton) {
@@ -364,7 +372,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func syncSelectionMonitoring() {
         guard autoCopyMonitor != nil else { return }
 
-        if appState.isMonitoring && appState.selectionCaptureEnabled {
+        if !SandboxInfo.isSandboxed && appState.isMonitoring && appState.selectionCaptureEnabled {
             autoCopyMonitor?.start()
         } else {
             autoCopyMonitor?.stop()
@@ -373,6 +381,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func showWelcomeWindow() {
         if let welcomeWindow {
+            welcomeWindow.level = .floating
+            welcomeWindow.orderFrontRegardless()
             welcomeWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -402,6 +412,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func showAbout() {
         if let aboutWindow {
+            aboutWindow.level = .floating
+            aboutWindow.orderFrontRegardless()
             aboutWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -442,7 +454,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.center()
         window.isReleasedWhenClosed = false
         window.delegate = self
-
+        window.level = .floating
+        window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         return window

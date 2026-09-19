@@ -229,18 +229,26 @@ struct ContentHeaderView: View {
     }
 
     private var primaryControls: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Image(systemName: "highlighter")
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 15, weight: .bold))
                 .foregroundColor(Color(appState.activeColor.nsColor))
+
+            Text("NibNab")
+                .font(.system(size: 14, weight: .black, design: .rounded))
+                .foregroundColor(.white)
+
+            Text("/")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(.white.opacity(0.3))
 
             if editingLabel {
                 HStack(spacing: 4) {
                     TextField("", text: $labelText)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 15, weight: .black, design: .rounded))
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(Color(appState.activeColor.nsColor))
-                        .frame(maxWidth: 100)
+                        .frame(maxWidth: 80)
                         .focused(labelFocused)
                         .onSubmit {
                             appState.setLabel(labelText, forColor: appState.activeColor.name)
@@ -264,13 +272,13 @@ struct ContentHeaderView: View {
                         labelFocused.wrappedValue = true
                     }
                 }) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         Text(appState.labelForColor(appState.activeColor.name))
-                            .font(.system(size: 15, weight: .black, design: .rounded))
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundColor(Color(appState.activeColor.nsColor))
                             .lineLimit(1)
                             .truncationMode(.tail)
-                            .frame(maxWidth: 110, alignment: .leading)
+                            .frame(maxWidth: 90, alignment: .leading)
 
                         Image(systemName: "pencil")
                             .font(.system(size: 9))
@@ -418,6 +426,18 @@ struct ContentHeaderView: View {
                     } label: {
                         Label("Help & Shortcuts...", systemImage: "questionmark.circle")
                     }
+
+                    Button {
+                        appState.delegate?.showWelcomeFromMenu()
+                    } label: {
+                        Label("Welcome Guide...", systemImage: "hand.wave")
+                    }
+
+                    Button {
+                        appState.delegate?.showAbout()
+                    } label: {
+                        Label("About NibNab...", systemImage: "info.circle")
+                    }
                 }
             }
         }
@@ -540,6 +560,10 @@ struct ContentFooterView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Undo last delete or merge (⌘Z)")
+                } else {
+                    Text("NibNab")
+                        .font(.system(size: 11, weight: .black, design: .rounded))
+                        .foregroundColor(Color.white.opacity(0.2))
                 }
                 Spacer()
                 clipCounter
