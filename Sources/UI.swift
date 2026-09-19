@@ -754,6 +754,21 @@ struct ContentOverlaysView: View {
     }
 }
 
+// MARK: - NibNab Scroll Preferences
+private struct NibNabScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct NibNabContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 // MARK: - Main Content View
 struct ContentView: View {
     private static let popoverSize = CGSize(width: 520, height: 480)
@@ -775,6 +790,9 @@ struct ContentView: View {
     @State private var dropTargetedClipID: UUID? = nil
     @State private var focusedClipID: UUID? = nil
     @State private var keyMonitor: Any? = nil
+    @State private var scrollOffset: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
+    @State private var scrollbarHovered: Bool = false
     @FocusState private var labelFocused: Bool
 
     enum SortOrder {
@@ -936,131 +954,204 @@ struct ContentView: View {
 
     private var contentArea: some View {
         ScrollViewReader { proxy in
-        ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 8) {
-                if !rows.isEmpty {
-                    ForEach(rows) { row in
-                        let clip = row.clip
-                        ClipView(
-                            clip: clip,
-                            color: row.color,
-                            showColorPip: isSearching,
-                            isDropTargeted: dropTargetedClipID == clip.id,
-                            isKeyFocused: focusedClipID == clip.id
+            GeometryReader { containerGeo in
+                let vHeight = containerGeo.size.height
+                ZStack(alignment: .trailing) {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if !rows.isEmpty {
+                                ForEach(rows) { row in
+                                    let clip = row.clip
+                                    ClipView(
+                                        clip: clip,
+                                        color: row.color,
+                                        showColorPip: isSearching,
+                                        isDropTargeted: dropTargetedClipID == clip.id,
+                                        isKeyFocused: focusedClipID == clip.id
+                                    )
+                                    .id(clip.id)
+                                    // Reordering and merging are meaningless against a
+                                    // filtered, cross-colour list — the indices don't
+                                    // line up with what's on disk.
+                                    .dropDestination(for: Clip.self) { droppedClips, location in
+                                        guard !isSearching else { return false }
+                                        guard let dropped = droppedClips.first,
+                                              dropped.id != clip.id else { return false }
+                                        let colorName = row.color.name
+                                        let targetIndex = rows.firstIndex(where: { $0.id == clip.id }) ?? 0
+                                        let isMergeZone = location.y > 18 && location.y < 42
+                                        let insertIndex = location.y > 42 ? targetIndex + 1 : targetIndex
+
+                                        if let sourceColor = appState.clips.first(where: { $0.value.contains(dropped) })?.key {
+                                            if sourceColor == colorName {
+                                                if isMergeZone {
+                                                    appState.mergeClip(dropped, into: clip, in: colorName)
+                                                } else {
+                                                    appState.reorderClip(dropped, in: colorName, to: insertIndex)
+                                                }
+                                            } else {
+                                                appState.moveClip(dropped, from: sourceColor, to: colorName)
+                                                if isMergeZone {
+                                                    appState.mergeClip(dropped, into: clip, in: colorName)
+                                                } else {
+                                                    appState.reorderClip(dropped, in: colorName, to: insertIndex)
+                                                }
+                                            }
+                                        }
+                                        dropTargetedClipID = nil
+                                        return true
+                                    } isTargeted: { targeted in
+                                        withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                                            dropTargetedClipID = (targeted && !isSearching) ? clip.id : nil
+                                        }
+                                    }
+                                    .onTapGesture {
+                                        modalColorName = row.color.name
+                                        selectedClip = clip
+                                    }
+                                    .contextMenu {
+                                        Button(action: {
+                                            appState.copyToPasteboard(clip.text)
+                                        }) {
+                                            Label("Copy", systemImage: "doc.on.clipboard")
+                                        }
+
+                                        Button(action: {
+                                            modalColorName = row.color.name
+                                            editingClip = clip
+                                        }) {
+                                            Label("Edit", systemImage: "pencil")
+                                        }
+
+                                        // Dragging onto a footer dot is the fast path, but
+                                        // it's a 20px target and invisible to the keyboard.
+                                        Menu {
+                                            ForEach(NibColor.all.filter { $0.name != row.color.name }, id: \.name) { target in
+                                                Button(appState.labelForColor(target.name)) {
+                                                    appState.moveClip(clip, from: row.color.name, to: target.name)
+                                                }
+                                            }
+                                        } label: {
+                                            Label("Move to", systemImage: "arrow.left.arrow.right")
+                                        }
+
+                                        Button(action: {
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                                appState.deleteClip(clip, from: row.color.name)
+                                            }
+                                        }) {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+
+                                        if appState.hasAiSuperpowers {
+                                            Divider()
+                                            Menu {
+                                                Button(action: {
+                                                    appState.aiAutoTagClip(clip, in: row.color.name)
+                                                }) {
+                                                    Label("Auto-Tag", systemImage: "tag")
+                                                }
+
+                                                Button(action: {
+                                                    appState.aiCleanClipText(clip, in: row.color.name)
+                                                }) {
+                                                    Label("Clean to Markdown", systemImage: "sparkles")
+                                                }
+
+                                                Button(action: {
+                                                    appState.aiSummarizeClip(clip, in: row.color.name)
+                                                }) {
+                                                    Label("Summarize to Bullets", systemImage: "list.bullet")
+                                                }
+                                            } label: {
+                                                Label("AI Superpowers", systemImage: "sparkles")
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                emptyState
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, Self.horizontalPadding)
+                        .padding(.vertical, 12)
+                        .background(
+                            GeometryReader { contentGeo in
+                                Color.clear
+                                    .preference(
+                                        key: NibNabScrollOffsetKey.self,
+                                        value: contentGeo.frame(in: .named("nibnabScrollArea")).minY
+                                    )
+                                    .preference(
+                                        key: NibNabContentHeightKey.self,
+                                        value: contentGeo.size.height
+                                    )
+                            }
                         )
-                            .id(clip.id)
-                            // Reordering and merging are meaningless against a
-                            // filtered, cross-colour list — the indices don't
-                            // line up with what's on disk.
-                            .dropDestination(for: Clip.self) { droppedClips, location in
-                                guard !isSearching else { return false }
-                                guard let dropped = droppedClips.first,
-                                      dropped.id != clip.id else { return false }
-                                let colorName = row.color.name
-                                let targetIndex = rows.firstIndex(where: { $0.id == clip.id }) ?? 0
-                                let isMergeZone = location.y > 18 && location.y < 42
-                                let insertIndex = location.y > 42 ? targetIndex + 1 : targetIndex
-
-                                if let sourceColor = appState.clips.first(where: { $0.value.contains(dropped) })?.key {
-                                    if sourceColor == colorName {
-                                        if isMergeZone {
-                                            appState.mergeClip(dropped, into: clip, in: colorName)
-                                        } else {
-                                            appState.reorderClip(dropped, in: colorName, to: insertIndex)
-                                        }
-                                    } else {
-                                        appState.moveClip(dropped, from: sourceColor, to: colorName)
-                                        if isMergeZone {
-                                            appState.mergeClip(dropped, into: clip, in: colorName)
-                                        } else {
-                                            appState.reorderClip(dropped, in: colorName, to: insertIndex)
-                                        }
-                                    }
-                                }
-                                dropTargetedClipID = nil
-                                return true
-                            } isTargeted: { targeted in
-                                withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
-                                    dropTargetedClipID = (targeted && !isSearching) ? clip.id : nil
-                                }
-                            }
-                            .onTapGesture {
-                                modalColorName = row.color.name
-                                selectedClip = clip
-                            }
-                            .contextMenu {
-                                Button(action: {
-                                    appState.copyToPasteboard(clip.text)
-                                }) {
-                                    Label("Copy", systemImage: "doc.on.clipboard")
-                                }
-
-                                Button(action: {
-                                    modalColorName = row.color.name
-                                    editingClip = clip
-                                }) {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-
-                                // Dragging onto a footer dot is the fast path, but
-                                // it's a 20px target and invisible to the keyboard.
-                                Menu {
-                                    ForEach(NibColor.all.filter { $0.name != row.color.name }, id: \.name) { target in
-                                        Button(appState.labelForColor(target.name)) {
-                                            appState.moveClip(clip, from: row.color.name, to: target.name)
-                                        }
-                                    }
-                                } label: {
-                                    Label("Move to", systemImage: "arrow.left.arrow.right")
-                                }
-
-                                Button(action: {
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                        appState.deleteClip(clip, from: row.color.name)
-                                    }
-                                }) {
-                                    Label("Delete", systemImage: "trash")
-                                }
-
-                                if appState.hasAiSuperpowers {
-                                    Divider()
-                                    Menu {
-                                        Button(action: {
-                                            appState.aiAutoTagClip(clip, in: row.color.name)
-                                        }) {
-                                            Label("Auto-Tag", systemImage: "tag")
-                                        }
-
-                                        Button(action: {
-                                            appState.aiCleanClipText(clip, in: row.color.name)
-                                        }) {
-                                            Label("Clean to Markdown", systemImage: "sparkles")
-                                        }
-
-                                        Button(action: {
-                                            appState.aiSummarizeClip(clip, in: row.color.name)
-                                        }) {
-                                            Label("Summarize to Bullets", systemImage: "list.bullet")
-                                        }
-                                    } label: {
-                                        Label("AI Superpowers", systemImage: "sparkles")
-                                    }
-                                }
-                            }
                     }
-                } else {
-                    emptyState
+                    .coordinateSpace(name: "nibnabScrollArea")
+                    .onPreferenceChange(NibNabScrollOffsetKey.self) { val in
+                        scrollOffset = val
+                    }
+                    .onPreferenceChange(NibNabContentHeightKey.self) { val in
+                        contentHeight = val
+                    }
+
+                    // Cute Neo Toybrut Custom Neon Scrollbar
+                    if contentHeight > vHeight + 10 && vHeight > 40 {
+                        let trackInset: CGFloat = 6
+                        let trackHeight = max(20, vHeight - (trackInset * 2))
+                        let scrollable = max(1, contentHeight - vHeight)
+                        let currentScroll = max(0, min(scrollable, -scrollOffset))
+                        let progress = currentScroll / scrollable
+                        let minThumb: CGFloat = 28
+                        let computedThumb = trackHeight * (vHeight / max(vHeight, contentHeight))
+                        let thumbHeight = max(minThumb, min(trackHeight - 12, computedThumb))
+                        let travel = max(0, trackHeight - thumbHeight)
+                        let thumbOffset = trackInset + (progress * travel)
+                        let activeColor = Color(appState.activeColor.nsColor)
+
+                        ZStack(alignment: .top) {
+                            // Faint neon track
+                            Capsule()
+                                .fill(activeColor.opacity(scrollbarHovered ? 0.16 : 0.08))
+                                .frame(width: scrollbarHovered ? 5 : 3.5, height: trackHeight)
+                                .padding(.top, trackInset)
+
+                            // Glowing neon thumb
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            activeColor,
+                                            activeColor.opacity(0.85)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                                .frame(width: scrollbarHovered ? 5 : 3.5, height: thumbHeight)
+                                .shadow(color: activeColor.opacity(scrollbarHovered ? 0.85 : 0.5), radius: scrollbarHovered ? 5 : 3, x: 0, y: 0)
+                                .offset(y: thumbOffset)
+                        }
+                        .frame(width: 12)
+                        .padding(.trailing, 4)
+                        .contentShape(Rectangle())
+                        .onHover { hovering in
+                            withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                                scrollbarHovered = hovering
+                            }
+                        }
+                        .transition(.opacity)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, Self.horizontalPadding)
-            .padding(.vertical, 12)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onChange(of: focusedClipID) { id in
-            guard let id else { return }
-            withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(id, anchor: .center) }
-        }
+            .onChange(of: focusedClipID) { id in
+                guard let id else { return }
+                withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(id, anchor: .center) }
+            }
         }
     }
 
