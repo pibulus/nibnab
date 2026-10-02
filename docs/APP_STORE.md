@@ -191,7 +191,7 @@ clipboard, clipboard manager, copy paste, text capture, color coding, highlighte
 4+ (No objectionable content)
 
 ## Price
-**$14.99 USD** (Tier 15 / $22.99 AUD) — One-time purchase
+**$9.99 USD** (Tier 10 / $14.99 AUD) — One-time purchase
 
 ## In-App Purchases
 None (Cartridge model: pay once, owned forever)
