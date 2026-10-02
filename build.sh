@@ -110,6 +110,12 @@ else
     echo -e "${YELLOW}⚠️  No AppIcon.icns found — app will use default icon${NC}"
 fi
 
+# Copy Privacy manifest if it exists
+if [ -f "PrivacyInfo.xcprivacy" ]; then
+    cp "PrivacyInfo.xcprivacy" "$APP_BUNDLE/Contents/Resources/"
+    echo "Privacy manifest bundled."
+fi
+
 # Compile Swift
 echo -e "${YELLOW}Compiling Swift code...${NC}"
 # Build each architecture separately, then fuse. lipo output carries NO
